@@ -85,7 +85,3 @@ The generated `ios/` directory is not tracked in Git and can be recreated locall
 
 During development, keep the Metro server running and open the installed development build on the iPhone. Changes to the React Native source code are automatically reflected through Fast Refresh.
 
-### Install dependencies
-
-```bash
-npm ci
