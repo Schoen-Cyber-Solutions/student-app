@@ -9,6 +9,8 @@ export interface Course {
   name: string;
   code: string;
   instructor: string;
+  /** Instructor's university email address. Explicit mock data; replaceable by directory service later. */
+  instructorEmail: string;
   location: string;
   startTime: string; // ISO time or human-readable, e.g. "10:00 AM"
   endTime: string;

@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     fontSize: 17,
     flex: 1,
-    marginLeft: spacing.xs,
+    textAlign: 'center',
   },
   avatar: {
     width: 32,
