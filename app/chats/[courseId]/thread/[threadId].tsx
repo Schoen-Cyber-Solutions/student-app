@@ -83,7 +83,7 @@ export default function ThreadDetailScreen() {
         }}
       />
       <View style={styles.container}>
-        <AppHeader greeting={course?.name ?? 'Thread'} backLabel={course?.name ?? 'Back'} />
+        <AppHeader safeAreaTop greeting={course?.name ?? 'Thread'} backLabel="Back" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

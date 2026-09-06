@@ -52,7 +52,7 @@ export default function CourseCommunityScreen() {
     <>
       <Stack.Screen options={{ title: course.name, headerShown: false }} />
       <View style={styles.container}>
-        <AppHeader greeting={course.name} backLabel="Chats" />
+        <AppHeader safeAreaTop greeting={course.name} backLabel="Chats" />
         <ScreenWrapper>
           <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
 

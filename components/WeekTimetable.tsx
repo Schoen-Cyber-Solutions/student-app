@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -28,7 +28,7 @@ import {
 
 interface WeekTimetableProps {
   courses: Course[];
-  weekDates: Date[]; // Mon–Fri
+  weekDates: Date[];
   weekOffset: number;
   onSelectCourse?: (course: Course) => void;
   onSwipeLeft?: () => void;
@@ -39,9 +39,11 @@ interface WeekTimetableProps {
 const GUTTER_WIDTH = 44;
 const START_HOUR = 8;
 const END_HOUR = 22;
-const SWIPE_THRESHOLD = 50;
-const SWIPE_START_THRESHOLD = 15;
-const SLIDE_DURATION = 150;
+const SWIPE_COMMIT_THRESHOLD = 60;
+const SWIPE_START_THRESHOLD = 20;
+const SWIPE_RATIO = 1.5; // dx must exceed dy * this ratio
+const SNAP_DURATION = 200;
+const SLIDE_OUT_DURATION = 180;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,93 +61,134 @@ export default function WeekTimetable({
   const hours = getHourRange(START_HOUR, END_HOUR);
   const gridHeight = hours.length * HOUR_HEIGHT;
 
-  // Horizontal slide animation for the weekday header
   const translateX = useRef(new Animated.Value(0)).current;
   const isAnimating = useRef(false);
 
-  const runSwipeAnimation = useCallback(
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [nowMinutes, setNowMinutes] = useState(
+    today.getHours() * 60 + today.getMinutes()
+  );
+
+  // Current-time ticker
+  useEffect(() => {
+    const tick = () => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const animateTo = useCallback(
+    (value: number, duration: number, cb?: () => void) => {
+      Animated.timing(translateX, {
+        toValue: value,
+        duration,
+        useNativeDriver: true,
+      }).start(cb);
+    },
+    [translateX]
+  );
+
+  const commitSwipe = useCallback(
     (direction: 'left' | 'right') => {
       if (isAnimating.current) return;
       isAnimating.current = true;
 
-      const exitValue = direction === 'left' ? -SCREEN_WIDTH : SCREEN_WIDTH;
-      const enterValue = direction === 'left' ? SCREEN_WIDTH : -SCREEN_WIDTH;
-      const callback = direction === 'left' ? onSwipeLeft : onSwipeRight;
-
-      // 1. Slide header out in the swipe direction
-      Animated.timing(translateX, {
-        toValue: exitValue,
-        duration: SLIDE_DURATION,
-        useNativeDriver: true,
-      }).start(() => {
-        // 2. Update week state
-        callback?.();
-        // 3. Jump to opposite side (invisible) without animation
-        translateX.setValue(enterValue);
-        // 4. Slide new header in
-        Animated.timing(translateX, {
-          toValue: 0,
-          duration: SLIDE_DURATION,
-          useNativeDriver: true,
-        }).start(() => {
-          isAnimating.current = false;
-        });
+      const exit = direction === 'left' ? -SCREEN_WIDTH : SCREEN_WIDTH;
+      animateTo(exit, SLIDE_OUT_DURATION, () => {
+        direction === 'left' ? onSwipeLeft?.() : onSwipeRight?.();
+        translateX.setValue(0);
+        isAnimating.current = false;
       });
     },
-    [onSwipeLeft, onSwipeRight]
+    [animateTo, onSwipeLeft, onSwipeRight, translateX]
   );
 
-  const headerPanResponder = useRef(
+  const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gestureState) => {
-        const { dx, dy } = gestureState;
-        // Only capture clearly horizontal gestures on the header row.
+      onMoveShouldSetPanResponder: (_, gs) => {
+        if (isAnimating.current) return false;
+        const { dx, dy } = gs;
         return (
-          Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_START_THRESHOLD
+          Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO &&
+          Math.abs(dx) > SWIPE_START_THRESHOLD
         );
       },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < -SWIPE_THRESHOLD) {
-          runSwipeAnimation('left');
-        } else if (gestureState.dx > SWIPE_THRESHOLD) {
-          runSwipeAnimation('right');
+      onPanResponderGrant: () => {
+        setScrollEnabled(false);
+      },
+      onPanResponderMove: (_, gs) => {
+        translateX.setValue(gs.dx);
+      },
+      onPanResponderRelease: (_, gs) => {
+        setScrollEnabled(true);
+        const dx = gs.dx;
+        if (dx < -SWIPE_COMMIT_THRESHOLD) {
+          commitSwipe('left');
+        } else if (dx > SWIPE_COMMIT_THRESHOLD) {
+          commitSwipe('right');
+        } else {
+          animateTo(0, SNAP_DURATION);
         }
+      },
+      onPanResponderTerminate: () => {
+        setScrollEnabled(true);
+        animateTo(0, SNAP_DURATION);
       },
     })
   ).current;
 
-  return (
-    <View style={styles.container}>
-      {/* Week label row with optional Today button */}
-      <View style={styles.weekRow}>
-        <Text
-          style={[styles.weekLabel, { color: colors.secondaryText }]}
-          numberOfLines={1}>
-          {formatWeekLabel(weekDates)}
-        </Text>
-        {weekOffset !== 0 && (
-          <Pressable
-            onPress={onGoToToday}
-            style={styles.todayButton}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Go to today">
-            <Text style={[styles.todayText, { color: colors.tint }]}>
-              Today
-            </Text>
-          </Pressable>
-        )}
-      </View>
+  const isCurrentWeek = weekOffset === 0;
+  const todayInWeek = isCurrentWeek
+    ? weekDates.find((d) => isSameCalendarDay(d, today))
+    : undefined;
+  const todayColumnIndex = todayInWeek
+    ? weekDates.findIndex((d) => isSameCalendarDay(d, today))
+    : -1;
 
-      {/* Day header row — ONLY this area is swipeable for week nav */}
-      <View style={styles.headerRow}>
-        <View style={[styles.gutter, { width: GUTTER_WIDTH }]} />
-        <Animated.View
-          style={[
-            styles.headerDays,
-            { transform: [{ translateX }] },
-          ]}
-          {...headerPanResponder.panHandlers}>
+  const showCurrentTime =
+    isCurrentWeek &&
+    todayColumnIndex >= 0 &&
+    nowMinutes >= START_HOUR * 60 &&
+    nowMinutes <= END_HOUR * 60;
+
+  const currentTimeTop = showCurrentTime
+    ? ((nowMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT
+    : 0;
+
+  return (
+    <View style={styles.container} {...panResponder.panHandlers}>
+      <Animated.View
+        style={[
+          styles.animatedContent,
+          { transform: [{ translateX }] },
+        ]}>
+        {/* Week label row */}
+        <View style={styles.weekRow}>
+          <Text
+            style={[styles.weekLabel, { color: colors.secondaryText }]}
+            numberOfLines={1}>
+            {formatWeekLabel(weekDates)}
+          </Text>
+          {weekOffset !== 0 && (
+            <Pressable
+              onPress={onGoToToday}
+              style={styles.todayButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Go to today">
+              <Text style={[styles.todayText, { color: colors.tint }]}>
+                Today
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Day header row */}
+        <View style={styles.headerRow}>
+          <View style={[styles.gutter, { width: GUTTER_WIDTH }]} />
           {weekDates.map((date) => {
             const isToday = isSameCalendarDay(date, today);
             return (
@@ -167,102 +210,121 @@ export default function WeekTimetable({
               </View>
             );
           })}
-        </Animated.View>
-      </View>
-
-      {/* Scrollable grid — NOT swipeable for week nav */}
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={[styles.gridRow, { height: gridHeight }]}>
-          {/* Time gutter */}
-          <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
-            {hours.map((hour) => (
-              <View
-                key={hour}
-                style={[
-                  styles.hourCell,
-                  { height: HOUR_HEIGHT, borderBottomColor: colors.divider },
-                ]}>
-                <Text style={[styles.hourLabel, { color: colors.mutedText }]}>
-                  {formatHourLabel(hour)}
-                </Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Day columns */}
-          {weekDates.map((date) => {
-            const dayName = formatWeekdayShort(
-              date
-            ) as Course['days'][number];
-            const dayCourses = getCoursesForDay(courses, dayName);
-            const overlapSlots = detectOverlaps(dayCourses);
-            const isToday = isSameCalendarDay(date, today);
-
-            return (
-              <View
-                key={date.toISOString()}
-                style={[
-                  styles.dayCol,
-                  {
-                    borderLeftColor: colors.divider,
-                    backgroundColor: isToday
-                      ? colors.tintSoft
-                      : undefined,
-                  },
-                ]}>
-                {/* Hour grid lines */}
-                {hours.map((hour) => (
-                  <View
-                    key={hour}
-                    style={[
-                      styles.hourCell,
-                      {
-                        height: HOUR_HEIGHT,
-                        borderBottomColor: colors.divider,
-                      },
-                    ]}
-                  />
-                ))}
-
-                {/* Course blocks */}
-                {dayCourses.map((course) => {
-                  const slot = overlapSlots.find(
-                    (s) => s.courseId === course.id
-                  );
-                  const top =
-                    ((toMinutes(course.startTime) - START_HOUR * 60) /
-                      60) *
-                    HOUR_HEIGHT;
-                  const height =
-                    (durationMinutes(
-                      course.startTime,
-                      course.endTime
-                    ) /
-                      60) *
-                    HOUR_HEIGHT;
-
-                  const totalCols = slot?.totalColumns ?? 1;
-                  const colIndex = slot?.columnIndex ?? 0;
-                  const widthPercent = 100 / totalCols;
-                  const leftPercent = colIndex * widthPercent;
-
-                  return (
-                    <TimetableCourseBlock
-                      key={course.id}
-                      course={course}
-                      top={top}
-                      height={height}
-                      widthPercent={widthPercent}
-                      leftPercent={leftPercent}
-                      onPress={onSelectCourse}
-                    />
-                  );
-                })}
-              </View>
-            );
-          })}
         </View>
-      </ScrollView>
+
+        {/* Scrollable timetable grid */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          scrollEnabled={scrollEnabled}>
+          <View style={[styles.gridRow, { height: gridHeight }]}>
+            {/* Time gutter */}
+            <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
+              {hours.map((hour) => (
+                <View
+                  key={hour}
+                  style={[
+                    styles.hourCell,
+                    { height: HOUR_HEIGHT, borderBottomColor: colors.divider },
+                  ]}>
+                  <Text
+                    style={[styles.hourLabel, { color: colors.mutedText }]}>
+                    {formatHourLabel(hour)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Day columns */}
+            {weekDates.map((date, colIndex) => {
+              const dayName = formatWeekdayShort(
+                date
+              ) as Course['days'][number];
+              const dayCourses = getCoursesForDay(courses, dayName);
+              const overlapSlots = detectOverlaps(dayCourses);
+              const isToday = isSameCalendarDay(date, today);
+
+              return (
+                <View
+                  key={date.toISOString()}
+                  style={[
+                    styles.dayCol,
+                    {
+                      borderLeftColor: colors.divider,
+                      backgroundColor: isToday
+                        ? colors.tintSoft
+                        : undefined,
+                    },
+                  ]}>
+                  {/* Hour grid lines */}
+                  {hours.map((hour) => (
+                    <View
+                      key={hour}
+                      style={[
+                        styles.hourCell,
+                        {
+                          height: HOUR_HEIGHT,
+                          borderBottomColor: colors.divider,
+                        },
+                      ]}
+                    />
+                  ))}
+
+                  {/* Current time indicator */}
+                  {showCurrentTime && colIndex === todayColumnIndex && (
+                    <View
+                      style={[
+                        styles.currentTimeLine,
+                        { top: currentTimeTop, borderTopColor: colors.tint },
+                      ]}>
+                      <View
+                        style={[
+                          styles.currentTimeDot,
+                          { backgroundColor: colors.tint },
+                        ]}
+                      />
+                    </View>
+                  )}
+
+                  {/* Course blocks */}
+                  {dayCourses.map((course) => {
+                    const slot = overlapSlots.find(
+                      (s) => s.courseId === course.id
+                    );
+                    const top =
+                      ((toMinutes(course.startTime) - START_HOUR * 60) /
+                        60) *
+                      HOUR_HEIGHT;
+                    const height =
+                      (durationMinutes(
+                        course.startTime,
+                        course.endTime
+                      ) /
+                        60) *
+                      HOUR_HEIGHT;
+
+                    const totalCols = slot?.totalColumns ?? 1;
+                    const colIndexSlot = slot?.columnIndex ?? 0;
+                    const widthPercent = 100 / totalCols;
+                    const leftPercent = colIndexSlot * widthPercent;
+
+                    return (
+                      <TimetableCourseBlock
+                        key={course.id}
+                        course={course}
+                        top={top}
+                        height={height}
+                        widthPercent={widthPercent}
+                        leftPercent={leftPercent}
+                        onPress={onSelectCourse}
+                      />
+                    );
+                  })}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -275,6 +337,9 @@ function formatHourLabel(hour24: number): string {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  animatedContent: {
     flex: 1,
   },
   weekRow: {
@@ -303,10 +368,6 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     paddingBottom: spacing.sm,
-  },
-  headerDays: {
-    flex: 1,
-    flexDirection: 'row',
   },
   gridRow: {
     flexDirection: 'row',
@@ -342,5 +403,21 @@ const styles = StyleSheet.create({
     fontSize: 10,
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
+  },
+  currentTimeLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopWidth: 1.5,
+    zIndex: 10,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  currentTimeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: -3,
+    marginTop: -3.75,
   },
 });
