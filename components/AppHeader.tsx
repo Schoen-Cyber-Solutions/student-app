@@ -29,84 +29,91 @@ export default function AppHeader({
   const colors = Colors[colorScheme];
   const insets = useSafeAreaInsets();
 
+  const leftControl = backLabel ? (
+    <Pressable
+      onPress={() => router.back()}
+      style={styles.backButton}
+      accessibilityRole="button"
+      accessibilityLabel={`Back to ${backLabel}`}
+      hitSlop={8}>
+      {({ pressed }) => (
+        <View style={styles.backRow}>
+          <SymbolView
+            name="chevron.left"
+            tintColor={colors.tint}
+            size={18}
+            weight="medium"
+            style={{ opacity: pressed ? 0.5 : 1 }}
+          />
+          <Text
+            style={[
+              styles.backLabel,
+              { color: colors.tint },
+              pressed && { opacity: 0.5 },
+            ]}
+            numberOfLines={1}>
+            {backLabel}
+          </Text>
+        </View>
+      )}
+    </Pressable>
+  ) : showMenu ? (
+    <Link href="/menu" asChild>
+      <Pressable
+        style={styles.iconButton}
+        accessibilityRole="button"
+        accessibilityLabel="Open menu"
+        hitSlop={8}>
+        {({ pressed }) => (
+          <SymbolView
+            name="line.3.horizontal"
+            tintColor={colors.text}
+            size={22}
+            weight="medium"
+            style={{ opacity: pressed ? 0.5 : 1 }}
+          />
+        )}
+      </Pressable>
+    </Link>
+  ) : null;
+
+  const rightControl = showProfile ? (
+    <Link href="/profile" asChild>
+      <Pressable
+        style={styles.iconButton}
+        accessibilityRole="button"
+        accessibilityLabel="Open profile"
+        hitSlop={8}>
+        {({ pressed }) => (
+          <View
+            style={[
+              styles.avatar,
+              { backgroundColor: colors.tintSoft, opacity: pressed ? 0.6 : 1 },
+            ]}>
+            <SymbolView name="person.fill" tintColor={colors.tint} size={16} />
+          </View>
+        )}
+      </Pressable>
+    </Link>
+  ) : null;
+
   return (
     <View style={[styles.container, safeAreaTop && { paddingTop: insets.top }]}>
       <View style={styles.bar}>
-        {backLabel ? (
-          <Pressable
-            onPress={() => router.back()}
-            style={styles.backButton}
-            accessibilityRole="button"
-            accessibilityLabel={`Back to ${backLabel}`}
-            hitSlop={8}>
-            {({ pressed }) => (
-              <View style={styles.backRow}>
-                <SymbolView
-                  name="chevron.left"
-                  tintColor={colors.tint}
-                  size={18}
-                  weight="medium"
-                  style={{ opacity: pressed ? 0.5 : 1 }}
-                />
-                <Text
-                  style={[
-                    styles.backLabel,
-                    { color: colors.tint },
-                    pressed && { opacity: 0.5 },
-                  ]}
-                  numberOfLines={1}>
-                  {backLabel}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        ) : showMenu ? (
-          <Link href="/menu" asChild>
-            <Pressable
-              style={styles.iconButton}
-              accessibilityRole="button"
-              accessibilityLabel="Open menu"
-              hitSlop={8}>
-              {({ pressed }) => (
-                <SymbolView
-                  name="line.3.horizontal"
-                  tintColor={colors.text}
-                  size={22}
-                  weight="medium"
-                  style={{ opacity: pressed ? 0.5 : 1 }}
-                />
-              )}
-            </Pressable>
-          </Link>
+        {/* Left */}
+        <View style={styles.sideLeft}>{leftControl}</View>
+
+        {/* Center title — absolutely positioned for true screen center */}
+        {greeting ? (
+          <View style={styles.titleContainer} pointerEvents="none">
+            <Text style={styles.titleText} numberOfLines={1}>
+              {greeting}
+            </Text>
+          </View>
         ) : null}
 
-        {greeting ? (
-          <Text style={styles.title} numberOfLines={1}>
-            {greeting}
-          </Text>
-        ) : (
-          <View style={styles.spacer} />
-        )}
-
-        {showProfile && (
-          <Link href="/profile" asChild>
-            <Pressable
-              style={styles.iconButton}
-              accessibilityRole="button"
-              accessibilityLabel="Open profile"
-              hitSlop={8}>
-              {({ pressed }) => (
-                <View
-                  style={[
-                    styles.avatar,
-                    { backgroundColor: colors.tintSoft, opacity: pressed ? 0.6 : 1 },
-                  ]}>
-                  <SymbolView name="person.fill" tintColor={colors.tint} size={16} />
-                </View>
-              )}
-            </Pressable>
-          </Link>
-        )}
+        {/* Right */}
+        <View style={styles.sideRight}>{rightControl}</View>
       </View>
     </View>
   );
@@ -120,6 +127,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 52,
+    position: 'relative',
+  },
+  sideLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  sideRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   iconButton: {
     width: 40,
@@ -141,16 +159,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginLeft: 2,
-    maxWidth: 120,
+    maxWidth: 90,
   },
-  spacer: {
-    flex: 1,
+  titleContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  title: {
+  titleText: {
     ...typography.body,
     fontSize: 17,
-    flex: 1,
     textAlign: 'center',
+    maxWidth: 220,
   },
   avatar: {
     width: 32,
