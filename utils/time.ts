@@ -170,4 +170,27 @@ export function detectOverlaps(courses: Course[]): OverlapSlot[] {
   return slots;
 }
 
+// ── Relative time helper ──
+
+/** Return a human-readable relative time string, e.g. "2h", "45m", "Yesterday". */
+export function relativeTime(isoDate: string): string {
+  const then = new Date(isoDate).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  const diffMin = Math.round(diffMs / 60_000);
+  const diffHour = Math.round(diffMin / 60);
+  const diffDay = Math.round(diffHour / 24);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHour < 24) return `${diffHour}h`;
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay}d`;
+
+  return new Date(isoDate).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export { DAYS };

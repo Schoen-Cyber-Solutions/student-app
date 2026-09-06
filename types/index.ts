@@ -50,15 +50,30 @@ export interface EmailMessage {
   category: 'academic' | 'administrative' | 'club' | 'general';
 }
 
-export interface Thread {
+/** Suggested categories for the UI pills. Threads accept any string for custom categories. */
+export type SuggestedCategory = 'general' | 'exam' | 'assignment' | 'study-group';
+
+export type ThreadCategory = string;
+
+export interface CourseThread {
   id: string;
   courseId: string;
-  authorPseudonym: string;
-  topic: string; // e.g. "/exam2"
   title: string;
   body: string;
-  replyCount: number;
+  category: ThreadCategory;
+  authorPseudonym: string;
   createdAt: string;
+  replyCount: number;
+  moderationStatus: 'visible' | 'removed' | 'under_review';
+}
+
+export interface ThreadReply {
+  id: string;
+  threadId: string;
+  body: string;
+  authorPseudonym: string;
+  createdAt: string;
+  moderationStatus: 'visible' | 'removed' | 'under_review';
 }
 
 /**

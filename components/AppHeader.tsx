@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
@@ -14,6 +14,8 @@ interface AppHeaderProps {
   showProfile?: boolean;
   /** Pad the header for the top safe area (use when the native header is hidden). */
   safeAreaTop?: boolean;
+  /** When provided, shows a back button with this label instead of the menu hamburger. */
+  backLabel?: string;
 }
 
 export default function AppHeader({
@@ -21,6 +23,7 @@ export default function AppHeader({
   showMenu = true,
   showProfile = true,
   safeAreaTop = false,
+  backLabel,
 }: AppHeaderProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
@@ -29,7 +32,35 @@ export default function AppHeader({
   return (
     <View style={[styles.container, safeAreaTop && { paddingTop: insets.top }]}>
       <View style={styles.bar}>
-        {showMenu && (
+        {backLabel ? (
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backButton}
+            accessibilityRole="button"
+            accessibilityLabel={`Back to ${backLabel}`}
+            hitSlop={8}>
+            {({ pressed }) => (
+              <View style={styles.backRow}>
+                <SymbolView
+                  name="chevron.left"
+                  tintColor={colors.tint}
+                  size={18}
+                  weight="medium"
+                  style={{ opacity: pressed ? 0.5 : 1 }}
+                />
+                <Text
+                  style={[
+                    styles.backLabel,
+                    { color: colors.tint },
+                    pressed && { opacity: 0.5 },
+                  ]}
+                  numberOfLines={1}>
+                  {backLabel}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        ) : showMenu ? (
           <Link href="/menu" asChild>
             <Pressable
               style={styles.iconButton}
@@ -47,7 +78,7 @@ export default function AppHeader({
               )}
             </Pressable>
           </Link>
-        )}
+        ) : null}
 
         {greeting ? (
           <Text style={styles.title} numberOfLines={1}>
@@ -95,6 +126,22 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  backButton: {
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backLabel: {
+    ...typography.body,
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 2,
+    maxWidth: 120,
   },
   spacer: {
     flex: 1,

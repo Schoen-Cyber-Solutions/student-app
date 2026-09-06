@@ -1,17 +1,45 @@
-import { StyleSheet } from 'react-native';
-import { Text, View } from '@/components/Themed';
+import { StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 import AppHeader from '@/components/AppHeader';
+import ScreenWrapper from '@/components/ScreenWrapper';
+import SectionHeader from '@/components/SectionHeader';
+import CourseCommunityRow from '@/components/CourseCommunityRow';
+import { mockCourses } from '@/data/mockCourses';
+import { getThreadsForCourse } from '@/data/mockThreads';
+import { useEffect, useState } from 'react';
 
 export default function ChatsScreen() {
+  const [activityMap, setActivityMap] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const map: Record<string, number> = {};
+      for (const course of mockCourses) {
+        const threads = await getThreadsForCourse(course.id);
+        map[course.id] = threads.length;
+      }
+      if (mounted) setActivityMap(map);
+    })();
+    return () => { mounted = false; };
+  }, []);
+
   return (
     <View style={styles.container}>
       <AppHeader greeting="Chats" />
-      <View style={styles.center}>
-        <Text style={styles.title}>Course Communities</Text>
-        <Text style={styles.subtitle}>
-          Select a course to view its discussion threads.
-        </Text>
-      </View>
+      <ScreenWrapper>
+        <View style={styles.section}>
+          <SectionHeader title="Course Communities" />
+          {mockCourses.map((course) => (
+            <CourseCommunityRow
+              key={course.id}
+              course={course}
+              activityCount={activityMap[course.id] || undefined}
+              onPress={() => router.push(`/chats/${course.id}`)}
+            />
+          ))}
+        </View>
+      </ScreenWrapper>
     </View>
   );
 }
@@ -20,20 +48,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#64748B',
-    textAlign: 'center',
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
 });

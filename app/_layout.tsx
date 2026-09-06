@@ -55,6 +55,9 @@ function RootLayoutNav() {
           name="uni-email/compose"
           options={{ title: 'New Message', presentation: 'modal' }}
         />
+        <Stack.Screen name="chats/[courseId]" options={{ title: 'Course Community', headerShown: false }} />
+        <Stack.Screen name="chats/[courseId]/new-thread" options={{ title: 'New Thread', presentation: 'modal' }} />
+        <Stack.Screen name="chats/[courseId]/thread/[threadId]" options={{ title: 'Thread', headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
