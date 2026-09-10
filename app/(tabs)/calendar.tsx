@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
@@ -7,13 +7,22 @@ import WeekTimetable from '@/components/WeekTimetable';
 import CourseDetailOverlay from '@/components/CourseDetailOverlay';
 import EmptyState from '@/components/EmptyState';
 import { Course } from '@/types';
-import { mockCourses } from '@/data/mockCourses';
+import { getEnrolledCourses } from '@/services/university';
 import { getMondayOfWeek, getWeekDayDates } from '@/utils/time';
 
 export default function CalendarScreen() {
   const [view, setView] = useState<CalendarView>('week');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [courses, setCourses] = useState<Course[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    getEnrolledCourses().then((list) => {
+      if (mounted) setCourses(list);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   const baseMonday = getMondayOfWeek(new Date());
   const weekMonday = new Date(baseMonday);
@@ -26,15 +35,15 @@ export default function CalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader safeAreaTop greeting="Calendar" />
-      <ScreenWrapper>
+      <AppHeader safeAreaTop />
+      <ScreenWrapper scrollable={false}>
         <View style={styles.switcher}>
           <CalendarViewSwitcher active={view} onChange={setView} />
         </View>
 
         {view === 'week' && (
           <WeekTimetable
-            courses={mockCourses}
+            courses={courses}
             weekDates={weekDates}
             weekOffset={weekOffset}
             onSelectCourse={setSelectedCourse}

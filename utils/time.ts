@@ -25,7 +25,7 @@ export function getWeekDayDates(monday: Date): Date[] {
   return dates;
 }
 
-/** Format a week label like "September 7–11, 2026" from Mon–Fri dates. */
+/** Format a week label like "September 7 – 11, 2026" from Mon–Fri dates. */
 export function formatWeekLabel(dates: Date[]): string {
   if (dates.length === 0) return '';
   const start = dates[0];
@@ -37,7 +37,7 @@ export function formatWeekLabel(dates: Date[]): string {
   const year = start.getFullYear();
 
   if (startMonth === endMonth) {
-    return `${startMonth} ${startDay}–${endDay}, ${year}`;
+    return `${startMonth} ${startDay} – ${endDay}, ${year}`;
   }
   return `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${year}`;
 }

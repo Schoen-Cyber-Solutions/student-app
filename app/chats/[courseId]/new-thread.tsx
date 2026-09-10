@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,9 +13,9 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { SuggestedCategory } from '@/types';
+import { Course, SuggestedCategory } from '@/types';
 import { createThread } from '@/data/mockThreads';
-import { mockCourses } from '@/data/mockCourses';
+import { getCourseById } from '@/services/university';
 
 const SUGGESTED: SuggestedCategory[] = ['general', 'exam', 'assignment', 'study-group'];
 
@@ -29,7 +29,15 @@ const suggestedLabels: Record<SuggestedCategory, string> = {
 export default function NewThreadScreen() {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const colors = Colors[useColorScheme()];
-  const course = mockCourses.find((c) => c.id === courseId);
+  const [course, setCourse] = useState<Course | undefined>(undefined);
+
+  useEffect(() => {
+    let mounted = true;
+    getCourseById(courseId).then((c) => {
+      if (mounted) setCourse(c);
+    });
+    return () => { mounted = false; };
+  }, [courseId]);
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');

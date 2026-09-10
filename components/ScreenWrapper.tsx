@@ -24,7 +24,7 @@ export default function ScreenWrapper({ children, scrollable = true }: ScreenWra
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, styles.contentNonScrollable]}>{children}</View>
     </SafeAreaView>
   );
 }
@@ -38,5 +38,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: 24,
+  },
+  contentNonScrollable: {
+    flex: 1,
   },
 });

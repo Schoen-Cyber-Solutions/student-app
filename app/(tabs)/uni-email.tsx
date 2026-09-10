@@ -1,71 +1,106 @@
-import { StyleSheet, Pressable } from 'react-native';
-import { Link } from 'expo-router';
-import { Text, View } from '@/components/Themed';
+import { useCallback, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import AppHeader from '@/components/AppHeader';
-import { mockEmails } from '@/data/mockEmails';
-
-const categoryColors: Record<string, string> = {
-  academic: '#EFF6FF',
-  administrative: '#F3E8FF',
-  club: '#ECFDF5',
-  general: '#F1F5F9',
-};
-
-const categoryTextColors: Record<string, string> = {
-  academic: '#1D4ED8',
-  administrative: '#7E22CE',
-  club: '#047857',
-  general: '#475569',
-};
+import ScreenWrapper from '@/components/ScreenWrapper';
+import EmailListItem from '@/components/email/EmailListItem';
+import { EmailMessage } from '@/types';
+import { getInbox } from '@/services/email';
+import Colors from '@/constants/Colors';
+import { spacing, typography } from '@/constants/Theme';
+import { useColorScheme } from '@/components/useColorScheme';
+import { Text } from '@/components/Themed';
 
 export default function UniEmailScreen() {
+  const colors = Colors[useColorScheme()];
+  const [emails, setEmails] = useState<EmailMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const inbox = await getInbox();
+    setEmails(inbox);
+    setLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const unreadCount = emails.filter((e) => !e.isRead).length;
+
   return (
     <View style={styles.container}>
-      <AppHeader greeting="Uni Email" />
-      <View style={styles.list}>
-        {mockEmails.map((email) => (
-          <Link
-            key={email.id}
-            href={`/uni-email/${email.id}`}
-            asChild>
-            <Pressable style={styles.row}>
-              <View style={styles.left}>
-                <Text style={[styles.sender, !email.isRead && styles.unread]}>
-                  {email.senderName}
-                </Text>
-                <Text style={styles.subject} numberOfLines={1}>
-                  {email.subject}
-                </Text>
-                <Text style={styles.preview} numberOfLines={2}>
-                  {email.preview}
+      <AppHeader safeAreaTop />
+      <ScreenWrapper scrollable={false}>
+        {/* Inbox toolbar */}
+        <View style={styles.toolbar}>
+          <View style={styles.toolbarLeft}>
+            <Text style={[styles.inboxLabel, { color: colors.text }]}>
+              Inbox
+            </Text>
+            {unreadCount > 0 && (
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: colors.tintSoft },
+                ]}>
+                <Text
+                  style={[styles.badgeText, { color: colors.tint }]}>
+                  {unreadCount}
                 </Text>
               </View>
-              <View style={styles.right}>
-                <View
-                  style={[
-                    styles.categoryBadge,
-                    { backgroundColor: categoryColors[email.category] || '#F1F5F9' },
-                  ]}>
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      { color: categoryTextColors[email.category] || '#475569' },
-                    ]}>
-                    {email.category}
-                  </Text>
-                </View>
-                <Text style={styles.timestamp}>
-                  {new Date(email.receivedAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </Text>
-                {!email.isRead && <View style={styles.unreadDot} />}
-              </View>
-            </Pressable>
-          </Link>
-        ))}
-      </View>
+            )}
+          </View>
+
+          <Pressable
+            onPress={() => router.push('/uni-email/compose')}
+            style={({ pressed }) => [
+              styles.composeButton,
+              pressed && { opacity: 0.6 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Compose new email">
+            <SymbolView
+              name="square.and.pencil"
+              tintColor={colors.tint}
+              size={22}
+              weight="medium"
+            />
+          </Pressable>
+        </View>
+
+        {/* Email list */}
+        {loading ? (
+          <View style={styles.center}>
+            <Text style={[styles.empty, { color: colors.secondaryText }]}>
+              Loading...
+            </Text>
+          </View>
+        ) : emails.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={[styles.empty, { color: colors.secondaryText }]}>
+              No emails yet.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.list}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 16 }}>
+            {emails.map((email) => (
+              <EmailListItem
+                key={email.id}
+                email={email}
+                onPress={(e) => router.push(`/uni-email/${e.id}`)}
+              />
+            ))}
+          </ScrollView>
+        )}
+      </ScreenWrapper>
     </View>
   );
 }
@@ -74,63 +109,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  list: {
-    paddingTop: 8,
-  },
-  row: {
+  toolbar: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
   },
-  left: {
+  toolbarLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  inboxLabel: {
+    ...typography.heading,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  badge: {
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    ...typography.caption,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  composeButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  list: {
     flex: 1,
   },
-  sender: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 2,
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  unread: {
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  subject: {
+  empty: {
+    ...typography.body,
     fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  preview: {
-    fontSize: 13,
-    color: '#94A3B8',
-    lineHeight: 18,
-  },
-  right: {
-    alignItems: 'flex-end',
-    marginLeft: 12,
-    minWidth: 60,
-  },
-  categoryBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginBottom: 6,
-  },
-  categoryText: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#94A3B8',
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#0F766E',
-    marginTop: 6,
   },
 });

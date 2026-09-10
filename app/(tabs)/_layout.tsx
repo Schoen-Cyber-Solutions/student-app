@@ -1,15 +1,16 @@
 import { SymbolView } from 'expo-symbols';
 import { Tabs } from 'expo-router';
+import type { ColorValue } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 
-function TabIcon({ name, color }: { name: string; color: string }) {
+function TabIcon({ name, color }: { name: string; color: ColorValue }) {
   return (
     <SymbolView
       name={name as any}
-      tintColor={color}
+      tintColor={color as string}
       size={24}
     />
   );
@@ -44,14 +45,16 @@ export default function TabLayout() {
       <Tabs.Screen
         name="chats"
         options={{
-          title: 'Chats',
+          title: 'Chat',
+          headerShown: false,
           tabBarIcon: ({ color }) => <TabIcon name="bubble.left.and.bubble.right" color={color} />,
         }}
       />
       <Tabs.Screen
         name="uni-email"
         options={{
-          title: 'Uni Email',
+          title: 'Email',
+          headerShown: false,
           tabBarIcon: ({ color }) => <TabIcon name="envelope" color={color} />,
         }}
       />
