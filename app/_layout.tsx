@@ -50,7 +50,7 @@ function RootLayoutNav() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="menu" options={{ title: 'Menu' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
-        <Stack.Screen name="uni-email/[id]" options={{ title: 'Email' }} />
+        <Stack.Screen name="uni-email/[id]" options={{ title: 'Email', headerShown: false }} />
         <Stack.Screen
           name="uni-email/compose"
           options={{ title: 'New Message', presentation: 'modal' }}

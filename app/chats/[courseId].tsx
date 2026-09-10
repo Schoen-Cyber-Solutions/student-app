@@ -10,15 +10,23 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { CourseThread } from '@/types';
-import { mockCourses } from '@/data/mockCourses';
+import { Course, CourseThread } from '@/types';
+import { getCourseById } from '@/services/university';
 import { getThreadsForCourse } from '@/data/mockThreads';
 
 export default function CourseCommunityScreen() {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const colors = Colors[useColorScheme()];
-  const course = mockCourses.find((c) => c.id === courseId);
+  const [course, setCourse] = useState<Course | undefined>(undefined);
   const [threads, setThreads] = useState<CourseThread[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    getCourseById(courseId).then((c) => {
+      if (mounted) setCourse(c);
+    });
+    return () => { mounted = false; };
+  }, [courseId]);
 
   const loadThreads = useCallback(async () => {
     const data = await getThreadsForCourse(courseId);
@@ -52,7 +60,7 @@ export default function CourseCommunityScreen() {
     <>
       <Stack.Screen options={{ title: course.name, headerShown: false }} />
       <View style={styles.container}>
-        <AppHeader safeAreaTop greeting={course.name} backLabel="Chats" />
+        <AppHeader safeAreaTop greeting={course.name} backLabel="Chat" />
         <ScreenWrapper>
           <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
 

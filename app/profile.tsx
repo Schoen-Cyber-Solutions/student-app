@@ -26,7 +26,7 @@ export default function ProfileScreen() {
           <View style={styles.badges}>
             {p.isVerified && <StatusBadge active label="Verified Student" />}
             <StatusBadge active={p.lmsConnected} label="LMS" />
-            <StatusBadge active={p.emailConnected} label="Uni Email" />
+            <StatusBadge active={p.emailConnected} label="Email" />
           </View>
         </View>
 

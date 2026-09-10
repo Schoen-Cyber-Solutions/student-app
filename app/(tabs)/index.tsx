@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import AppHeader from '@/components/AppHeader';
@@ -9,14 +10,23 @@ import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { getCourseUpdate, getTodaysCourses } from '@/data/mockCourses';
+import { getCourseUpdate, getTodaysCourses } from '@/services/university';
 import { getUpcomingAssignments } from '@/data/mockAssignments';
 import { mockStudentIdentity } from '@/data/mockStudentIdentity';
+import { Course } from '@/types';
 
 export default function HomeScreen() {
   const colors = Colors[useColorScheme()];
-  const courses = getTodaysCourses();
+  const [courses, setCourses] = useState<Course[]>([]);
   const assignments = getUpcomingAssignments();
+
+  useEffect(() => {
+    let mounted = true;
+    getTodaysCourses().then((list) => {
+      if (mounted) setCourses(list);
+    });
+    return () => { mounted = false; };
+  }, []);
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'long',

@@ -4,18 +4,23 @@ import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import SectionHeader from '@/components/SectionHeader';
 import CourseCommunityRow from '@/components/CourseCommunityRow';
-import { mockCourses } from '@/data/mockCourses';
+import { getEnrolledCourses } from '@/services/university';
 import { getThreadsForCourse } from '@/data/mockThreads';
 import { useEffect, useState } from 'react';
+import { Course } from '@/types';
 
 export default function ChatsScreen() {
+  const [courses, setCourses] = useState<Course[]>([]);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let mounted = true;
     (async () => {
+      const list = await getEnrolledCourses();
+      if (!mounted) return;
+      setCourses(list);
       const map: Record<string, number> = {};
-      for (const course of mockCourses) {
+      for (const course of list) {
         const threads = await getThreadsForCourse(course.id);
         map[course.id] = threads.length;
       }
@@ -26,11 +31,11 @@ export default function ChatsScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader greeting="Chats" />
+      <AppHeader safeAreaTop />
       <ScreenWrapper>
         <View style={styles.section}>
           <SectionHeader title="Course Communities" />
-          {mockCourses.map((course) => (
+          {courses.map((course) => (
             <CourseCommunityRow
               key={course.id}
               course={course}

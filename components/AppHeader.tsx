@@ -16,6 +16,8 @@ interface AppHeaderProps {
   safeAreaTop?: boolean;
   /** When provided, shows a back button with this label instead of the menu hamburger. */
   backLabel?: string;
+  /** Align the title to the left instead of centering it. */
+  titleLeft?: boolean;
 }
 
 export default function AppHeader({
@@ -24,6 +26,7 @@ export default function AppHeader({
   showProfile = true,
   safeAreaTop = false,
   backLabel,
+  titleLeft = false,
 }: AppHeaderProps) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
@@ -68,7 +71,7 @@ export default function AppHeader({
           <SymbolView
             name="line.3.horizontal"
             tintColor={colors.text}
-            size={22}
+            size={26}
             weight="medium"
             style={{ opacity: pressed ? 0.5 : 1 }}
           />
@@ -103,10 +106,14 @@ export default function AppHeader({
         {/* Left */}
         <View style={styles.sideLeft}>{leftControl}</View>
 
-        {/* Center title — absolutely positioned for true screen center */}
+        {/* Title */}
         {greeting ? (
-          <View style={styles.titleContainer} pointerEvents="none">
-            <Text style={styles.titleText} numberOfLines={1}>
+          <View
+            style={titleLeft ? styles.titleLeft : styles.titleCenter}
+            pointerEvents="none">
+            <Text
+              style={titleLeft ? styles.titleTextLeft : styles.titleText}
+              numberOfLines={1}>
               {greeting}
             </Text>
           </View>
@@ -127,7 +134,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 52,
-    position: 'relative',
   },
   sideLeft: {
     flex: 1,
@@ -137,6 +143,16 @@ const styles = StyleSheet.create({
   sideRight: {
     flex: 1,
     alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  titleCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleLeft: {
+    flex: 1,
+    alignItems: 'flex-start',
     justifyContent: 'center',
   },
   iconButton: {
@@ -161,20 +177,18 @@ const styles = StyleSheet.create({
     marginLeft: 2,
     maxWidth: 90,
   },
-  titleContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+
   titleText: {
     ...typography.body,
     fontSize: 17,
     textAlign: 'center',
     maxWidth: 220,
+  },
+  titleTextLeft: {
+    ...typography.body,
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'left',
   },
   avatar: {
     width: 32,
