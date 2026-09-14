@@ -10,23 +10,16 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { Course, CourseThread } from '@/types';
-import { getCourseById } from '@/services/university';
+import { CourseThread } from '@/types';
+import { useMyCourse } from '@/hooks/useMyCourses';
 import { getThreadsForCourse } from '@/data/mockThreads';
 
 export default function CourseCommunityScreen() {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
   const colors = Colors[useColorScheme()];
-  const [course, setCourse] = useState<Course | undefined>(undefined);
+  // Course name/code come from the backend; threads below are still mock data.
+  const course = useMyCourse(courseId);
   const [threads, setThreads] = useState<CourseThread[]>([]);
-
-  useEffect(() => {
-    let mounted = true;
-    getCourseById(courseId).then((c) => {
-      if (mounted) setCourse(c);
-    });
-    return () => { mounted = false; };
-  }, [courseId]);
 
   const loadThreads = useCallback(async () => {
     const data = await getThreadsForCourse(courseId);

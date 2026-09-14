@@ -16,8 +16,8 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { Course, CourseThread, ThreadReply } from '@/types';
-import { getCourseById } from '@/services/university';
+import { CourseThread, ThreadReply } from '@/types';
+import { useMyCourse } from '@/hooks/useMyCourses';
 import { getThread, getRepliesForThread, createReply } from '@/data/mockThreads';
 
 function replyCountLabel(count: number): string {
@@ -32,17 +32,9 @@ export default function ThreadDetailScreen() {
     threadId: string;
   }>();
   const colors = Colors[useColorScheme()];
-  const [course, setCourse] = useState<Course | undefined>(undefined);
+  const course = useMyCourse(courseId);
   const [thread, setThread] = useState<CourseThread | null>(null);
   const [replies, setReplies] = useState<ThreadReply[]>([]);
-
-  useEffect(() => {
-    let mounted = true;
-    getCourseById(courseId).then((c) => {
-      if (mounted) setCourse(c);
-    });
-    return () => { mounted = false; };
-  }, [courseId]);
 
   const loadData = useCallback(async () => {
     const [t, r] = await Promise.all([

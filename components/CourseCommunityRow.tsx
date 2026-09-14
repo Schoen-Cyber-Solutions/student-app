@@ -5,8 +5,11 @@ import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 
+/** The row only needs identity + display fields, so it accepts backend courses too. */
+type CourseRowData = Pick<Course, 'id' | 'name' | 'code'> & { color?: string };
+
 interface CourseCommunityRowProps {
-  course: Course;
+  course: CourseRowData;
   activityCount?: number;
   onPress: () => void;
 }
