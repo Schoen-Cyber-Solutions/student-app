@@ -12,7 +12,7 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: '(tabs)',
+  initialRouteName: 'onboarding',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -48,6 +48,9 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="onboarding" options={{ title: 'Get Started', headerShown: false }} />
+        <Stack.Screen name="username" options={{ title: 'Choose Username', headerShown: false }} />
+        <Stack.Screen name="calendar-connect" options={{ title: 'Connect Calendar', headerShown: false }} />
         <Stack.Screen name="menu" options={{ title: 'Menu' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
         <Stack.Screen name="uni-email/[id]" options={{ title: 'Email', headerShown: false }} />

@@ -86,6 +86,14 @@ export interface Course {
   color?: string;
   /** Provider-specific course identifiers. Never used as primary key. */
   externalRefs?: ExternalReference[];
+  /** Calendar-only: human-readable event date for the detail overlay. */
+  date?: string;
+  /** Calendar-only: full description if available. */
+  description?: string;
+  /** Calendar-only: this item is a visual cluster of multiple same-time point events. */
+  isCluster?: boolean;
+  /** Calendar-only: number of events in the cluster. */
+  clusterCount?: number;
 }
 
 export interface CalendarEvent {

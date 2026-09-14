@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -6,7 +6,9 @@ import {
   PanResponder,
   Animated,
   Pressable,
+  LayoutChangeEvent,
 } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { Course } from '@/types';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
@@ -30,18 +32,22 @@ interface WeekTimetableProps {
   weekDates: Date[];
   weekOffset: number;
   onSelectCourse?: (course: Course) => void;
+  onSelectDay?: (date: Date) => void;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
   onGoToToday?: () => void;
 }
 
-const GUTTER_WIDTH = 44;
-const START_HOUR = 8;
-const END_HOUR = 22;
+const GUTTER_WIDTH = 40;
+const START_HOUR = 0;
+const END_HOUR = 24;
+const MIN_EVENT_MINUTES = 60;
+const BOTTOM_SPACER = HOUR_HEIGHT * 2;
+const SCROLL_TO_HOUR = 9;
 const SWIPE_COMMIT_THRESHOLD = 55;
 const SWIPE_START_THRESHOLD = 12;
-const SWIPE_RATIO = 1.5; // dx must exceed dy * this ratio
-const VELOCITY_THRESHOLD = 0.6; // px/ms (≈ 600 px/s)
+const SWIPE_RATIO = 1.5;
+const VELOCITY_THRESHOLD = 0.6;
 const LIVE_DRAG_MULTIPLIER = 0.5;
 const LIVE_DRAG_CAP = 40;
 const ENTER_DISTANCE = 100;
@@ -53,6 +59,7 @@ export default function WeekTimetable({
   weekDates,
   weekOffset,
   onSelectCourse,
+  onSelectDay,
   onSwipeLeft,
   onSwipeRight,
   onGoToToday,
@@ -60,15 +67,66 @@ export default function WeekTimetable({
   const colors = Colors[useColorScheme()];
   const today = new Date();
   const hours = getHourRange(START_HOUR, END_HOUR);
-  const gridHeight = hours.length * HOUR_HEIGHT;
+  const gridHeight = hours.length * HOUR_HEIGHT + BOTTOM_SPACER;
 
   const translateX = useRef(new Animated.Value(0)).current;
   const isAnimating = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [scrollY, setScrollY] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
   const [nowMinutes, setNowMinutes] = useState(
     today.getHours() * 60 + today.getMinutes()
   );
+
+  // Cluster simultaneous point-in-time due events so the Week view stays readable.
+  const displayCoursesByDay = useMemo(() => {
+    return weekDates.map((date) => {
+      const dayName = formatWeekdayShort(date) as Course['days'][number];
+      const dayCourses = getCoursesForDay(courses, dayName);
+      const pointEvents = dayCourses.filter((c) => !c.endTime);
+      const timedEvents = dayCourses.filter((c) => c.endTime);
+
+      const byStart = new Map<string, Course[]>();
+      for (const c of pointEvents) {
+        const list = byStart.get(c.startTime) ?? [];
+        list.push(c);
+        byStart.set(c.startTime, list);
+      }
+
+      const clustered: Course[] = [];
+      for (const [startTime, group] of byStart.entries()) {
+        if (group.length === 1) {
+          clustered.push(group[0]);
+        } else {
+          clustered.push({
+            id: `cluster-${date.toISOString()}-${startTime}`,
+            name: `Due (${group.length})`,
+            code: '',
+            instructor: '',
+            instructorEmail: '',
+            location: '',
+            startTime,
+            endTime: '',
+            days: [dayName],
+            color: colors.urgent,
+            isCluster: true,
+            clusterCount: group.length,
+            date: date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+            }),
+          });
+        }
+      }
+
+      return [...timedEvents, ...clustered].sort(
+        (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime)
+      );
+    });
+  }, [courses, weekDates, colors.urgent]);
 
   // Current-time ticker
   useEffect(() => {
@@ -80,6 +138,15 @@ export default function WeekTimetable({
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Scroll to 9 AM on mount and whenever the week changes.
+  // The offset is derived from HOUR_HEIGHT so the default viewport is consistent.
+  useEffect(() => {
+    const y = SCROLL_TO_HOUR * HOUR_HEIGHT;
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y, animated: false });
+    });
+  }, [weekOffset]);
 
   const animateTo = useCallback(
     (value: number, duration: number, cb?: () => void) => {
@@ -97,14 +164,11 @@ export default function WeekTimetable({
       if (isAnimating.current) return;
       isAnimating.current = true;
 
-      // 1. Position the new week offscreen in the swipe direction
       const enter = direction === 'left' ? ENTER_DISTANCE : -ENTER_DISTANCE;
       translateX.setValue(enter);
 
-      // 2. Update week state immediately (triggers re-render with new data)
       direction === 'left' ? onSwipeLeft?.() : onSwipeRight?.();
 
-      // 3. Animate the new week in quickly
       animateTo(0, ENTER_DURATION, () => {
         isAnimating.current = false;
       });
@@ -179,6 +243,63 @@ export default function WeekTimetable({
     ? ((nowMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT
     : 0;
 
+  const handleScroll = useCallback(
+    (e: { nativeEvent: { contentOffset: { y: number } } }) => {
+      setScrollY(e.nativeEvent.contentOffset.y);
+    },
+    []
+  );
+
+  const handleLayout = useCallback((e: LayoutChangeEvent) => {
+    setViewportHeight(e.nativeEvent.layout.height);
+  }, []);
+
+  const { hasBelow, nextBelow, hasAbove, nextAbove } = useMemo(() => {
+    if (!viewportHeight || courses.length === 0) {
+      return {
+        hasBelow: false,
+        nextBelow: undefined as Course | undefined,
+        hasAbove: false,
+        nextAbove: undefined as Course | undefined,
+      };
+    }
+    const visibleStart = (scrollY / HOUR_HEIGHT) * 60;
+    const visibleEnd = ((scrollY + viewportHeight) / HOUR_HEIGHT) * 60;
+
+    const timed = courses.map((c) => {
+      const start = toMinutes(c.startTime);
+      const end = c.endTime ? toMinutes(c.endTime) : start;
+      return { course: c, start, end };
+    });
+
+    const below = timed
+      .filter(({ end }) => end > visibleEnd)
+      .sort((a, b) => a.start - b.start);
+
+    const above = timed
+      .filter(({ start }) => start < visibleStart)
+      .sort((a, b) => b.start - a.start);
+
+    return {
+      hasBelow: below.length > 0,
+      nextBelow: below[0]?.course,
+      hasAbove: above.length > 0,
+      nextAbove: above[0]?.course,
+    };
+  }, [courses, scrollY, viewportHeight]);
+
+  const scrollToNextBelow = useCallback(() => {
+    if (!nextBelow) return;
+    const y = (toMinutes(nextBelow.startTime) / 60) * HOUR_HEIGHT;
+    scrollRef.current?.scrollTo({ y, animated: true });
+  }, [nextBelow]);
+
+  const scrollToNextAbove = useCallback(() => {
+    if (!nextAbove) return;
+    const y = Math.max(0, (toMinutes(nextAbove.startTime) / 60) * HOUR_HEIGHT);
+    scrollRef.current?.scrollTo({ y, animated: true });
+  }, [nextAbove]);
+
   return (
     <View style={styles.container}>
       {/* Week label row */}
@@ -215,7 +336,16 @@ export default function WeekTimetable({
         {weekDates.map((date) => {
           const isToday = isSameCalendarDay(date, today);
           return (
-            <View key={date.toISOString()} style={styles.dayCol}>
+            <Pressable
+              key={date.toISOString()}
+              onPress={() => onSelectDay?.(date)}
+              style={({ pressed }) => [
+                styles.dayCol,
+                styles.dayHeaderPress,
+                pressed && { opacity: 0.6 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={`Open day view for ${date.toDateString()}`}>
               <Text
                 style={[
                   styles.dayHeader,
@@ -230,7 +360,7 @@ export default function WeekTimetable({
                 ]}>
                 {formatDayOfMonth(date)}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </View>
@@ -238,9 +368,13 @@ export default function WeekTimetable({
       {/* Calendar viewport: horizontal swipe + vertical scroll */}
       <View style={styles.viewport} {...panResponder.panHandlers}>
         <ScrollView
+          ref={scrollRef}
           style={{ flex: 1 }}
           showsVerticalScrollIndicator={false}
-          scrollEnabled={scrollEnabled}>
+          scrollEnabled={scrollEnabled}
+          scrollEventThrottle={16}
+          onScroll={handleScroll}
+          onLayout={handleLayout}>
           <View style={[styles.gridRow, { height: gridHeight }]}>
             {/* Time gutter — STATIC, outside the animated area */}
             <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
@@ -249,7 +383,7 @@ export default function WeekTimetable({
                   key={hour}
                   style={[
                     styles.hourCell,
-                    { height: HOUR_HEIGHT, borderBottomColor: colors.divider },
+                    { height: HOUR_HEIGHT, borderBottomColor: colors.cardBorder },
                   ]}>
                   <Text
                     style={[styles.hourLabel, { color: colors.mutedText }]}>
@@ -269,7 +403,7 @@ export default function WeekTimetable({
                 const dayName = formatWeekdayShort(
                   date
                 ) as Course['days'][number];
-                const dayCourses = getCoursesForDay(courses, dayName);
+                const dayCourses = displayCoursesByDay[colIndex];
                 const overlapSlots = detectOverlaps(dayCourses);
                 const isToday = isSameCalendarDay(date, today);
 
@@ -279,7 +413,7 @@ export default function WeekTimetable({
                     style={[
                       styles.dayCol,
                       {
-                        borderLeftColor: colors.divider,
+                        borderLeftColor: colors.cardBorder,
                         backgroundColor: isToday
                           ? colors.tintSoft
                           : undefined,
@@ -293,7 +427,7 @@ export default function WeekTimetable({
                           styles.hourCell,
                           {
                             height: HOUR_HEIGHT,
-                            borderBottomColor: colors.divider,
+                            borderBottomColor: colors.cardBorder,
                           },
                         ]}
                       />
@@ -324,13 +458,15 @@ export default function WeekTimetable({
                         ((toMinutes(course.startTime) - START_HOUR * 60) /
                           60) *
                         HOUR_HEIGHT;
+                      const rawDuration = course.endTime
+                        ? durationMinutes(course.startTime, course.endTime)
+                        : 0;
+                      const displayDuration = Math.max(
+                        isNaN(rawDuration) ? 0 : rawDuration,
+                        MIN_EVENT_MINUTES
+                      );
                       const height =
-                        (durationMinutes(
-                          course.startTime,
-                          course.endTime
-                        ) /
-                          60) *
-                        HOUR_HEIGHT;
+                        (displayDuration / 60) * HOUR_HEIGHT;
 
                       const totalCols = slot?.totalColumns ?? 1;
                       const colIndexSlot = slot?.columnIndex ?? 0;
@@ -345,7 +481,11 @@ export default function WeekTimetable({
                           height={height}
                           widthPercent={widthPercent}
                           leftPercent={leftPercent}
-                          onPress={onSelectCourse}
+                          onPress={(c) =>
+                            c.isCluster
+                              ? onSelectDay?.(date)
+                              : onSelectCourse?.(c)
+                          }
                         />
                       );
                     })}
@@ -355,6 +495,64 @@ export default function WeekTimetable({
             </Animated.View>
           </View>
         </ScrollView>
+
+        {hasAbove && (
+          <View
+            style={[styles.aboveIndicatorContainer, { zIndex: 30 } as any]}
+            pointerEvents="box-none">
+            <Pressable
+              onPress={scrollToNextAbove}
+              style={({ pressed }) => [
+                styles.floatingPill,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder,
+                },
+                pressed && { opacity: 0.8 },
+              ]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Scroll to event at ${nextAbove?.startTime}`}>
+              <SymbolView
+                name="chevron.up"
+                tintColor={colors.tint}
+                size={12}
+              />
+              <Text style={[styles.floatingText, { color: colors.tint }]}>
+                {nextAbove?.startTime}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {hasBelow && (
+          <View
+            style={styles.belowIndicatorContainer}
+            pointerEvents="box-none">
+            <Pressable
+              onPress={scrollToNextBelow}
+              style={({ pressed }) => [
+                styles.floatingPill,
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.cardBorder,
+                },
+                pressed && { opacity: 0.8 },
+              ]}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Scroll to event at ${nextBelow?.startTime}`}>
+              <Text style={[styles.floatingText, { color: colors.tint }]}>
+                Next {nextBelow?.startTime}
+              </Text>
+              <SymbolView
+                name="chevron.down"
+                tintColor={colors.tint}
+                size={12}
+              />
+            </Pressable>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -379,7 +577,7 @@ const styles = StyleSheet.create({
   weekRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     marginBottom: spacing.sm,
     minHeight: 22,
     gap: spacing.sm,
@@ -420,6 +618,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: StyleSheet.hairlineWidth,
     position: 'relative',
   },
+  dayHeaderPress: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   dayHeader: {
     ...typography.body,
     fontSize: 13,
@@ -450,6 +652,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     borderTopWidth: 1.5,
+    opacity: 0.85,
     zIndex: 10,
     alignItems: 'flex-start',
     justifyContent: 'center',
@@ -460,5 +663,39 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginLeft: -3,
     marginTop: -3.75,
+  },
+  aboveIndicatorContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  belowIndicatorContainer: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 30,
+  },
+  floatingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  floatingText: {
+    ...typography.label,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

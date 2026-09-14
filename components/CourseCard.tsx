@@ -48,18 +48,22 @@ export default function CourseCard({ course, update }: CourseCardProps) {
             {course.name}
           </Text>
 
-          <View style={styles.metaRow}>
-            <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={13} />
-            <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
-              {course.location}
-            </Text>
-          </View>
-          <View style={styles.metaRow}>
-            <SymbolView name="person" tintColor={colors.mutedText} size={13} />
-            <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
-              {course.instructor}
-            </Text>
-          </View>
+          {course.location ? (
+            <View style={styles.metaRow}>
+              <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={13} />
+              <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
+                {course.location}
+              </Text>
+            </View>
+          ) : null}
+          {course.instructor ? (
+            <View style={styles.metaRow}>
+              <SymbolView name="person" tintColor={colors.mutedText} size={13} />
+              <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
+                {course.instructor}
+              </Text>
+            </View>
+          ) : null}
         </View>
       </View>
 

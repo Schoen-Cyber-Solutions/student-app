@@ -22,13 +22,40 @@
 /** Expo inlines this at bundle time; must be referenced with dot notation. */
 const DEV_SESSION_TOKEN = process.env.EXPO_PUBLIC_DEV_SESSION_TOKEN ?? '';
 
+let runtimeSessionToken: string | null = null;
+let sessionCleared = false;
+
+/**
+ * Set the current in-memory session token. Used after the onboarding
+ * email-verification flow returns a freshly minted token.
+ */
+export function setSessionToken(token: string | null): void {
+  runtimeSessionToken = token;
+  if (token !== null) {
+    sessionCleared = false;
+  }
+}
+
+/**
+ * Clear the current session and suppress the development-env fallback so
+ * the app behaves as unauthenticated. When SecureStore is added, this
+ * should also delete the persisted token.
+ */
+export function clearSessionToken(): void {
+  runtimeSessionToken = null;
+  sessionCleared = true;
+
+  // TODO: delete from SecureStore once expo-secure-store is wired in.
+}
+
 /**
  * Return the current session token, or null if none is available.
  * Callers treat null as "unauthenticated" and show the auth error state.
  */
 export function getSessionToken(): string | null {
   if (!__DEV__) return null;
-  const token = DEV_SESSION_TOKEN.trim();
+  if (sessionCleared) return null;
+  const token = (runtimeSessionToken ?? DEV_SESSION_TOKEN).trim();
   return token.length > 0 ? token : null;
 }
 

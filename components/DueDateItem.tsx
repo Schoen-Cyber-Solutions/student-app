@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { Assignment } from '@/types';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
@@ -9,6 +10,8 @@ interface DueDateItemProps {
   assignment: Assignment;
   /** Hide the bottom divider (e.g. on the last row). */
   isLast?: boolean;
+  completed?: boolean;
+  onToggleComplete?: () => void;
 }
 
 /** Whole-day difference between an ISO date's calendar day and today, ignoring time zones. */
@@ -31,7 +34,12 @@ function relativeLabel(isoDate: string): string {
   return due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function DueDateItem({ assignment, isLast = false }: DueDateItemProps) {
+export default function DueDateItem({
+  assignment,
+  isLast = false,
+  completed = false,
+  onToggleComplete,
+}: DueDateItemProps) {
   const colors = Colors[useColorScheme()];
   const days = daysFromToday(assignment.dueDate);
   const isSoon = days <= 1;
@@ -40,10 +48,35 @@ export default function DueDateItem({ assignment, isLast = false }: DueDateItemP
 
   return (
     <View
-      style={[styles.row, !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder }]}
+      style={[
+        styles.row,
+        completed && { opacity: 0.65 },
+        !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder },
+      ]}
       accessibilityLabel={`${assignment.name}, ${assignment.courseCode}, due ${label} ${time}`}>
+      {onToggleComplete ? (
+        <Pressable
+          onPress={onToggleComplete}
+          style={styles.check}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={completed ? 'Mark as not done' : 'Mark as done'}>
+          <SymbolView
+            name={completed ? 'checkmark.circle.fill' : 'circle'}
+            tintColor={completed ? colors.success : colors.mutedText}
+            size={20}
+          />
+        </Pressable>
+      ) : null}
+
       <View style={styles.left}>
-        <Text style={styles.name} numberOfLines={2}>
+        <Text
+          style={[
+            styles.name,
+            completed && { textDecorationLine: 'line-through' },
+            { color: colors.text },
+          ]}
+          numberOfLines={2}>
           {assignment.name}
         </Text>
         <Text style={[styles.course, { color: colors.secondaryText }]}>{assignment.courseCode}</Text>
@@ -76,6 +109,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md + 2,
+  },
+  check: {
+    paddingRight: spacing.md,
+    justifyContent: 'center',
   },
   left: {
     flex: 1,

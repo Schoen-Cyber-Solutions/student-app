@@ -1,36 +1,58 @@
 import { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { SymbolView } from 'expo-symbols';
 import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import EmailListItem from '@/components/email/EmailListItem';
-import { EmailMessage } from '@/types';
-import { getInbox } from '@/services/email';
+import EmptyState from '@/components/EmptyState';
+import { Text } from '@/components/Themed';
+import { useMyEmail } from '@/hooks/useMyEmail';
+import { getMicrosoftConnectUrl } from '@/services/api/email';
+import { getSessionToken } from '@/services/auth/devSession';
+import { toApiError } from '@/services/api/client';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { Text } from '@/components/Themed';
 
 export default function UniEmailScreen() {
   const colors = Colors[useColorScheme()];
-  const [emails, setEmails] = useState<EmailMessage[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const inbox = await getInbox();
-    setEmails(inbox);
-    setLoading(false);
-  }, []);
+  const { status, messages, retry } = useMyEmail();
+  const [connecting, setConnecting] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load])
+      retry();
+    }, [retry])
   );
 
-  const unreadCount = emails.filter((e) => !e.isRead).length;
+  const REDIRECT_URL = 'studentappdevelopment://oauth';
+
+  const handleConnect = useCallback(async () => {
+    const token = getSessionToken();
+    if (!token) return;
+
+    setConnecting(true);
+    try {
+      const url = await getMicrosoftConnectUrl(token);
+      // eslint-disable-next-line no-console
+      console.log('[uni-email] opening Microsoft auth session');
+      const result = await WebBrowser.openAuthSessionAsync(url, REDIRECT_URL);
+      // eslint-disable-next-line no-console
+      console.log('[uni-email] WebBrowser result type:', result.type);
+      if (result.type === 'success') {
+        retry();
+      }
+    } catch (err) {
+      const apiErr = toApiError(err);
+      console.warn(`[uni-email] connect failed: ${apiErr.kind}${apiErr.status ? ` ${apiErr.status}` : ''}`);
+    } finally {
+      setConnecting(false);
+    }
+  }, [retry]);
+
+  const unreadCount = messages.filter((e) => !e.isRead).length;
 
   return (
     <View style={styles.container}>
@@ -43,13 +65,8 @@ export default function UniEmailScreen() {
               Inbox
             </Text>
             {unreadCount > 0 && (
-              <View
-                style={[
-                  styles.badge,
-                  { backgroundColor: colors.tintSoft },
-                ]}>
-                <Text
-                  style={[styles.badgeText, { color: colors.tint }]}>
+              <View style={[styles.badge, { backgroundColor: colors.tintSoft }]}>
+                <Text style={[styles.badgeText, { color: colors.tint }]}>
                   {unreadCount}
                 </Text>
               </View>
@@ -73,25 +90,73 @@ export default function UniEmailScreen() {
           </Pressable>
         </View>
 
-        {/* Email list */}
-        {loading ? (
+        {/* States */}
+        {status === 'loading' && (
           <View style={styles.center}>
-            <Text style={[styles.empty, { color: colors.secondaryText }]}>
-              Loading...
-            </Text>
+            <ActivityIndicator color={colors.tint} />
           </View>
-        ) : emails.length === 0 ? (
+        )}
+
+        {status === 'unauthorized' && (
+          <EmptyState
+            title="Not signed in"
+            message="Development session token is missing or expired."
+            icon="lock.shield"
+          />
+        )}
+
+        {status === 'not_connected' && (
           <View style={styles.center}>
-            <Text style={[styles.empty, { color: colors.secondaryText }]}>
-              No emails yet.
-            </Text>
+            <EmptyState
+              title="Connect Outlook"
+              message="Sign in with your university Microsoft account to see your inbox."
+              icon="envelope"
+              actionLabel={connecting ? 'Opening...' : 'Connect Outlook'}
+              onAction={handleConnect}
+            />
           </View>
-        ) : (
+        )}
+
+        {status === 'consent_required' && (
+          <View style={styles.center}>
+            <EmptyState
+              title="Needs admin approval"
+              message="Your university may require an administrator to approve this app before it can access Outlook."
+              icon="person.badge.key"
+              actionLabel="Try again"
+              onAction={handleConnect}
+            />
+          </View>
+        )}
+
+        {status === 'error' && (
+          <View style={styles.center}>
+            <EmptyState
+              title="Couldn\u2019t load email"
+              message="Check that the backend is reachable and try again."
+              icon="exclamationmark.triangle"
+              actionLabel="Retry"
+              onAction={retry}
+            />
+          </View>
+        )}
+
+        {status === 'empty' && (
+          <View style={styles.center}>
+            <EmptyState
+              title="Inbox empty"
+              message="No recent messages in your Outlook mailbox."
+              icon="tray"
+            />
+          </View>
+        )}
+
+        {status === 'success' && (
           <ScrollView
             style={styles.list}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 16 }}>
-            {emails.map((email) => (
+            {messages.map((email) => (
               <EmailListItem
                 key={email.id}
                 email={email}
@@ -151,11 +216,5 @@ const styles = StyleSheet.create({
   },
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  empty: {
-    ...typography.body,
-    fontSize: 15,
   },
 });

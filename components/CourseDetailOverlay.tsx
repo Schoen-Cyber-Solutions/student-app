@@ -55,46 +55,73 @@ export default function CourseDetailOverlay({ course, onClose }: CourseDetailOve
           {course && (
             <View style={styles.content}>
               <View style={styles.header}>
-                <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
-                <Text style={styles.name}>{course.name}</Text>
+                {course.code ? (
+                  <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
+                ) : null}
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={0}>
+                  {course.name}
+                </Text>
               </View>
+
+              {course.date ? (
+                <View style={styles.row}>
+                  <SymbolView name="calendar" tintColor={colors.mutedText} size={16} />
+                  <Text style={[styles.rowText, { color: colors.text }]}>{course.date}</Text>
+                </View>
+              ) : null}
 
               <View style={styles.row}>
                 <SymbolView name="clock" tintColor={colors.mutedText} size={16} />
                 <Text style={[styles.rowText, { color: colors.text }]}>
-                  {course.startTime} – {course.endTime}
+                  {course.startTime}
+                  {course.endTime ? ` – ${course.endTime}` : ''}
                 </Text>
               </View>
 
-              <View style={styles.row}>
-                <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={16} />
-                <Text style={[styles.rowText, { color: colors.text }]}>{course.location}</Text>
-              </View>
+              {course.location ? (
+                <View style={styles.row}>
+                  <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={16} />
+                  <Text style={[styles.rowText, { color: colors.text }]}>{course.location}</Text>
+                </View>
+              ) : null}
 
-              <Pressable
-                onPress={handleEmailProfessor}
-                style={({ pressed }) => [
-                  styles.row,
-                  styles.professorRow,
-                  { backgroundColor: colors.surface },
-                  pressed && { opacity: 0.7 },
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel={`Email ${course.instructor}`}>
-                <SymbolView name="envelope" tintColor={colors.tint} size={16} />
-                <View style={styles.professorText}>
-                  <Text style={[styles.rowText, { color: colors.text }]}>{course.instructor}</Text>
-                  <Text style={[styles.email, { color: colors.secondaryText }]}>
-                    {course.instructorEmail}
+              {course.description ? (
+                <View style={[styles.row, styles.descriptionRow]}>
+                  <SymbolView name="text.alignleft" tintColor={colors.mutedText} size={16} />
+                  <Text
+                    style={[styles.descriptionText, { color: colors.text }]}
+                    numberOfLines={0}>
+                    {course.description}
                   </Text>
                 </View>
-                <SymbolView
-                  name="chevron.right"
-                  tintColor={colors.mutedText}
-                  size={14}
-                  style={styles.chevron}
-                />
-              </Pressable>
+              ) : null}
+
+              {course.instructor && course.instructorEmail ? (
+                <Pressable
+                  onPress={handleEmailProfessor}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.professorRow,
+                    { backgroundColor: colors.surface },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Email ${course.instructor}`}>
+                  <SymbolView name="envelope" tintColor={colors.tint} size={16} />
+                  <View style={styles.professorText}>
+                    <Text style={[styles.rowText, { color: colors.text }]}>{course.instructor}</Text>
+                    <Text style={[styles.email, { color: colors.secondaryText }]}>
+                      {course.instructorEmail}
+                    </Text>
+                  </View>
+                  <SymbolView
+                    name="chevron.right"
+                    tintColor={colors.mutedText}
+                    size={14}
+                    style={styles.chevron}
+                  />
+                </Pressable>
+              ) : null}
             </View>
           )}
         </View>
@@ -116,7 +143,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     paddingBottom: 32,
-    maxHeight: '60%',
+    maxHeight: '75%',
   },
   handleRow: {
     flexDirection: 'row',
@@ -164,6 +191,18 @@ const styles = StyleSheet.create({
   rowText: {
     ...typography.bodyRegular,
     fontSize: 15,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  descriptionRow: {
+    alignItems: 'flex-start',
+  },
+  descriptionText: {
+    ...typography.bodyRegular,
+    fontSize: 15,
+    flex: 1,
+    flexWrap: 'wrap',
+    lineHeight: 21,
   },
   professorRow: {
     marginTop: spacing.sm,

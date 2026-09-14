@@ -14,10 +14,10 @@ export function getMondayOfWeek(date: Date): Date {
   return d;
 }
 
-/** Build Mon–Fri dates starting from the given Monday. */
+/** Build Mon–Sun dates starting from the given Monday. */
 export function getWeekDayDates(monday: Date): Date[] {
   const dates: Date[] = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     dates.push(d);
@@ -79,6 +79,30 @@ export function formatHourLabel(hour24: number): string {
   const period = hour24 >= 12 ? 'PM' : 'AM';
   const h = hour24 % 12 || 12;
   return `${h} ${period}`;
+}
+
+/** Format a date as a 12-hour time string, e.g. "2:00 PM". */
+export function formatTime12(date: Date): string {
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const h = hours % 12 || 12;
+  const m = minutes.toString().padStart(2, '0');
+  return `${h}:${m} ${period}`;
+}
+
+/** Return the start of a calendar day in local time. */
+export function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Return the end of a calendar day in local time (23:59:59.999). */
+export function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
 }
 
 /** Return courses that occur on a specific weekday. */

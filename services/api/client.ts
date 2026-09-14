@@ -16,12 +16,15 @@ export type ApiErrorKind =
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status?: number;
+  /** Structured JSON body returned by the backend, if any. Never contains raw stack traces. */
+  readonly body?: unknown;
 
-  constructor(kind: ApiErrorKind, status?: number) {
+  constructor(kind: ApiErrorKind, status?: number, body?: unknown) {
     super(`API request failed (${kind}${status ? ` ${status}` : ''})`);
     this.name = 'ApiError';
     this.kind = kind;
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -78,7 +81,13 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok) {
-    throw new ApiError(kindForStatus(response.status), response.status);
+    let errorBody: unknown = undefined;
+    try {
+      errorBody = await response.json();
+    } catch {
+      // Ignore unparseable error bodies; the status code is enough.
+    }
+    throw new ApiError(kindForStatus(response.status), response.status, errorBody);
   }
 
   try {

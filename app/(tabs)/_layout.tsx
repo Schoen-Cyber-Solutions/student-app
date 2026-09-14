@@ -50,14 +50,6 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabIcon name="bubble.left.and.bubble.right" color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="uni-email"
-        options={{
-          title: 'Email',
-          headerShown: false,
-          tabBarIcon: ({ color }) => <TabIcon name="envelope" color={color} />,
-        }}
-      />
     </Tabs>
   );
 }
