@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import SectionHeader from '@/components/SectionHeader';
@@ -9,27 +10,19 @@ import Colors from '@/constants/Colors';
 import { spacing } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useMyCourses } from '@/hooks/useMyCourses';
-import { getThreadsForCourse } from '@/data/mockThreads';
-import { useEffect, useState } from 'react';
+import { useCourseColors } from '@/hooks/useCourseColors';
 
 export default function ChatsScreen() {
   const colors = Colors[useColorScheme()];
   const { status, courses, retry } = useMyCourses();
-  const [activityMap, setActivityMap] = useState<Record<string, number>>({});
+  const { colors: courseColors, reload: reloadColors } = useCourseColors();
 
-  // Thread counts are still mock data; only the course list comes from the backend.
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const map: Record<string, number> = {};
-      for (const course of courses) {
-        const threads = await getThreadsForCourse(course.id);
-        map[course.id] = threads.length;
-      }
-      if (mounted) setActivityMap(map);
-    })();
-    return () => { mounted = false; };
-  }, [courses]);
+  useFocusEffect(
+    useCallback(() => {
+      retry();
+      reloadColors();
+    }, [retry, reloadColors])
+  );
 
   const renderBody = () => {
     switch (status) {
@@ -63,17 +56,18 @@ export default function ChatsScreen() {
         if (courses.length === 0) {
           return (
             <EmptyState
-              title="No courses yet"
-              message="Once your university enrollments sync, your course communities will appear here."
+              title="No course communities available yet"
+              message="Connect your university calendar to automatically detect your courses."
               icon="book.closed"
+              actionLabel="Connect Calendar"
+              onAction={() => router.push('/calendar-connect')}
             />
           );
         }
         return courses.map((course) => (
           <CourseCommunityRow
             key={course.id}
-            course={course}
-            activityCount={activityMap[course.id] || undefined}
+            course={{ ...course, color: courseColors[course.code] }}
             onPress={() => router.push(`/chats/${course.id}`)}
           />
         ));

@@ -1,65 +1,87 @@
 /**
- * ┌──────────────────────────────────────────────────────────────────────────┐
- * │  TEMPORARY — DEVELOPMENT ONLY                                            │
- * │                                                                          │
- * │  University login is not implemented yet. Until it is, the app obtains  │
- * │  a session token from EXPO_PUBLIC_DEV_SESSION_TOKEN, minted on the       │
- * │  backend with `scripts/create-dev-session.ts`.                           │
- * │                                                                          │
- * │  This module must be replaced by the real auth/session store when login │
- * │  ships. It is deliberately inert outside development builds.            │
- * └──────────────────────────────────────────────────────────────────────────┘
+ * App session token storage.
  *
- * Guarantees:
- *  - The token is read from the environment, never hardcoded.
- *  - Returns null in production bundles even if the variable is set, so a
- *    release build can never silently authenticate as the dev user.
- *  - The token is held in memory only; nothing is written to AsyncStorage,
- *    SecureStore, or any other persistent store.
- *  - The token value is never logged.
+ * - Real sessions are persisted with expo-secure-store on native builds.
+ * - If the native module is not available (e.g. an outdated dev client), the
+ *   session is held in memory only for the current app process.
+ * - There is no automatic dev-token fallback, so a logout stays logged out.
+ * - The token value is never logged.
  */
 
-/** Expo inlines this at bundle time; must be referenced with dot notation. */
-const DEV_SESSION_TOKEN = process.env.EXPO_PUBLIC_DEV_SESSION_TOKEN ?? '';
+let SecureStore: typeof import('expo-secure-store') | null = null;
+try {
+  SecureStore = require('expo-secure-store');
+} catch {
+  // Native module not available in this build.
+}
+
+const SESSION_KEY = 'sessionToken';
 
 let runtimeSessionToken: string | null = null;
-let sessionCleared = false;
+let secureStoreReady = false;
 
-/**
- * Set the current in-memory session token. Used after the onboarding
- * email-verification flow returns a freshly minted token.
- */
-export function setSessionToken(token: string | null): void {
-  runtimeSessionToken = token;
-  if (token !== null) {
-    sessionCleared = false;
+async function readStoredToken(): Promise<string | null> {
+  if (!SecureStore) return null;
+  try {
+    return await SecureStore.getItemAsync(SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function writeStoredToken(token: string | null): Promise<void> {
+  if (!SecureStore) return;
+  try {
+    if (token === null) {
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+    } else {
+      await SecureStore.setItemAsync(SESSION_KEY, token);
+    }
+  } catch {
+    // ignore
   }
 }
 
 /**
- * Clear the current session and suppress the development-env fallback so
- * the app behaves as unauthenticated. When SecureStore is added, this
- * should also delete the persisted token.
+ * Load the persisted session token into memory on app startup.
+ * Call once in the root layout before rendering authenticated screens.
  */
-export function clearSessionToken(): void {
-  runtimeSessionToken = null;
-  sessionCleared = true;
+export async function initSession(): Promise<void> {
+  if (secureStoreReady) return;
+  const stored = await readStoredToken();
+  if (stored) {
+    runtimeSessionToken = stored;
+  }
+  secureStoreReady = true;
+}
 
-  // TODO: delete from SecureStore once expo-secure-store is wired in.
+/**
+ * Set the current session token and persist it. Called after successful login.
+ */
+export async function setSessionToken(token: string | null): Promise<void> {
+  runtimeSessionToken = token;
+  await writeStoredToken(token);
+}
+
+/**
+ * Clear the current session and delete the persisted token.
+ */
+export async function clearSessionToken(): Promise<void> {
+  runtimeSessionToken = null;
+  await writeStoredToken(null);
 }
 
 /**
  * Return the current session token, or null if none is available.
- * Callers treat null as "unauthenticated" and show the auth error state.
+ * Callers treat null as "unauthenticated".
  */
 export function getSessionToken(): string | null {
-  if (!__DEV__) return null;
-  if (sessionCleared) return null;
-  const token = (runtimeSessionToken ?? DEV_SESSION_TOKEN).trim();
-  return token.length > 0 ? token : null;
+  return runtimeSessionToken;
 }
 
-/** True when running a development bundle with a dev token configured. */
-export function hasDevSession(): boolean {
-  return getSessionToken() !== null;
+/**
+ * True once initSession() has finished reading the SecureStore value.
+ */
+export function isSessionReady(): boolean {
+  return secureStoreReady;
 }

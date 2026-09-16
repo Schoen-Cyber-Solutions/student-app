@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View, ActivityIndicator } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View, ActivityIndicator } from 'react-native';
+import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -8,10 +9,28 @@ import { spacing, typography } from '@/constants/Theme';
 import { connectCalendar, getCalendarStatus, skipCalendar } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
 
+type Provider = 'blackboard' | 'canvas';
+
+const PROVIDER_INFO: Record<Provider, { name: string; instructions: string; placeholder: string }> = {
+  blackboard: {
+    name: 'Blackboard',
+    instructions:
+      'Open Blackboard Calendar, choose Share Calendar / external calendar link, and copy the private URL.',
+    placeholder: 'https://blackboard.roosevelt.edu/webapps/calendar/...',
+  },
+  canvas: {
+    name: 'Canvas',
+    instructions:
+      'In Canvas, go to Calendar → Calendar Feed, copy the iCal/ICS feed URL for your account.',
+    placeholder: 'https://canvas.illinoistech.edu/feeds/calendars/...',
+  },
+};
+
 export default function CalendarConnectScreen() {
   const colors = Colors[useColorScheme()];
+  const [provider, setProvider] = useState<Provider | null>(null);
   const [feedUrl, setFeedUrl] = useState('');
-  const [status, setStatus] = useState<{ connected: boolean; eventCount: number; lastSyncedAt: string | null } | null>(null);
+  const [status, setStatus] = useState<{ connected: boolean; provider: string | null; eventCount: number; lastSyncedAt: string | null } | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -21,9 +40,13 @@ export default function CalendarConnectScreen() {
       const s = await getCalendarStatus();
       setStatus({
         connected: s.connected,
+        provider: s.provider,
         eventCount: s.eventCount,
         lastSyncedAt: s.lastSyncedAt,
       });
+      if (s.provider === 'blackboard' || s.provider === 'canvas') {
+        setProvider(s.provider);
+      }
     } catch {
       // ignore status load errors
     }
@@ -40,14 +63,14 @@ export default function CalendarConnectScreen() {
   }, [loadStatus]);
 
   const handleConnect = async () => {
-    if (!feedUrl.trim()) return;
+    if (!provider || !feedUrl.trim()) return;
     setLoading(true);
     setError('');
     setMessage('');
 
     try {
-      const result = await connectCalendar(feedUrl.trim());
-      setMessage(`Calendar connected — ${result.eventsSynced} events synced.`);
+      const result = await connectCalendar(feedUrl.trim(), provider);
+      setMessage(`${PROVIDER_INFO[provider].name} connected — ${result.eventsSynced} events synced.`);
       setFeedUrl('');
       void loadStatus();
       setTimeout(() => {
@@ -56,7 +79,7 @@ export default function CalendarConnectScreen() {
     } catch (err) {
       const apiErr = toApiError(err);
       if (apiErr.kind === 'client' && apiErr.status === 400) {
-        setError('Please enter a valid http or https calendar URL.');
+        setError('Please select a provider and enter a valid http or https calendar URL.');
       } else if (apiErr.kind === 'client' && apiErr.status === 409) {
         setError('Could not reach the calendar or the response was not a valid ICS feed.');
       } else if (apiErr.kind === 'client' && apiErr.status === 422) {
@@ -81,20 +104,19 @@ export default function CalendarConnectScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled">
+    <KeyboardAwareScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.scroll}>
         <View style={styles.card}>
-          <Text style={[styles.title, { color: colors.text }]}>Connect Blackboard Calendar</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Connect your university calendar</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
-            Paste your private Blackboard calendar link. It is encrypted and never shared.
+            Which learning platform does your university use?
           </Text>
 
           {status?.connected && (
             <View style={[styles.status, { backgroundColor: colors.tintSoft }]}>
               <Text style={{ color: colors.tint, fontWeight: '600' }}>
-                Calendar connected ({status.eventCount} events)
+                {status.provider ? `${status.provider.charAt(0).toUpperCase() + status.provider.slice(1)} connected` : 'Calendar connected'} ({status.eventCount} events)
               </Text>
               {status.lastSyncedAt ? (
                 <Text style={{ color: colors.secondaryText, fontSize: 12 }}>
@@ -104,30 +126,58 @@ export default function CalendarConnectScreen() {
             </View>
           )}
 
-          <TextInput
-            value={feedUrl}
-            onChangeText={setFeedUrl}
-            placeholder="https://blackboard.roosevelt.edu/webapps/calendar/..."
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="off"
-            style={[
-              styles.input,
-              {
-                color: colors.text,
-                borderColor: colors.cardBorder,
-                backgroundColor: colors.surface,
-              },
-            ]}
-            placeholderTextColor={colors.mutedText}
-          />
+          <View style={styles.providerRow}>
+            {(['blackboard', 'canvas'] as Provider[]).map((p) => (
+              <Pressable
+                key={p}
+                onPress={() => setProvider(p)}
+                style={({ pressed }) => [
+                  styles.providerCard,
+                  {
+                    borderColor: provider === p ? colors.tint : colors.cardBorder,
+                    backgroundColor: provider === p ? colors.tintSoft : colors.surface,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}>
+                <Text style={[styles.providerName, { color: colors.text }]}>
+                  {PROVIDER_INFO[p].name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {provider && (
+            <>
+              <Text style={[styles.hint, { color: colors.secondaryText }]}>
+                {PROVIDER_INFO[provider].instructions}
+              </Text>
+
+              <TextInput
+                value={feedUrl}
+                onChangeText={setFeedUrl}
+                placeholder={PROVIDER_INFO[provider].placeholder}
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                style={[
+                  styles.input,
+                  {
+                    color: colors.text,
+                    borderColor: colors.cardBorder,
+                    backgroundColor: colors.surface,
+                  },
+                ]}
+                placeholderTextColor={colors.mutedText}
+              />
+            </>
+          )}
 
           <Pressable
             onPress={handleConnect}
-            disabled={loading || !feedUrl.trim()}
+            disabled={loading || !provider || !feedUrl.trim()}
             style={({ pressed }) => [
               styles.button,
-              { backgroundColor: colors.tint, opacity: (loading || !feedUrl.trim()) ? 0.5 : 1 },
+              { backgroundColor: colors.tint, opacity: (loading || !provider || !feedUrl.trim()) ? 0.5 : 1 },
               pressed && { opacity: 0.8 },
             ]}>
             {loading ? (
@@ -147,8 +197,7 @@ export default function CalendarConnectScreen() {
           {message ? <Text style={[styles.message, { color: colors.success }]}>{message}</Text> : null}
           {error ? <Text style={[styles.error, { color: colors.urgent }]}>{error}</Text> : null}
         </View>
-      </ScrollView>
-    </View>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -179,6 +228,28 @@ const styles = StyleSheet.create({
   status: {
     borderRadius: 8,
     padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  providerRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  providerCard: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderWidth: 2,
+    borderRadius: 10,
+  },
+  providerName: {
+    ...typography.label,
+    fontSize: 16,
+  },
+  hint: {
+    ...typography.body,
+    fontSize: 14,
     marginBottom: spacing.md,
   },
   input: {

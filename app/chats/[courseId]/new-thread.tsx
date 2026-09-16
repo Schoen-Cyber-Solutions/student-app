@@ -1,30 +1,24 @@
 import { useState, useCallback } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
+  Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   TextInput,
   View,
 } from 'react-native';
+import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
-import { radius, spacing, typography } from '@/constants/Theme';
+import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { SuggestedCategory } from '@/types';
-import { createThread } from '@/data/mockThreads';
 import { useMyCourse } from '@/hooks/useMyCourses';
+import { createCourseThread } from '@/services/api/communities';
+import { toApiError } from '@/services/api/client';
 
-const SUGGESTED: SuggestedCategory[] = ['general', 'exam', 'assignment', 'study-group'];
-
-const suggestedLabels: Record<SuggestedCategory, string> = {
-  general: 'General',
-  exam: 'Exam',
-  assignment: 'Assignment',
-  'study-group': 'Study Group',
-};
+const MAX_TITLE_LENGTH = 150;
+const MAX_MESSAGE_LENGTH = 5000;
 
 export default function NewThreadScreen() {
   const { courseId } = useLocalSearchParams<{ courseId: string }>();
@@ -32,36 +26,30 @@ export default function NewThreadScreen() {
   const course = useMyCourse(courseId);
 
   const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [category, setCategory] = useState<SuggestedCategory>('general');
-  const [isCustom, setIsCustom] = useState(false);
-  const [customCategory, setCustomCategory] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const titleValid = title.trim().length > 0 && title.trim().length <= 100;
-  const bodyValid = body.trim().length > 0 && body.trim().length <= 2000;
-  const customValid = !isCustom || (customCategory.trim().length > 0 && customCategory.trim().length <= 30);
-  const canSubmit = titleValid && bodyValid && customValid;
-
-  const finalCategory = isCustom ? customCategory.trim() : category;
+  const canSubmit =
+    title.trim().length > 0 && message.trim().length > 0 && !submitting;
 
   const handleCreate = useCallback(async () => {
     if (!canSubmit || !courseId) return;
-    await createThread(courseId, {
-      title: title.trim(),
-      body: body.trim(),
-      category: finalCategory,
-    });
-    router.back();
-  }, [canSubmit, courseId, title, body, finalCategory]);
-
-  const selectSuggested = (cat: SuggestedCategory) => {
-    setCategory(cat);
-    setIsCustom(false);
-  };
-
-  const selectCustom = () => {
-    setIsCustom(true);
-  };
+    setSubmitting(true);
+    try {
+      const thread = await createCourseThread(courseId, title.trim(), message.trim());
+      router.replace(`/chats/${courseId}/thread/${thread.id}`);
+    } catch (err) {
+      const apiErr = toApiError(err);
+      const text =
+        apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
+          ? 'You no longer have access to this course community.'
+          : apiErr.kind === 'client'
+            ? 'Your post was rejected. Please shorten it and try again.'
+            : 'Check your connection and try again.';
+      Alert.alert('Could not post thread', text);
+      setSubmitting(false);
+    }
+  }, [canSubmit, courseId, title, message]);
 
   return (
     <>
@@ -69,31 +57,29 @@ export default function NewThreadScreen() {
         options={{
           title: 'New Thread',
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8}>
+            <Pressable onPress={() => router.back()} hitSlop={8} disabled={submitting}>
               <Text style={[styles.headerAction, { color: colors.tint }]}>Cancel</Text>
             </Pressable>
           ),
           headerRight: () => (
             <Pressable onPress={handleCreate} disabled={!canSubmit} hitSlop={8}>
-              <Text
-                style={[
-                  styles.headerAction,
-                  { color: canSubmit ? colors.tint : colors.mutedText },
-                ]}>
-                Post
-              </Text>
+              {submitting ? (
+                <ActivityIndicator size="small" color={colors.tint} />
+              ) : (
+                <Text
+                  style={[
+                    styles.headerAction,
+                    { color: canSubmit ? colors.tint : colors.mutedText },
+                  ]}>
+                  Post
+                </Text>
+              )}
             </Pressable>
           ),
         }}
       />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}>
-        <ScrollView
-          style={{ flex: 1, backgroundColor: colors.background }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="interactive">
+      <KeyboardAwareScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}>
           {/* Course subtitle */}
           {course && (
             <Text style={[styles.courseLabel, { color: colors.secondaryText }]}>
@@ -110,89 +96,30 @@ export default function NewThreadScreen() {
               placeholderTextColor={colors.mutedText}
               value={title}
               onChangeText={setTitle}
-              maxLength={100}
+              maxLength={MAX_TITLE_LENGTH}
               autoFocus
+              editable={!submitting}
               accessibilityLabel="Thread title"
             />
           </View>
 
-          {/* Category */}
+          {/* Message */}
           <View style={[styles.row, { borderBottomColor: colors.divider }]}>
-            <Text style={[styles.label, { color: colors.secondaryText }]}>Category</Text>
-            <View style={styles.categoryRow}>
-              {SUGGESTED.map((cat) => (
-                <Pressable
-                  key={cat}
-                  onPress={() => selectSuggested(cat)}
-                  style={[
-                    styles.categoryPill,
-                    {
-                      backgroundColor:
-                        !isCustom && category === cat ? colors.tintSoft : colors.surface,
-                      borderColor:
-                        !isCustom && category === cat ? colors.tint : colors.cardBorder,
-                    },
-                  ]}>
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      {
-                        color:
-                          !isCustom && category === cat
-                            ? colors.tint
-                            : colors.secondaryText,
-                      },
-                    ]}>
-                    {suggestedLabels[cat]}
-                  </Text>
-                </Pressable>
-              ))}
-              <Pressable
-                onPress={selectCustom}
-                style={[
-                  styles.categoryPill,
-                  {
-                    backgroundColor: isCustom ? colors.tintSoft : colors.surface,
-                    borderColor: isCustom ? colors.tint : colors.cardBorder,
-                  },
-                ]}>
-                <Text
-                  style={[
-                    styles.categoryText,
-                    { color: isCustom ? colors.tint : colors.secondaryText },
-                  ]}>
-                  + Custom
-                </Text>
-              </Pressable>
-            </View>
-            {isCustom && (
-              <TextInput
-                style={[styles.customInput, { color: colors.text, borderColor: colors.divider }]}
-                placeholder="Enter custom category"
-                placeholderTextColor={colors.mutedText}
-                value={customCategory}
-                onChangeText={setCustomCategory}
-                maxLength={30}
-                autoFocus
-                accessibilityLabel="Custom category"
-              />
-            )}
+            <Text style={[styles.label, { color: colors.secondaryText }]}>Message</Text>
+            <TextInput
+              style={[styles.bodyInput, { color: colors.text }]}
+              placeholder="Write your post..."
+              placeholderTextColor={colors.mutedText}
+              value={message}
+              onChangeText={setMessage}
+              multiline
+              textAlignVertical="top"
+              maxLength={MAX_MESSAGE_LENGTH}
+              editable={!submitting}
+              accessibilityLabel="Thread message"
+            />
           </View>
-
-          {/* Body */}
-          <TextInput
-            style={[styles.bodyInput, { color: colors.text }]}
-            placeholder="Write your post..."
-            placeholderTextColor={colors.mutedText}
-            value={body}
-            onChangeText={setBody}
-            multiline
-            textAlignVertical="top"
-            maxLength={2000}
-            accessibilityLabel="Thread body"
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </>
   );
 }
@@ -223,34 +150,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     paddingVertical: 2,
   },
-  categoryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryPill: {
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: 4,
-  },
-  categoryText: {
-    ...typography.caption,
-    fontWeight: '600',
-  },
-  customInput: {
-    ...typography.bodyRegular,
-    fontSize: 15,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    marginTop: spacing.sm,
-    paddingVertical: 4,
-  },
   bodyInput: {
     ...typography.bodyRegular,
     fontSize: 15,
     lineHeight: 22,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: 4,
     paddingBottom: spacing.xl,
     minHeight: 200,
   },

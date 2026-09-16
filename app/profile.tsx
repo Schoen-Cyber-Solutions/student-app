@@ -1,14 +1,16 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect, Stack } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
+import { useColorScheme } from '@/components/useColorScheme';
+import Colors from '@/constants/Colors';
 import ScreenWrapper from '@/components/ScreenWrapper';
-import { mockProfile } from '@/data/mockProfile';
-import { getCalendarStatus } from '@/services/api/me';
+import { getCalendarStatus, getMe, getMyUniversity, UserProfile } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
 
 function CalendarSection() {
+  const colors = Colors[useColorScheme()];
   const [connected, setConnected] = useState(false);
   const [eventCount, setEventCount] = useState(0);
 
@@ -26,27 +28,14 @@ function CalendarSection() {
   );
 
   return (
-    <Pressable onPress={() => router.push('/calendar-connect')} style={styles.calendarRow}>
-      <View style={styles.calendarLabel}>
+    <Pressable onPress={() => router.push('/calendar-connect')} style={styles.row}>
+      <View style={styles.rowLabel}>
         <Text style={styles.sectionTitle}>Calendar</Text>
         <Text style={styles.sectionValue}>
           {connected ? `${eventCount} events synced` : 'Not connected'}
         </Text>
       </View>
-      <Text style={styles.linkText}>Connect</Text>
-    </Pressable>
-  );
-}
-
-function LogoutSection() {
-  return (
-    <Pressable
-      onPress={() => {
-        clearSessionToken();
-        router.replace('/onboarding');
-      }}
-      style={styles.logoutRow}>
-      <Text style={styles.logoutText}>Log out</Text>
+      <Text style={[styles.linkText, { color: colors.tint }]}>{connected ? 'Reconnect' : 'Connect'}</Text>
     </Pressable>
   );
 }
@@ -60,46 +49,96 @@ function StatusBadge({ active, label }: { active: boolean; label: string }) {
 }
 
 export default function ProfileScreen() {
-  const p = mockProfile;
+  const colors = Colors[useColorScheme()];
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [university, setUniversity] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      getMe()
+        .then(({ user }) => setProfile(user))
+        .catch(() => setProfile(null));
+      getMyUniversity()
+        .then((u) => setUniversity(u.name))
+        .catch(() => setUniversity(null));
+    }, [])
+  );
+
+  const handleLogout = async () => {
+    await clearSessionToken();
+    router.replace('/onboarding');
+  };
+
+  const handleEditProfile = () => {
+    router.push('/profile-edit');
+  };
+
+  const displayName = profile?.firstName ?? profile?.username ?? 'Student';
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Profile' }} />
+      <Stack.Screen
+        options={{
+          title: 'Profile',
+          headerRight: () => (
+            <Pressable
+              onPress={handleEditProfile}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Edit profile"
+              style={({ pressed }) => [styles.headerEditButton, pressed && { opacity: 0.5 }]}>
+              <SymbolView name="pencil" tintColor={colors.tint} size={20} />
+            </Pressable>
+          ),
+        }}
+      />
       <ScreenWrapper>
         <View style={styles.header}>
-          <SymbolView name="person.crop.circle.fill" tintColor="#0F766E" size={80} />
-          <Text style={styles.pseudonym}>{p.pseudonym}</Text>
+          <SymbolView name="person.crop.circle.fill" tintColor={colors.tint} size={80} />
+          <Text style={styles.pseudonym}>@{profile?.username ?? '…'}</Text>
           <View style={styles.badges}>
-            {p.isVerified && <StatusBadge active label="Verified Student" />}
-            <StatusBadge active={p.lmsConnected} label="LMS" />
-            <StatusBadge active={p.emailConnected} label="Email" />
+            {university && <StatusBadge active label="Verified Student" />}
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>University</Text>
-          <Text style={styles.sectionValue}>{p.university}</Text>
-        </View>
+        {university && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>University</Text>
+            <Text style={styles.sectionValue}>{university}</Text>
+          </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Program</Text>
-          <Text style={styles.sectionValue}>{p.program}</Text>
-        </View>
+        {profile?.program && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Program</Text>
+            <Text style={styles.sectionValue}>{profile.program}</Text>
+          </View>
+        )}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Year</Text>
-          <Text style={styles.sectionValue}>{p.year}</Text>
-        </View>
+        {profile?.academicYear && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Academic Year</Text>
+            <Text style={styles.sectionValue}>{profile.academicYear}</Text>
+          </View>
+        )}
 
         <CalendarSection />
 
-        <LogoutSection />
+        <Pressable onPress={handleLogout} style={styles.logoutRow}>
+          <Text style={styles.logoutText}>Log out</Text>
+        </Pressable>
       </ScreenWrapper>
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  headerEditButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   header: {
     alignItems: 'center',
     paddingVertical: 32,
@@ -152,7 +191,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  calendarRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -161,13 +200,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
-  calendarLabel: {
+  rowLabel: {
     flex: 1,
   },
   linkText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#0F766E',
   },
   logoutRow: {
     alignItems: 'center',

@@ -10,6 +10,7 @@ export interface VerifyCodeResponse {
   user?: {
     id: string;
     username: string;
+    onboardingState: string;
   };
 }
 

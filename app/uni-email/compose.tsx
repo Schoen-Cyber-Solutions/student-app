@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
@@ -51,7 +51,9 @@ export default function ComposeEmailScreen() {
         }}
       />
 
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {/* To field */}
         <View style={[styles.row, { borderBottomColor: colors.divider }]}>
           <Text style={[styles.label, { color: colors.secondaryText }]}>To:</Text>
@@ -91,7 +93,7 @@ export default function ComposeEmailScreen() {
           textAlignVertical="top"
           accessibilityLabel="Message body"
         />
-      </View>
+      </KeyboardAvoidingView>
     </>
   );
 }

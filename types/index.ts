@@ -141,33 +141,8 @@ export interface EmailMessage {
 }
 
 // ── App Content (chat / community) ──
-// Chat data is app-owned and may be stored in a future backend.
-
-/** Suggested categories for the UI pills. Threads accept any string for custom categories. */
-export type SuggestedCategory = 'general' | 'exam' | 'assignment' | 'study-group';
-
-export type ThreadCategory = string;
-
-export interface CourseThread {
-  id: string;
-  courseId: string;
-  title: string;
-  body: string;
-  category: ThreadCategory;
-  authorPseudonym: string;
-  createdAt: string;
-  replyCount: number;
-  moderationStatus: 'visible' | 'removed' | 'under_review';
-}
-
-export interface ThreadReply {
-  id: string;
-  threadId: string;
-  body: string;
-  authorPseudonym: string;
-  createdAt: string;
-  moderationStatus: 'visible' | 'removed' | 'under_review';
-}
+// Community data contracts live in services/api/communities.ts (the backend's
+// public shape: username identity, message counts, soft-delete ownership).
 
 // ── Legacy / UI-specific types ──
 

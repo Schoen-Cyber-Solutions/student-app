@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { getSessionToken } from '../auth/devSession';
 
 /**
  * Normalized calendar event from GET /api/me/calendar.
@@ -6,6 +7,7 @@ import { apiRequest } from './client';
  */
 export interface MyCalendarEvent {
   id: string;
+  provider: string;
   title: string;
   description: string | null;
   location: string | null;
@@ -14,6 +16,7 @@ export interface MyCalendarEvent {
   allDay: boolean;
   courseCode: string | null;
   courseName: string | null;
+  color: string | null;
 }
 
 interface MyCalendarResponse {
@@ -25,6 +28,7 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
   const v = value as Record<string, unknown>;
   return (
     typeof v.id === 'string' &&
+    typeof v.provider === 'string' &&
     typeof v.title === 'string' &&
     (v.description === null || typeof v.description === 'string') &&
     (v.location === null || typeof v.location === 'string') &&
@@ -32,7 +36,8 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
     (v.endAt === null || typeof v.endAt === 'string') &&
     typeof v.allDay === 'boolean' &&
     (v.courseCode === null || typeof v.courseCode === 'string') &&
-    (v.courseName === null || typeof v.courseName === 'string')
+    (v.courseName === null || typeof v.courseName === 'string') &&
+    (v.color === null || typeof v.color === 'string')
   );
 }
 
@@ -61,6 +66,7 @@ export async function getMyCalendar(
   // Copy only the known fields — nothing extra leaks into app state.
   return data.events.map((event) => ({
     id: event.id,
+    provider: event.provider,
     title: event.title,
     description: event.description,
     location: event.location,
@@ -69,5 +75,57 @@ export async function getMyCalendar(
     allDay: event.allDay,
     courseCode: event.courseCode,
     courseName: event.courseName,
+    color: event.color,
   }));
+}
+
+export interface PersonalEventInput {
+  title: string;
+  description?: string;
+  location?: string;
+  startAt: string;
+  endAt?: string;
+  allDay?: boolean;
+  color?: string;
+}
+
+export interface PersonalCalendarEvent {
+  id: string;
+  provider: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  startAt: string;
+  endAt: string | null;
+  allDay: boolean;
+  color: string | null;
+}
+
+function token(): string | undefined {
+  return getSessionToken() ?? undefined;
+}
+
+export async function createPersonalEvent(input: PersonalEventInput): Promise<PersonalCalendarEvent> {
+  const data = await apiRequest<{ event: PersonalCalendarEvent }>('/api/me/calendar/events', {
+    method: 'POST',
+    sessionToken: token(),
+    body: input,
+  });
+  return data.event;
+}
+
+export async function updatePersonalEvent(id: string, input: PersonalEventInput): Promise<PersonalCalendarEvent> {
+  const data = await apiRequest<{ event: PersonalCalendarEvent }>(`/api/me/calendar/events/${id}`, {
+    method: 'PATCH',
+    sessionToken: token(),
+    body: input,
+  });
+  return data.event;
+}
+
+export async function deletePersonalEvent(id: string): Promise<void> {
+  await apiRequest<{ status: string }>(`/api/me/calendar/events/${id}`, {
+    method: 'DELETE',
+    sessionToken: token(),
+  });
 }

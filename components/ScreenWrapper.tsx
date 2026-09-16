@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import { View } from './Themed';
 
 interface ScreenWrapperProps {
@@ -12,12 +13,12 @@ export default function ScreenWrapper({ children, scrollable = true }: ScreenWra
   if (scrollable) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}>
           {children}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </SafeAreaView>
     );
   }

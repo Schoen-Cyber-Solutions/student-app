@@ -1,5 +1,5 @@
-import { StyleSheet, View } from 'react-native';
-import { ThreadReply } from '@/types';
+import { Pressable, StyleSheet } from 'react-native';
+import { ThreadMessage } from '@/services/api/communities';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
@@ -7,19 +7,29 @@ import { useColorScheme } from './useColorScheme';
 import { relativeTime } from '@/utils/time';
 
 interface ThreadReplyItemProps {
-  reply: ThreadReply;
+  reply: ThreadMessage;
+  /** Long-press affordance, used for author-only delete. */
+  onLongPress?: () => void;
 }
 
-export default function ThreadReplyItem({ reply }: ThreadReplyItemProps) {
+export default function ThreadReplyItem({ reply, onLongPress }: ThreadReplyItemProps) {
   const colors = Colors[useColorScheme()];
 
   return (
-    <View style={[styles.container, { borderBottomColor: colors.divider }]}>
+    <Pressable
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      style={({ pressed }) => [
+        styles.container,
+        { borderBottomColor: colors.divider },
+        pressed && onLongPress ? { opacity: 0.7 } : null,
+      ]}
+      accessibilityLabel={`${reply.authorUsername}, ${relativeTime(reply.createdAt)}`}>
       <Text style={[styles.meta, { color: colors.secondaryText }]}>
-        {reply.authorPseudonym} · {relativeTime(reply.createdAt)}
+        {reply.authorUsername} · {relativeTime(reply.createdAt)}
       </Text>
       <Text style={[styles.body, { color: colors.text }]}>{reply.body}</Text>
-    </View>
+    </Pressable>
   );
 }
 

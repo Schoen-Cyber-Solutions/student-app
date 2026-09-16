@@ -1,14 +1,13 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { CourseThread } from '@/types';
+import { CommunityThread } from '@/services/api/communities';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
-import ThreadCategoryBadge from './ThreadCategoryBadge';
 import { relativeTime } from '@/utils/time';
 
 interface ThreadListItemProps {
-  thread: CourseThread;
+  thread: CommunityThread;
   onPress: () => void;
 }
 
@@ -24,17 +23,16 @@ export default function ThreadListItem({ thread, onPress }: ThreadListItemProps)
         pressed && { opacity: 0.7 },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${thread.title}, by ${thread.authorPseudonym}`}>
+      accessibilityLabel={`${thread.title}, by ${thread.authorUsername}`}>
       <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
         {thread.title}
       </Text>
-      <ThreadCategoryBadge category={thread.category} />
       <View style={styles.metaRow}>
         <Text style={[styles.meta, { color: colors.secondaryText }]}>
-          by {thread.authorPseudonym}
+          {thread.authorUsername}
         </Text>
         <Text style={[styles.meta, { color: colors.mutedText }]}>
-          {thread.replyCount} repl{thread.replyCount === 1 ? 'y' : 'ies'} · {relativeTime(thread.createdAt)}
+          {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'} · {relativeTime(thread.createdAt)}
         </Text>
       </View>
     </Pressable>

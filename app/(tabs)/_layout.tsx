@@ -1,10 +1,12 @@
+import { useEffect } from 'react';
 import { SymbolView } from 'expo-symbols';
-import { Tabs } from 'expo-router';
+import { Tabs, router } from 'expo-router';
 import type { ColorValue } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { getSessionToken, isSessionReady } from '@/services/auth/devSession';
 
 function TabIcon({ name, color }: { name: string; color: ColorValue }) {
   return (
@@ -18,6 +20,12 @@ function TabIcon({ name, color }: { name: string; color: ColorValue }) {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    if (isSessionReady() && !getSessionToken()) {
+      router.replace('/onboarding');
+    }
+  }, []);
 
   return (
     <Tabs

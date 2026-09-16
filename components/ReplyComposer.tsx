@@ -7,13 +7,15 @@ import { useColorScheme } from './useColorScheme';
 
 interface ReplyComposerProps {
   onSubmit: (text: string) => void;
+  /** Disables input and send while a submission is in flight. */
+  sending?: boolean;
 }
 
-export default function ReplyComposer({ onSubmit }: ReplyComposerProps) {
+export default function ReplyComposer({ onSubmit, sending = false }: ReplyComposerProps) {
   const colors = Colors[useColorScheme()];
   const [text, setText] = useState('');
 
-  const canSubmit = text.trim().length > 0;
+  const canSubmit = text.trim().length > 0 && !sending;
 
   const handleSubmit = () => {
     if (!canSubmit) return;
@@ -31,6 +33,7 @@ export default function ReplyComposer({ onSubmit }: ReplyComposerProps) {
         onChangeText={setText}
         multiline
         maxLength={2000}
+        editable={!sending}
         accessibilityLabel="Write a reply"
       />
       <Pressable

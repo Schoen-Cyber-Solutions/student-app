@@ -35,7 +35,9 @@ export function useMyCourses(): MyCoursesState {
 
   useEffect(() => {
     let cancelled = false;
-    setStatus('loading');
+    // Keep the previous list visible while refetching; only show the spinner
+    // when there is nothing to display yet.
+    setStatus((prev) => (prev === 'success' ? prev : 'loading'));
 
     const token = getSessionToken();
     if (!token) {

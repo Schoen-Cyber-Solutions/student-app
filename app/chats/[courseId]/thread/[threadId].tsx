@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import AppHeader from '@/components/AppHeader';
 import ThreadPost from '@/components/ThreadPost';
 import ThreadReplyItem from '@/components/ThreadReplyItem';
@@ -16,15 +18,18 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { CourseThread, ThreadReply } from '@/types';
 import { useMyCourse } from '@/hooks/useMyCourses';
-import { getThread, getRepliesForThread, createReply } from '@/data/mockThreads';
+import {
+  ThreadDetail,
+  ThreadMessage,
+  getThread,
+  postThreadMessage,
+  deleteThread,
+  deleteMessage,
+} from '@/services/api/communities';
+import { toApiError } from '@/services/api/client';
 
-function replyCountLabel(count: number): string {
-  if (count === 0) return 'No replies yet';
-  if (count === 1) return '1 Reply';
-  return `${count} Replies`;
-}
+type LoadStatus = 'loading' | 'success' | 'unavailable' | 'error';
 
 export default function ThreadDetailScreen() {
   const { courseId, threadId } = useLocalSearchParams<{
@@ -33,45 +38,164 @@ export default function ThreadDetailScreen() {
   }>();
   const colors = Colors[useColorScheme()];
   const course = useMyCourse(courseId);
-  const [thread, setThread] = useState<CourseThread | null>(null);
-  const [replies, setReplies] = useState<ThreadReply[]>([]);
+  const [thread, setThread] = useState<ThreadDetail | null>(null);
+  const [messages, setMessages] = useState<ThreadMessage[]>([]);
+  const [status, setStatus] = useState<LoadStatus>('loading');
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
 
   const loadData = useCallback(async () => {
-    const [t, r] = await Promise.all([
-      getThread(threadId),
-      getRepliesForThread(threadId),
-    ]);
-    if (t) setThread(t);
-    setReplies(r);
+    if (!threadId) return;
+    try {
+      const data = await getThread(threadId);
+      setThread(data.thread);
+      setMessages(data.messages);
+      setStatus('success');
+    } catch (err) {
+      const apiErr = toApiError(err);
+      setStatus(
+        apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
+          ? 'unavailable'
+          : 'error',
+      );
+    }
   }, [threadId]);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const [t, r] = await Promise.all([
-        getThread(threadId),
-        getRepliesForThread(threadId),
-      ]);
-      if (mounted) {
-        if (t) setThread(t);
-        setReplies(r);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [threadId]);
+  useFocusEffect(
+    useCallback(() => {
+      setStatus((prev) => (prev === 'success' ? prev : 'loading'));
+      void loadData();
+    }, [loadData])
+  );
 
   const handleReply = async (text: string) => {
-    await createReply(threadId, { body: text });
-    await loadData();
+    if (!threadId || sending) return;
+    setSending(true);
+    try {
+      const message = await postThreadMessage(threadId, text);
+      setMessages((prev) => [...prev, message]);
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      });
+    } catch (err) {
+      const apiErr = toApiError(err);
+      Alert.alert(
+        'Could not send reply',
+        apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
+          ? 'You no longer have access to this discussion.'
+          : 'Check your connection and try again.',
+      );
+    } finally {
+      setSending(false);
+    }
   };
 
-  if (!thread) {
-    return (
-      <View style={styles.center}>
-        <Text>Thread not found.</Text>
-      </View>
-    );
-  }
+  const handleDeleteThread = () => {
+    if (!threadId) return;
+    Alert.alert('Delete thread?', 'This will remove the thread and all of its messages.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await deleteThread(threadId);
+              router.back();
+            } catch {
+              Alert.alert('Could not delete', 'Check your connection and try again.');
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteMessage = (message: ThreadMessage) => {
+    Alert.alert('Delete message?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await deleteMessage(message.id);
+              setMessages((prev) => prev.filter((m) => m.id !== message.id));
+            } catch {
+              Alert.alert('Could not delete', 'Check your connection and try again.');
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  // The first message is the thread's opening post.
+  const openingPost = messages[0];
+  const replies = messages.slice(1);
+
+  const renderBody = () => {
+    switch (status) {
+      case 'loading':
+        return (
+          <View style={styles.loading}>
+            <ActivityIndicator color={colors.tint} />
+          </View>
+        );
+      case 'unavailable':
+        return (
+          <EmptyState
+            title="Discussion unavailable"
+            message="This discussion may have been removed, or you no longer have access."
+            icon="lock.shield"
+          />
+        );
+      case 'error':
+        return (
+          <EmptyState
+            title="Couldn't load discussion"
+            message="Check your connection and try again."
+            icon="wifi.exclamationmark"
+            actionLabel="Retry"
+            onAction={() => {
+              setStatus('loading');
+              void loadData();
+            }}
+          />
+        );
+      case 'success':
+        if (!thread) return null;
+        return (
+          <>
+            <ThreadPost
+              title={thread.title}
+              authorUsername={thread.authorUsername}
+              createdAt={thread.createdAt}
+              body={openingPost?.body ?? ''}
+              onDelete={thread.isAuthor ? handleDeleteThread : undefined}
+            />
+            <View style={[styles.divider, { borderColor: colors.divider }]}>
+              <Text style={[styles.replyCount, { color: colors.secondaryText }]}>
+                {replies.length === 0
+                  ? 'No replies yet'
+                  : `${replies.length} ${replies.length === 1 ? 'Reply' : 'Replies'}`}
+              </Text>
+            </View>
+            {replies.map((reply) => (
+              <ThreadReplyItem
+                key={reply.id}
+                reply={reply}
+                onLongPress={
+                  reply.isAuthor ? () => handleDeleteMessage(reply) : undefined
+                }
+              />
+            ))}
+            <View style={{ height: 16 }} />
+          </>
+        );
+    }
+  };
 
   return (
     <>
@@ -87,31 +211,12 @@ export default function ThreadDetailScreen() {
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
+            ref={scrollRef}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="interactive">
-            <ThreadPost thread={thread} />
-
-            <View style={[styles.divider, { borderColor: colors.divider }]}>
-              <Text style={[styles.replyCount, { color: colors.secondaryText }]}>
-                {replyCountLabel(thread.replyCount)}
-              </Text>
-            </View>
-
-            {replies.length ? (
-              replies.map((reply) => (
-                <ThreadReplyItem key={reply.id} reply={reply} />
-              ))
-            ) : (
-              <EmptyState
-                title="No replies yet"
-                message="Be the first to respond."
-                icon="bubble.left"
-              />
-            )}
-
-            <View style={{ height: 16 }} />
+            {renderBody()}
           </ScrollView>
-          <ReplyComposer onSubmit={handleReply} />
+          {status === 'success' && <ReplyComposer onSubmit={handleReply} sending={sending} />}
         </KeyboardAvoidingView>
       </View>
     </>
@@ -122,10 +227,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  center: {
-    flex: 1,
+  loading: {
+    paddingVertical: spacing.xl,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   divider: {
     borderTopWidth: StyleSheet.hairlineWidth,

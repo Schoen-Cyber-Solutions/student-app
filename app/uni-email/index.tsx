@@ -100,7 +100,7 @@ export default function UniEmailScreen() {
         {status === 'unauthorized' && (
           <EmptyState
             title="Not signed in"
-            message="Development session token is missing or expired."
+            message="Your session is missing or expired."
             icon="lock.shield"
           />
         )}
@@ -132,7 +132,7 @@ export default function UniEmailScreen() {
         {status === 'error' && (
           <View style={styles.center}>
             <EmptyState
-              title="Couldn\u2019t load email"
+              title="Couldn't load email"
               message="Check that the backend is reachable and try again."
               icon="exclamationmark.triangle"
               actionLabel="Retry"
