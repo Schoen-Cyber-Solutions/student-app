@@ -3,13 +3,18 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Course } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
+import { contrastText, glassColors, withAlpha } from '@/constants/Glass';
+import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import EmptyState from './EmptyState';
+import GlassPanel from './GlassPanel';
 import { HOUR_HEIGHT } from './TimetableCourseBlock';
 import {
   formatWeekdayShort,
+  formatDayOfMonth,
+  getMondayOfWeek,
+  getWeekDayDates,
   getCoursesForDay,
   toMinutes,
   isSameCalendarDay,
@@ -22,6 +27,7 @@ interface DayViewProps {
   onPreviousDay: () => void;
   onNextDay: () => void;
   onGoToToday?: () => void;
+  onSelectDay?: (date: Date) => void;
 }
 
 function formatHourLabel(hour24: number): string {
@@ -37,11 +43,16 @@ function DayEventCard({
   course: Course;
   onPress: (course: Course) => void;
 }) {
-  const colors = Colors[useColorScheme()];
+  const colors = glassColors(useColorScheme() === 'dark' ? 'dark' : 'light', useCalendarAccent());
 
   const timeText = course.endTime
     ? `${course.startTime} – ${course.endTime}`
     : course.startTime;
+
+  const accent = course.color ?? colors.accent;
+  const cardColor = course.completed
+    ? colors.glassStrong
+    : withAlpha(accent, 0.22);
 
   return (
     <Pressable
@@ -49,9 +60,9 @@ function DayEventCard({
       style={({ pressed }) => [
         styles.card,
         {
-          backgroundColor: colors.card,
-          borderColor: colors.cardBorder,
-          borderLeftColor: course.color ?? colors.tint,
+          backgroundColor: cardColor,
+          borderColor: colors.glassBorder,
+          borderLeftColor: accent,
         },
         pressed && { opacity: 0.8 },
       ]}
@@ -93,11 +104,18 @@ export default function DayView({
   onPreviousDay,
   onNextDay,
   onGoToToday,
+  onSelectDay,
 }: DayViewProps) {
-  const colors = Colors[useColorScheme()];
+  const colors = glassColors(useColorScheme() === 'dark' ? 'dark' : 'light', useCalendarAccent());
   const scrollRef = useRef<ScrollView>(null);
   const today = new Date();
   const isToday = isSameCalendarDay(selectedDate, today);
+
+  // Week strip for quick day switching (reference-style horizontal selector).
+  const weekDates = useMemo(
+    () => getWeekDayDates(getMondayOfWeek(selectedDate)),
+    [selectedDate],
+  );
 
   const dayName = formatWeekdayShort(selectedDate) as Course['days'][number];
   const dayCourses = useMemo(
@@ -126,6 +144,7 @@ export default function DayView({
 
   return (
     <View style={styles.container}>
+      <GlassPanel style={styles.headerPanel} intensity={40}>
       <View style={styles.header}>
         <Pressable
           onPress={onPreviousDay}
@@ -133,7 +152,7 @@ export default function DayView({
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Previous day">
-          <SymbolView name="chevron.left" tintColor={colors.tint} size={22} />
+          <SymbolView name="chevron.left" tintColor={colors.accent} size={22} />
         </Pressable>
 
         <View style={styles.title}>
@@ -148,21 +167,23 @@ export default function DayView({
             })}
           </Text>
           {isToday ? (
-            <View style={[styles.todayPill, { backgroundColor: colors.tint }]}>
-              <Text style={styles.todayText}>Today</Text>
+            <View style={[styles.todayPill, { backgroundColor: colors.accent }]}>
+              <Text style={[styles.todayText, { color: contrastText(colors.accent) }]}>
+                Today
+              </Text>
             </View>
           ) : onGoToToday ? (
             <Pressable
               onPress={onGoToToday}
               style={({ pressed }) => [
                 styles.todayPill,
-                { backgroundColor: colors.tintSoft },
+                { backgroundColor: colors.accentSoft },
                 pressed && { opacity: 0.8 },
               ]}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Go to today">
-              <Text style={[styles.todayText, { color: colors.tint }]}>
+              <Text style={[styles.todayText, { color: colors.accent }]}>
                 Today
               </Text>
             </Pressable>
@@ -175,17 +196,68 @@ export default function DayView({
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Next day">
-          <SymbolView name="chevron.right" tintColor={colors.tint} size={22} />
+          <SymbolView name="chevron.right" tintColor={colors.accent} size={22} />
         </Pressable>
       </View>
+      </GlassPanel>
+
+      {/* Horizontal week strip — tap a day to switch. */}
+      <GlassPanel style={styles.stripPanel} intensity={40}>
+      <View style={styles.weekStrip}>
+        {weekDates.map((date) => {
+          const selected = isSameCalendarDay(date, selectedDate);
+          const isStripToday = isSameCalendarDay(date, today);
+          return (
+            <Pressable
+              key={date.toDateString()}
+              onPress={() => onSelectDay?.(date)}
+              style={({ pressed }) => [
+                styles.stripDay,
+                selected && {
+                  backgroundColor: colors.accentSoft,
+                  borderColor: colors.accent,
+                },
+                pressed && { opacity: 0.7 },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`Open ${date.toDateString()}`}>
+              <Text
+                style={[
+                  styles.stripWeekday,
+                  { color: selected ? colors.accent : colors.mutedText },
+                ]}>
+                {formatWeekdayShort(date)}
+              </Text>
+              <View
+                style={[
+                  styles.stripDateWrap,
+                  isStripToday && { backgroundColor: colors.accent },
+                ]}>
+                <Text
+                  style={[
+                    styles.stripDate,
+                    { color: isStripToday ? contrastText(colors.accent) : selected ? colors.accent : colors.text },
+                  ]}>
+                  {formatDayOfMonth(date)}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+      </GlassPanel>
 
       {dayCourses.length === 0 ? (
-        <EmptyState
-          title="No events today"
-          message="Your calendar has no events for this day."
-          icon="calendar"
-        />
+        <GlassPanel style={styles.gridPanel} intensity={25}>
+          <EmptyState
+            title="No events today"
+            message="Your calendar has no events for this day."
+            icon="calendar"
+          />
+        </GlassPanel>
       ) : (
+        <GlassPanel style={styles.gridPanel} intensity={25} variant="faint">
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
@@ -211,6 +283,7 @@ export default function DayView({
             ))}
           </View>
         </ScrollView>
+        </GlassPanel>
       )}
     </View>
   );
@@ -220,12 +293,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerPanel: {
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  stripPanel: {
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
   },
   arrow: {
     padding: spacing.sm,
@@ -255,11 +336,49 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
+  weekStrip: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    gap: spacing.xs,
+  },
+  stripDay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    gap: 3,
+  },
+  stripWeekday: {
+    ...typography.caption,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  stripDateWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stripDate: {
+    ...typography.heading,
+    fontSize: 14,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  gridPanel: {
+    flex: 1,
+    marginHorizontal: spacing.xs,
+    marginBottom: 8,
+  },
   scroll: {
     flex: 1,
   },
   content: {
-    paddingBottom: 40,
+    paddingBottom: 96, // room for the floating add button
   },
   hourRow: {
     flexDirection: 'row',
@@ -285,7 +404,7 @@ const styles = StyleSheet.create({
   card: {
     borderLeftWidth: 4,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm + 2,
     marginBottom: spacing.sm,

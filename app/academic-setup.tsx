@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
+import BackButton from '@/components/BackButton';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -82,7 +83,7 @@ export default function AcademicSetupScreen() {
         academicLevel: level,
         currentTermId: termId,
       });
-      router.replace('/courses-setup');
+      router.push('/courses-setup');
     } catch (err) {
       const apiErr = toApiError(err);
       setError(
@@ -108,6 +109,7 @@ export default function AcademicSetupScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.card}>
+        <BackButton />
         <Text style={[styles.title, { color: colors.text }]}>Academic setup</Text>
         <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
           Confirmed from your verified university email.

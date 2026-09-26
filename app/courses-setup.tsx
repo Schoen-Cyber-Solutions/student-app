@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
+import BackButton from '@/components/BackButton';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -162,7 +163,13 @@ export default function CoursesSetupScreen() {
     setError('');
     try {
       await completeCourseSetup();
-      router.replace('/calendar-connect');
+      if (onboarding === 'needs_courses') {
+        router.push('/calendar-connect');
+      } else if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch {
       setError('Could not continue. Please try again.');
     }
@@ -236,6 +243,7 @@ export default function CoursesSetupScreen() {
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}
         keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
+          <BackButton />
           <Text style={[styles.title, { color: colors.text }]}>Add your courses</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
             {term ? `${term.name} · official class schedule` : 'Official class schedule'}

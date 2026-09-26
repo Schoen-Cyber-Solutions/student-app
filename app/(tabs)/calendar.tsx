@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
+import SafeLinearGradient from '@/components/SafeLinearGradient';
 import { Text } from '@/components/Themed';
 import { spacing, typography } from '@/constants/Theme';
 import AppHeader from '@/components/AppHeader';
-import ScreenWrapper from '@/components/ScreenWrapper';
 import CalendarViewSwitcher, { CalendarView } from '@/components/CalendarViewSwitcher';
 import WeekTimetable from '@/components/WeekTimetable';
 import DayView from '@/components/DayView';
 import MonthView from '@/components/MonthView';
 import CourseDetailOverlay from '@/components/CourseDetailOverlay';
 import EmptyState from '@/components/EmptyState';
+import CalendarBackground from '@/components/CalendarBackground';
+import GlassPanel from '@/components/GlassPanel';
+import { useCalendarAccent } from '@/utils/calendarAccent';
+import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
+import { contrastText, glassColors } from '@/constants/Glass';
 import { Course } from '@/types';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
 import { MyCalendarEvent } from '@/services/api/calendar';
@@ -27,6 +34,10 @@ import {
 import { colorForKey, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
+
+// Standard iOS tab-bar content height (the glass bar floats over the scene,
+// so the FAB must clear it plus the home-indicator inset).
+const TAB_BAR_HEIGHT = 49;
 
 function eventColor(event: MyCalendarEvent, courseColors: Record<string, string>): string | undefined {
   // Completed LMS items render neutral gray everywhere — display override only,
@@ -73,7 +84,12 @@ export default function CalendarScreen() {
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean } | null>(null);
-  const colors = Colors[useColorScheme()];
+  const appearance = useTabAppearance('calendar');
+  const scheme = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const colors = Colors[scheme];
+  const accent = useCalendarAccent();
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
   const { colors: courseColors } = useCourseColors();
 
   const loadCalendarStatus = useCallback(async () => {
@@ -107,6 +123,7 @@ export default function CalendarScreen() {
         .catch(() => {
           if (active) setView((v) => v ?? 'week');
         });
+      void refreshTabAppearance();
       return () => {
         active = false;
       };
@@ -226,12 +243,40 @@ export default function CalendarScreen() {
     );
   };
 
+  const openAddSheet = () => {
+    const handle = (index: number) => {
+      if (index === 0) {
+        suppressResetRef.current = true;
+        router.push('/calendar-event');
+      } else if (index === 1) {
+        suppressResetRef.current = true;
+        router.push('/calendar-edit');
+      }
+    };
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Add Personal Event', 'Edit Calendar', 'Cancel'], cancelButtonIndex: 2 },
+        handle,
+      );
+    } else {
+      Alert.alert('Calendar', undefined, [
+        { text: 'Add Personal Event', onPress: () => handle(0) },
+        { text: 'Edit Calendar', onPress: () => handle(1) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <AppHeader safeAreaTop />
-      <ScreenWrapper scrollable={false}>
+      <CalendarBackground appearance={appearance} />
+      <AppHeader safeAreaTop greeting="Calendar" titleLeft accent={accent} />
+      {/* Transparent container — ScreenWrapper paints an opaque themed
+          background that would cover CalendarBackground. */}
+      <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+      <View style={styles.content}>
         {calendarStatus && !calendarStatus.connected && (
-          <View style={[styles.banner, { backgroundColor: colors.tintSoft, borderColor: colors.tint }]}>
+          <View style={[styles.banner, { backgroundColor: glass.accentSoft, borderColor: glass.accent }]}>
             <Text style={[styles.bannerText, { color: colors.text }]}>
               University calendar not connected
             </Text>
@@ -240,23 +285,18 @@ export default function CalendarScreen() {
                 suppressResetRef.current = true;
                 router.push('/calendar-connect');
               }}>
-              <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 14 }}>Connect</Text>
+              <Text style={{ color: glass.accent, fontWeight: '600', fontSize: 14 }}>Connect</Text>
             </Pressable>
           </View>
         )}
 
-        <View style={styles.header}>
-          <Pressable
-            onPress={() => {
-              suppressResetRef.current = true;
-              router.push('/calendar-edit');
-            }}
-            style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.6 }]}>
-            <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>Edit</Text>
-          </Pressable>
-          {view !== null && <CalendarViewSwitcher active={view} onChange={handleViewChange} />}
-          <View style={styles.editSpacer} />
-        </View>
+        {/* Compact glass segmented control — date context lives in each
+            view's own header (week label / day heading / month label). */}
+        {view !== null && (
+          <View style={styles.switcherWrap}>
+            <CalendarViewSwitcher active={view} onChange={handleViewChange} />
+          </View>
+        )}
 
         {view === null && (
           <View style={styles.center}>
@@ -333,6 +373,7 @@ export default function CalendarScreen() {
                   onPreviousDay={goToPrevDay}
                   onNextDay={goToNextDay}
                   onGoToToday={goToToday}
+                  onSelectDay={setSelectedDay}
                 />
               </View>
             )}
@@ -392,7 +433,8 @@ export default function CalendarScreen() {
             )}
           </>
         )}
-      </ScreenWrapper>
+      </View>
+      </SafeAreaView>
 
       <CourseDetailOverlay
         course={selectedCourse}
@@ -400,6 +442,25 @@ export default function CalendarScreen() {
         onClose={() => setSelectedEventId(null)}
         onEventChanged={refresh}
       />
+
+      {/* Floating add button — sits above the tab bar. */}
+      <Pressable
+        onPress={openAddSheet}
+        style={({ pressed }) => [
+          styles.fab,
+          { bottom: insets.bottom + TAB_BAR_HEIGHT + 14 },
+          pressed && { transform: [{ scale: 0.92 }], opacity: 0.9 },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel="Add calendar item">
+        <SafeLinearGradient
+          colors={[glass.accent, glass.accentDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <SymbolView name="plus" tintColor={contrastText(glass.accent)} size={28} weight="semibold" />
+      </Pressable>
     </View>
   );
 }
@@ -408,20 +469,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  content: {
+    flex: 1,
+  },
+  switcherWrap: {
+    marginTop: spacing.xs,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  editButton: {
-    minWidth: 44,
-    paddingVertical: 4,
-  },
-  editSpacer: {
-    minWidth: 44,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.5)',
+    shadowColor: '#312E81',
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   banner: {
     flexDirection: 'row',

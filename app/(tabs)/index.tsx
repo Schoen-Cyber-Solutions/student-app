@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { getMe, completeIntro, UserProfile } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
 import { Text } from '@/components/Themed';
@@ -12,8 +12,13 @@ import DueDateGroup from '@/components/DueDateGroup';
 import CourseDetailOverlay from '@/components/CourseDetailOverlay';
 import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
+import { contrastText, glassColors } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
+import CalendarBackground from '@/components/CalendarBackground';
+import GlassPanel from '@/components/GlassPanel';
+import { useTabAccent } from '@/utils/tabAccent';
+import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import { assignEventCourse, setEventCompletion, MyCalendarEvent, RecurringPreview } from '@/services/api/calendar';
@@ -61,8 +66,20 @@ function isDueDate(event: MyCalendarEvent): boolean {
 }
 
 export default function HomeScreen() {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme();
+  const colors = Colors[scheme];
+  const accent = useTabAccent('home');
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
+  const homeAppearance = useTabAppearance('home');
   const { colors: courseColors } = useCourseColors();
+
+  // Refresh the shared appearance store on focus so Settings changes show
+  // without an app restart; live writes already arrive via subscription.
+  useFocusEffect(
+    useCallback(() => {
+      void refreshTabAppearance();
+    }, [])
+  );
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [dismissingIntro, setDismissingIntro] = useState(false);
@@ -326,8 +343,8 @@ export default function HomeScreen() {
         key: sid,
         label: labelForSection(item.event),
         color: item.event.courseCode
-          ? courseColors[item.event.courseCode] ?? colorForKey(item.event.courseCode) ?? colors.tint
-          : colors.tint,
+          ? courseColors[item.event.courseCode] ?? colorForKey(item.event.courseCode) ?? accent
+          : accent,
         items: [],
         unassigned: false,
       };
@@ -336,7 +353,7 @@ export default function HomeScreen() {
     }
     const groups = [...bySection.values()].sort((a, b) => a.label.localeCompare(b.label));
     if (unassigned.length > 0) {
-      groups.push({ key: 'unassigned', label: 'Unassigned', color: colors.tint, items: unassigned, unassigned: true });
+      groups.push({ key: 'unassigned', label: 'Unassigned', color: accent, items: unassigned, unassigned: true });
     }
     // Incomplete first, then completed — items arrive date-sorted and this
     // stable sort keeps chronological order within each status.
@@ -346,7 +363,7 @@ export default function HomeScreen() {
       );
     }
     return groups;
-  }, [dueItems, labelForSection, courseColors, colors.tint, isItemCompleted]);
+  }, [dueItems, labelForSection, courseColors, accent, isItemCompleted]);
 
   // Dev-only trace: group label -> member event ids, so an assignment change
   // can be followed through the grouping in logs. Ids only, no titles.
@@ -379,7 +396,8 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader safeAreaTop />
+      <CalendarBackground appearance={homeAppearance} />
+      <AppHeader safeAreaTop accent={accent} />
       <ScreenWrapper>
         <View style={styles.greeting}>
           <Text style={[styles.welcome, { color: colors.secondaryText }]}>
@@ -389,7 +407,7 @@ export default function HomeScreen() {
         </View>
 
         {showIntro && (
-          <View style={[styles.introCard, { backgroundColor: colors.tintSoft, borderColor: colors.tint }]}>
+          <View style={[styles.introCard, { backgroundColor: glass.accentSoft, borderColor: accent }]}>
             <Text style={[styles.introTitle, { color: colors.text }]}>Welcome to Student App</Text>
             <Text style={[styles.introBody, { color: colors.secondaryText }]}>
               • Home shows today's schedule and upcoming due dates.
@@ -401,10 +419,12 @@ export default function HomeScreen() {
               disabled={dismissingIntro}
               style={({ pressed }) => [
                 styles.introButton,
-                { backgroundColor: colors.tint, opacity: dismissingIntro ? 0.5 : 1 },
+                { backgroundColor: accent, opacity: dismissingIntro ? 0.5 : 1 },
                 pressed && { opacity: 0.8 },
               ]}>
-              <Text style={styles.introButtonText}>{dismissingIntro ? 'Saving...' : 'Get started'}</Text>
+              <Text style={[styles.introButtonText, { color: contrastText(accent) }]}>
+                {dismissingIntro ? 'Saving...' : 'Get started'}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -416,7 +436,7 @@ export default function HomeScreen() {
           />
 
           {status === 'loading' && (
-            <ActivityIndicator style={styles.spinner} color={colors.tint} />
+            <ActivityIndicator style={styles.spinner} color={accent} />
           )}
 
           {status === 'unauthorized' && (
@@ -439,13 +459,19 @@ export default function HomeScreen() {
 
           {showContent &&
             (todayCourses.length ? (
-              todayCourses.map((course) => <CourseCard key={course.id} course={course} />)
+              <GlassPanel style={styles.sectionPanel} intensity={30}>
+                <View style={styles.panelInner}>
+                  {todayCourses.map((course) => <CourseCard key={course.id} course={course} />)}
+                </View>
+              </GlassPanel>
             ) : (
-              <EmptyState
-                title="No events today"
-                message="Enjoy the open schedule. Upcoming work is listed below."
-                icon="calendar"
-              />
+              <GlassPanel style={styles.sectionPanel} intensity={30}>
+                <EmptyState
+                  title="No events today"
+                  message="Enjoy the open schedule. Upcoming work is listed below."
+                  icon="calendar"
+                />
+              </GlassPanel>
             ))}
         </View>
 
@@ -457,28 +483,32 @@ export default function HomeScreen() {
 
           {showContent &&
             (grouped.length ? (
-              <View style={styles.list}>
-                {grouped.map((g) => (
-                  <DueDateGroup
-                    key={g.key}
-                    courseCode={g.label}
-                    color={g.color}
-                    dueDates={g.items}
-                    completedIds={completedIds}
-                    expanded={!!expanded[g.key]}
-                    onToggleExpand={() => toggleExpand(g.key)}
-                    onToggleComplete={toggleComplete}
-                    onPressItem={handlePressDueItem}
-                    onAssignItem={g.unassigned ? handleAssignItem : undefined}
-                  />
-                ))}
-              </View>
+              <GlassPanel style={styles.sectionPanel} intensity={30}>
+                <View style={styles.listInner}>
+                  {grouped.map((g) => (
+                    <DueDateGroup
+                      key={g.key}
+                      courseCode={g.label}
+                      color={g.color}
+                      dueDates={g.items}
+                      completedIds={completedIds}
+                      expanded={!!expanded[g.key]}
+                      onToggleExpand={() => toggleExpand(g.key)}
+                      onToggleComplete={toggleComplete}
+                      onPressItem={handlePressDueItem}
+                      onAssignItem={g.unassigned ? handleAssignItem : undefined}
+                    />
+                  ))}
+                </View>
+              </GlassPanel>
             ) : (
-              <EmptyState
-                title="No upcoming due dates"
-                message="Nothing due in the next 14 days."
-                icon="calendar"
-              />
+              <GlassPanel style={styles.sectionPanel} intensity={30}>
+                <EmptyState
+                  title="No upcoming due dates"
+                  message="Nothing due in the next 14 days."
+                  icon="calendar"
+                />
+              </GlassPanel>
             ))}
         </View>
       </ScreenWrapper>
@@ -559,6 +589,16 @@ const styles = StyleSheet.create({
   },
   list: {
     marginTop: spacing.sm,
+  },
+  sectionPanel: {
+    marginTop: spacing.sm,
+  },
+  panelInner: {
+    padding: spacing.sm,
+  },
+  listInner: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   spinner: {
     marginVertical: spacing.xl,

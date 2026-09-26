@@ -100,6 +100,7 @@ export default function ProfileScreen() {
 
   const handleLogout = async () => {
     await clearSessionToken();
+    router.dismissAll();
     router.replace('/onboarding');
   };
 

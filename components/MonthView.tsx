@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
+import { contrastText, glassColors } from '@/constants/Glass';
+import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
+import GlassPanel from './GlassPanel';
 import { MyCalendarEvent } from '@/services/api/calendar';
 import { getMondayOfWeek, isSameCalendarDay, formatTime12, endOfDay, startOfDay } from '@/utils/time';
 
@@ -42,8 +44,8 @@ export default function MonthView({
   onGoToToday,
   onSelectEvent,
 }: MonthViewProps) {
-  const colors = Colors[useColorScheme()];
-  const [overlayOpen, setOverlayOpen] = useState(false);
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = glassColors(scheme, useCalendarAccent());
   const today = new Date();
 
   const year = monthCursor.getFullYear();
@@ -92,10 +94,15 @@ export default function MonthView({
   }, [weeks, events]);
 
   const selectedEvents = eventsByDay.get(selectedDate.toDateString()) ?? [];
+  const selectedIsToday = isSameCalendarDay(selectedDate, today);
 
   return (
-    <View style={styles.container}>
-      {/* Month header */}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}>
+      {/* Month navigation */}
+      <GlassPanel style={styles.headerPanel} intensity={40}>
       <View style={styles.header}>
         <Pressable
           onPress={onPrevMonth}
@@ -103,23 +110,25 @@ export default function MonthView({
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Previous month">
-          <SymbolView name="chevron.left" tintColor={colors.tint} size={22} />
+          <SymbolView name="chevron.left" tintColor={colors.accent} size={22} />
         </Pressable>
 
         <View style={styles.title}>
           <Text style={[styles.monthLabel, { color: colors.text }]}>{monthLabel}</Text>
-          {!isCurrentMonth || !isSameCalendarDay(selectedDate, today) ? (
+          {!isCurrentMonth || !selectedIsToday ? (
             <Pressable
               onPress={onGoToToday}
               style={({ pressed }) => [
                 styles.todayPill,
-                { backgroundColor: colors.tint },
+                { backgroundColor: colors.accent },
                 pressed && { opacity: 0.8 },
               ]}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Go to today">
-              <Text style={styles.todayText}>Today</Text>
+              <Text style={[styles.todayText, { color: contrastText(colors.accent) }]}>
+                Today
+              </Text>
             </Pressable>
           ) : null}
         </View>
@@ -130,21 +139,22 @@ export default function MonthView({
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Next month">
-          <SymbolView name="chevron.right" tintColor={colors.tint} size={22} />
+          <SymbolView name="chevron.right" tintColor={colors.accent} size={22} />
         </Pressable>
       </View>
+      </GlassPanel>
 
-      {/* Weekday letters */}
-      <View style={styles.weekdayRow}>
-        {WEEKDAY_LETTERS.map((letter, i) => (
-          <Text key={i} style={[styles.weekdayLabel, { color: colors.mutedText }]}>
-            {letter}
-          </Text>
-        ))}
-      </View>
+      {/* Glass month grid */}
+      <GlassPanel style={styles.gridPanel} intensity={30} variant="faint">
+       <View style={styles.gridInner}>
+        <View style={styles.weekdayRow}>
+          {WEEKDAY_LETTERS.map((letter, i) => (
+            <Text key={i} style={[styles.weekdayLabel, { color: colors.mutedText }]}>
+              {letter}
+            </Text>
+          ))}
+        </View>
 
-      {/* Grid */}
-      <View>
         {weeks.map((week, wi) => (
           <View key={wi} style={styles.weekRow}>
             {week.map((day) => {
@@ -158,15 +168,12 @@ export default function MonthView({
               return (
                 <Pressable
                   key={day.toDateString()}
-                  onPress={() => {
-                    onSelectDate(day);
-                    setOverlayOpen(true);
-                  }}
+                  onPress={() => onSelectDate(day)}
                   style={({ pressed }) => [
                     styles.cell,
                     isSelected && {
-                      borderColor: colors.tint,
-                      backgroundColor: colors.tintSoft,
+                      borderColor: colors.accent,
+                      backgroundColor: colors.accentSoft,
                     },
                     pressed && { opacity: 0.7 },
                   ]}
@@ -176,13 +183,14 @@ export default function MonthView({
                   <View
                     style={[
                       styles.dayNumberWrap,
-                      isToday && { backgroundColor: colors.tint },
+                      isToday && { backgroundColor: colors.accent },
                     ]}>
                     <Text
                       style={[
                         styles.dayNumber,
                         { color: inMonth ? colors.text : colors.mutedText },
-                        isToday && { color: '#FFFFFF', fontWeight: '700' },
+                        isSelected && !isToday && { color: colors.accent, fontWeight: '700' },
+                        isToday && { color: contrastText(colors.accent), fontWeight: '700' },
                       ]}>
                       {day.getDate()}
                     </Text>
@@ -194,7 +202,7 @@ export default function MonthView({
                         key={e.id}
                         style={[
                           styles.dot,
-                          { backgroundColor: colorForEvent(e) ?? colors.tint },
+                          { backgroundColor: colorForEvent(e) ?? colors.accent },
                         ]}
                       />
                     ))}
@@ -209,87 +217,76 @@ export default function MonthView({
             })}
           </View>
         ))}
-      </View>
+       </View>
+      </GlassPanel>
 
-      {/* Selected-day overlay */}
-      {overlayOpen && (
-        <View style={styles.overlayWrap} pointerEvents="box-none">
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: colors.card, borderColor: colors.divider },
-            ]}>
-            <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: colors.secondaryText }]}>
-                {selectedDate.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </Text>
-              <Pressable
-                onPress={() => setOverlayOpen(false)}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                style={({ pressed }) => [styles.closeButton, pressed && { opacity: 0.5 }]}>
-                <SymbolView name="xmark.circle.fill" tintColor={colors.mutedText} size={22} />
-              </Pressable>
+      {/* Selected-day agenda */}
+      <GlassPanel style={styles.agendaPanel} intensity={40}>
+       <View style={styles.agendaInner}>
+        <View style={styles.agendaHeader}>
+          <Text style={[styles.agendaTitle, { color: colors.text }]}>
+            {selectedDate.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+            })}
+          </Text>
+          {selectedIsToday ? (
+            <View style={[styles.todayPill, { backgroundColor: colors.accentSoft }]}>
+              <Text style={[styles.todayText, { color: colors.accent }]}>Today</Text>
             </View>
-            <ScrollView
-              style={styles.sheetScroll}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled">
-              {selectedEvents.length === 0 ? (
-                <Text style={[styles.emptyText, { color: colors.mutedText }]}>No events</Text>
-              ) : (
-                selectedEvents.map((event) => {
-                  const start = new Date(event.startAt);
-                  const end = event.endAt ? new Date(event.endAt) : null;
-                  const timeText = event.allDay
-                    ? 'All day'
-                    : end
-                      ? `${formatTime12(start)} – ${formatTime12(end)}`
-                      : formatTime12(start);
-                  return (
-                    <Pressable
-                      key={event.id}
-                      onPress={() => onSelectEvent(event)}
-                      style={({ pressed }) => [
-                        styles.agendaRow,
-                        {
-                          borderLeftColor: colorForEvent(event) ?? colors.tint,
-                          backgroundColor: colors.background,
-                        },
-                        pressed && { opacity: 0.8 },
-                      ]}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${event.title}, ${timeText}`}>
-                      <View style={styles.agendaInfo}>
-                        <Text
-                          style={[
-                            styles.agendaEventTitle,
-                            { color: event.isCompleted ? colors.mutedText : colors.text },
-                            event.isCompleted && { textDecorationLine: 'line-through' },
-                          ]}
-                          numberOfLines={1}>
-                          {event.title}
-                        </Text>
-                        <Text style={[styles.agendaMeta, { color: colors.secondaryText }]}>
-                          {timeText}
-                          {event.location ? ` · ${event.location}` : ''}
-                        </Text>
-                      </View>
-                      <SymbolView name="chevron.right" tintColor={colors.mutedText} size={14} />
-                    </Pressable>
-                  );
-                })
-              )}
-            </ScrollView>
-          </View>
+          ) : null}
         </View>
-      )}
-    </View>
+
+        {selectedEvents.length === 0 ? (
+          <Text style={[styles.emptyText, { color: colors.mutedText }]}>No events</Text>
+        ) : (
+          selectedEvents.map((event) => {
+            const start = new Date(event.startAt);
+            const end = event.endAt ? new Date(event.endAt) : null;
+            const timeText = event.allDay
+              ? 'All day'
+              : end
+                ? `${formatTime12(start)} – ${formatTime12(end)}`
+                : formatTime12(start);
+            const accent = colorForEvent(event) ?? colors.accent;
+            return (
+              <Pressable
+                key={event.id}
+                onPress={() => onSelectEvent(event)}
+                style={({ pressed }) => [
+                  styles.agendaRow,
+                  {
+                    borderLeftColor: accent,
+                    backgroundColor: colors.glassStrong,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${event.title}, ${timeText}`}>
+                <View style={styles.agendaInfo}>
+                  <Text
+                    style={[
+                      styles.agendaEventTitle,
+                      { color: event.isCompleted ? colors.mutedText : colors.text },
+                      event.isCompleted && { textDecorationLine: 'line-through' },
+                    ]}
+                    numberOfLines={1}>
+                    {event.title}
+                  </Text>
+                  <Text style={[styles.agendaMeta, { color: colors.secondaryText }]}>
+                    {timeText}
+                    {event.location ? ` · ${event.location}` : ''}
+                  </Text>
+                </View>
+                <SymbolView name="chevron.right" tintColor={colors.mutedText} size={14} />
+              </Pressable>
+            );
+          })
+        )}
+       </View>
+      </GlassPanel>
+    </ScrollView>
   );
 }
 
@@ -297,12 +294,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 96, // room for the floating add button
+  },
+  headerPanel: {
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   arrow: {
     padding: spacing.sm,
@@ -328,6 +332,12 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  gridPanel: {
+    marginHorizontal: spacing.sm,
+  },
+  gridInner: {
+    paddingVertical: spacing.sm,
   },
   weekdayRow: {
     flexDirection: 'row',
@@ -383,44 +393,23 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '600',
   },
-  overlayWrap: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'flex-end',
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
+  agendaPanel: {
+    marginHorizontal: spacing.sm,
+    marginTop: spacing.sm,
   },
-  sheet: {
-    maxHeight: '55%',
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.sm + 2,
-    paddingBottom: spacing.xs,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+  agendaInner: {
+    padding: spacing.md,
   },
-  sheetHeader: {
+  agendaHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
-  sheetTitle: {
+  agendaTitle: {
     ...typography.label,
-    fontSize: 13,
-  },
-  closeButton: {
-    padding: 4,
-  },
-  sheetScroll: {
-    flexGrow: 0,
+    fontSize: 14,
+    fontWeight: '700',
   },
   agendaRow: {
     flexDirection: 'row',

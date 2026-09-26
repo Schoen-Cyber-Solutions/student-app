@@ -1,7 +1,8 @@
 import { Pressable, StyleSheet, View, Text as RNText } from 'react-native';
 import { Course } from '@/types';
 import { radius, spacing } from '@/constants/Theme';
-import { COMPLETED_EVENT_TEXT } from '@/utils/courseLabel';
+import { COMPLETED_EVENT_TEXT, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
+import { withAlpha } from '@/constants/Glass';
 
 const HOUR_HEIGHT = 52;
 
@@ -64,6 +65,12 @@ export default function TimetableCourseBlock({
     ? `${course.startTime} – ${course.endTime}`
     : course.startTime;
 
+  // Slightly translucent course color keeps the glass feel while preserving
+  // course identity; completed events keep their solid light-gray status.
+  const blockColor = course.completed
+    ? COMPLETED_EVENT_COLOR
+    : withAlpha(course.color ?? '#64748B', 0.88);
+
   return (
     <Pressable
       style={[
@@ -74,7 +81,7 @@ export default function TimetableCourseBlock({
           height,
           width: `${widthPercent}%`,
           left: `${leftPercent}%`,
-          backgroundColor: course.color ?? '#64748B',
+          backgroundColor: blockColor,
         },
       ]}
       onPress={() => onPress?.(course)}
@@ -117,8 +124,8 @@ export default function TimetableCourseBlock({
 const styles = StyleSheet.create({
   block: {
     position: 'absolute',
-    borderRadius: radius.sm,
-    paddingHorizontal: 3,
+    borderRadius: radius.md,
+    paddingHorizontal: 4,
     paddingVertical: 3,
     overflow: 'hidden',
     justifyContent: 'center',

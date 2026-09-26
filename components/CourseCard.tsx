@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { Course, CourseUpdate } from '@/types';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
+import { glassColors } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 
@@ -20,7 +21,9 @@ const updateLabels: Record<CourseUpdate['type'], string> = {
 };
 
 export default function CourseCard({ course, update }: CourseCardProps) {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = Colors[scheme];
+  const glass = glassColors(scheme);
   const accent = course.color ?? colors.tint;
   const isCancelled = update?.type === 'cancellation';
   const noticeTone =
@@ -30,7 +33,7 @@ export default function CourseCard({ course, update }: CourseCardProps) {
 
   return (
     <View
-      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+      style={[styles.card, { backgroundColor: glass.glass, borderColor: glass.glassBorder }]}
       accessibilityLabel={`${course.name}, ${course.code}, ${course.startTime} to ${course.endTime}, ${course.location}`}>
       <View style={styles.body}>
         <View style={styles.timeColumn}>

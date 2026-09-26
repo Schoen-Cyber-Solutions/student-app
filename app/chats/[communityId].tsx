@@ -6,19 +6,28 @@ import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import ThreadListItem from '@/components/ThreadListItem';
 import EmptyState from '@/components/EmptyState';
+import CalendarBackground from '@/components/CalendarBackground';
+import GlassPanel from '@/components/GlassPanel';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
+import { glassColors, readableAccent } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useMyCommunity } from '@/hooks/useMyCommunities';
 import { CommunityThread, getCommunityThreads } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
+import { useTabAccent } from '@/utils/tabAccent';
+import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 
 type ThreadsStatus = 'loading' | 'success' | 'unauthorized' | 'not_found' | 'error';
 
 export default function CommunityScreen() {
   const { communityId } = useLocalSearchParams<{ communityId: string }>();
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme();
+  const colors = Colors[scheme];
+  const accent = useTabAccent('chat');
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
+  const chatAppearance = useTabAppearance('chat');
   const community = useMyCommunity(communityId);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
   const [status, setStatus] = useState<ThreadsStatus>('loading');
@@ -41,6 +50,7 @@ export default function CommunityScreen() {
     useCallback(() => {
       setStatus((prev) => (prev === 'success' ? prev : 'loading'));
       void loadThreads();
+      void refreshTabAppearance();
     }, [loadThreads])
   );
 
@@ -49,7 +59,7 @@ export default function CommunityScreen() {
       case 'loading':
         return (
           <View style={styles.loading}>
-            <ActivityIndicator color={colors.tint} />
+            <ActivityIndicator color={accent} />
           </View>
         );
       case 'unauthorized':
@@ -76,13 +86,15 @@ export default function CommunityScreen() {
         );
       case 'success':
         return threads.length ? (
-          threads.map((thread) => (
-            <ThreadListItem
-              key={thread.id}
-              thread={thread}
-              onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
-            />
-          ))
+          <GlassPanel style={styles.threadPanel} intensity={30}>
+            {threads.map((thread) => (
+              <ThreadListItem
+                key={thread.id}
+                thread={thread}
+                onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
+              />
+            ))}
+          </GlassPanel>
         ) : (
           <EmptyState
             title="No discussions yet"
@@ -97,7 +109,13 @@ export default function CommunityScreen() {
     <>
       <Stack.Screen options={{ title: community?.name ?? 'Community', headerShown: false }} />
       <View style={styles.container}>
-        <AppHeader safeAreaTop greeting={community?.name ?? 'Community'} backLabel="Chat" />
+        <CalendarBackground appearance={chatAppearance} />
+        <AppHeader
+          safeAreaTop
+          greeting={community?.name ?? 'Community'}
+          backLabel="Chat"
+          accent={accent}
+        />
         <ScreenWrapper>
           {community && (
             <Text style={[styles.code, { color: colors.secondaryText }]}>{community.subtitle}</Text>
@@ -107,13 +125,24 @@ export default function CommunityScreen() {
             onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/new-thread`)}
             style={({ pressed }) => [
               styles.newThreadButton,
-              { backgroundColor: colors.tintSoft },
+              {
+                backgroundColor: glass.accentSoft,
+                borderColor: glass.glassBorder,
+              },
               pressed && { opacity: 0.7 },
             ]}
             accessibilityRole="button"
             accessibilityLabel="New thread">
-            <SymbolView name="plus" tintColor={colors.tint} size={16} />
-            <Text style={[styles.newThreadText, { color: colors.tint }]}>
+            <SymbolView
+              name="plus"
+              tintColor={readableAccent(accent, scheme === 'dark' ? 'dark' : 'light')}
+              size={16}
+            />
+            <Text
+              style={[
+                styles.newThreadText,
+                { color: readableAccent(accent, scheme === 'dark' ? 'dark' : 'light') },
+              ]}>
               New Thread
             </Text>
           </Pressable>
@@ -143,12 +172,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
     alignSelf: 'flex-start',
+  },
+  threadPanel: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
   },
   newThreadText: {
     ...typography.label,

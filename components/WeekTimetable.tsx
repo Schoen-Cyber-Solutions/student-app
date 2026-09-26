@@ -11,9 +11,11 @@ import {
 import { SymbolView } from 'expo-symbols';
 import { Course } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
+import { contrastText, glassColors } from '@/constants/Glass';
+import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
+import GlassPanel from './GlassPanel';
 import TimetableCourseBlock, { HOUR_HEIGHT } from './TimetableCourseBlock';
 import {
   getCoursesForDay,
@@ -53,6 +55,7 @@ const LIVE_DRAG_CAP = 40;
 const ENTER_DISTANCE = 100;
 const ENTER_DURATION = 150;
 const SNAP_DURATION = 150;
+const NOW_LABEL_HEIGHT = 18;
 
 export default function WeekTimetable({
   courses,
@@ -64,7 +67,7 @@ export default function WeekTimetable({
   onSwipeRight,
   onGoToToday,
 }: WeekTimetableProps) {
-  const colors = Colors[useColorScheme()];
+  const colors = glassColors(useColorScheme() === 'dark' ? 'dark' : 'light', useCalendarAccent());
   const today = new Date();
   const hours = getHourRange(START_HOUR, END_HOUR);
   const gridHeight = hours.length * HOUR_HEIGHT + BOTTOM_SPACER;
@@ -186,6 +189,11 @@ export default function WeekTimetable({
           Math.abs(dx) > SWIPE_START_THRESHOLD
         );
       },
+      // If a captured gesture turns vertical, the ScrollView must be allowed
+      // to take the responder back and scroll — refusing would leave
+      // scrollEnabled=false held for the whole touch.
+      onPanResponderTerminationRequest: () => true,
+      onShouldBlockNativeResponder: () => false,
       onPanResponderGrant: () => {
         setScrollEnabled(false);
       },
@@ -303,6 +311,7 @@ export default function WeekTimetable({
   return (
     <View style={styles.container}>
       {/* Week label row */}
+      <GlassPanel style={styles.weekPanel} intensity={40}>
       <View style={styles.weekRow}>
         <View style={styles.sideSpacer} />
         <Text
@@ -318,19 +327,26 @@ export default function WeekTimetable({
               onPress={onGoToToday}
               style={({ pressed }) => [
                 styles.todayButton,
-                { backgroundColor: colors.tint },
+                { backgroundColor: colors.accent },
                 pressed && { opacity: 0.8 },
               ]}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Go to today">
-              <Text style={styles.todayText}>Today</Text>
+              <Text style={[styles.todayText, { color: contrastText(colors.accent) }]}>
+                Today
+              </Text>
             </Pressable>
           )}
         </View>
       </View>
+      </GlassPanel>
 
-      {/* Day header row */}
+      {/* Calendar viewport: horizontal swipe + vertical scroll.
+          The day-header row lives inside the glass panel so it shares the
+          frosted surface and stays readable while scrolling. */}
+      <View style={styles.viewport} {...panResponder.panHandlers}>
+        <GlassPanel style={styles.gridPanel} intensity={25} variant="faint">
       <View style={styles.headerRow}>
         <View style={[styles.gutter, { width: GUTTER_WIDTH }]} />
         {weekDates.map((date) => {
@@ -349,24 +365,31 @@ export default function WeekTimetable({
               <Text
                 style={[
                   styles.dayHeader,
-                  { color: isToday ? colors.tint : colors.text },
+                  { color: isToday ? colors.accent : colors.secondaryText },
                 ]}>
                 {formatWeekdayShort(date)}
               </Text>
-              <Text
+              <View
                 style={[
-                  styles.dateHeader,
-                  { color: isToday ? colors.tint : colors.text },
+                  styles.datePill,
+                  isToday && { backgroundColor: colors.accent },
                 ]}>
-                {formatDayOfMonth(date)}
-              </Text>
+                <Text
+                  style={[
+                    styles.dateHeader,
+                    { color: isToday ? contrastText(colors.accent) : colors.text },
+                  ]}>
+                  {formatDayOfMonth(date)}
+                </Text>
+              </View>
             </Pressable>
           );
         })}
       </View>
 
-      {/* Calendar viewport: horizontal swipe + vertical scroll */}
-      <View style={styles.viewport} {...panResponder.panHandlers}>
+      {/* Scroll region — the next-event pills anchor inside this wrapper so
+          they overlay the grid only and can never cover the weekday header. */}
+      <View style={styles.scrollArea}>
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
@@ -383,7 +406,7 @@ export default function WeekTimetable({
                   key={hour}
                   style={[
                     styles.hourCell,
-                    { height: HOUR_HEIGHT, borderBottomColor: colors.cardBorder },
+                    { height: HOUR_HEIGHT, borderBottomColor: colors.glassBorder },
                   ]}>
                   <Text
                     style={[styles.hourLabel, { color: colors.mutedText }]}>
@@ -391,6 +414,29 @@ export default function WeekTimetable({
                   </Text>
                 </View>
               ))}
+              {/* Current-time label lives in the time axis, aligned with the
+                  line in today's column — never a floating bubble over the
+                  weekday header or event cards. */}
+              {showCurrentTime && (
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.nowLabel,
+                    {
+                      top: currentTimeTop - NOW_LABEL_HEIGHT / 2,
+                      backgroundColor: colors.glassStrong,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}>
+                  <Text
+                    style={[styles.nowLabelText, { color: colors.accent }]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}>
+                    {formatNowTime(nowMinutes)}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Day columns — ANIMATED, swipeable */}
@@ -413,9 +459,9 @@ export default function WeekTimetable({
                     style={[
                       styles.dayCol,
                       {
-                        borderLeftColor: colors.cardBorder,
+                        borderLeftColor: colors.glassBorder,
                         backgroundColor: isToday
-                          ? colors.tintSoft
+                          ? colors.accentSoft
                           : undefined,
                       },
                     ]}>
@@ -427,7 +473,7 @@ export default function WeekTimetable({
                           styles.hourCell,
                           {
                             height: HOUR_HEIGHT,
-                            borderBottomColor: colors.cardBorder,
+                            borderBottomColor: colors.glassBorder,
                           },
                         ]}
                       />
@@ -438,12 +484,12 @@ export default function WeekTimetable({
                       <View
                         style={[
                           styles.currentTimeLine,
-                          { top: currentTimeTop, borderTopColor: colors.tint },
+                          { top: currentTimeTop, borderTopColor: colors.accent },
                         ]}>
                         <View
                           style={[
                             styles.currentTimeDot,
-                            { backgroundColor: colors.tint },
+                            { backgroundColor: colors.accent },
                           ]}
                         />
                       </View>
@@ -505,8 +551,8 @@ export default function WeekTimetable({
               style={({ pressed }) => [
                 styles.floatingPill,
                 {
-                  backgroundColor: colors.card,
-                  borderColor: colors.cardBorder,
+                  backgroundColor: colors.glassStrong,
+                  borderColor: colors.glassBorder,
                 },
                 pressed && { opacity: 0.8 },
               ]}
@@ -515,10 +561,10 @@ export default function WeekTimetable({
               accessibilityLabel={`Scroll to event at ${nextAbove?.startTime}`}>
               <SymbolView
                 name="chevron.up"
-                tintColor={colors.tint}
+                tintColor={colors.accent}
                 size={12}
               />
-              <Text style={[styles.floatingText, { color: colors.tint }]}>
+              <Text style={[styles.floatingText, { color: colors.accent }]}>
                 {nextAbove?.startTime}
               </Text>
             </Pressable>
@@ -534,25 +580,27 @@ export default function WeekTimetable({
               style={({ pressed }) => [
                 styles.floatingPill,
                 {
-                  backgroundColor: colors.card,
-                  borderColor: colors.cardBorder,
+                  backgroundColor: colors.glassStrong,
+                  borderColor: colors.glassBorder,
                 },
                 pressed && { opacity: 0.8 },
               ]}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={`Scroll to event at ${nextBelow?.startTime}`}>
-              <Text style={[styles.floatingText, { color: colors.tint }]}>
+              <Text style={[styles.floatingText, { color: colors.accent }]}>
                 Next {nextBelow?.startTime}
               </Text>
               <SymbolView
                 name="chevron.down"
-                tintColor={colors.tint}
+                tintColor={colors.accent}
                 size={12}
               />
             </Pressable>
           </View>
         )}
+      </View>
+        </GlassPanel>
       </View>
     </View>
   );
@@ -564,6 +612,12 @@ function formatHourLabel(hour24: number): string {
   return `${h} ${period}`;
 }
 
+function formatNowTime(minutes: number): string {
+  const h24 = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h24 % 12 || 12}:${String(m).padStart(2, '0')} ${h24 >= 12 ? 'PM' : 'AM'}`;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -571,15 +625,43 @@ const styles = StyleSheet.create({
   viewport: {
     flex: 1,
   },
+  scrollArea: {
+    flex: 1,
+  },
+  nowLabel: {
+    position: 'absolute',
+    // `right` extends past the gutter's paddingRight so the chip sits flush
+    // with the first column's left edge — inside the time axis, not floating
+    // over the grid.
+    left: 0,
+    right: -8,
+    height: NOW_LABEL_HEIGHT,
+    borderRadius: NOW_LABEL_HEIGHT / 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+    zIndex: 20,
+  },
+  nowLabelText: {
+    ...typography.caption,
+    fontSize: 9,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
   animatedContent: {
     flex: 1,
+  },
+  weekPanel: {
+    marginHorizontal: spacing.sm,
+    marginBottom: spacing.sm,
   },
   weekRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    minHeight: 22,
+    paddingVertical: spacing.xs,
+    minHeight: 30,
     gap: spacing.sm,
   },
   weekLabel: {
@@ -628,13 +710,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
+  datePill: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 3,
+  },
   dateHeader: {
     ...typography.heading,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
-    marginTop: 2,
     fontVariant: ['tabular-nums'],
+  },
+  gridPanel: {
+    flex: 1,
+    marginHorizontal: spacing.xs,
   },
   hourCell: {
     borderBottomWidth: StyleSheet.hairlineWidth,

@@ -4,8 +4,9 @@ import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import { Course } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
+import { glassColors } from '@/constants/Glass';
+import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import CourseSectionPicker from './CourseSectionPicker';
 import {
@@ -18,6 +19,18 @@ import {
 } from '@/services/api/calendar';
 import RecurringAssignSheet from './RecurringAssignSheet';
 import { prettyCourseCode } from '@/utils/courseLabel';
+
+// expo-blur calls requireNativeViewManager at module eval — on a dev client
+// that predates the package this throws when the overlay first renders and
+// kills the whole calendar screen. The opaque glassStrong fill still gives a
+// readable sheet when blur is unavailable.
+let NativeBlurView: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  NativeBlurView = require('expo-blur').BlurView;
+} catch {
+  NativeBlurView = null;
+}
 
 interface CourseDetailOverlayProps {
   course: Course | null;
@@ -35,7 +48,8 @@ export default function CourseDetailOverlay({
   onClose,
   onEventChanged,
 }: CourseDetailOverlayProps) {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = glassColors(scheme, useCalendarAccent());
   const visible = course !== null;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -108,7 +122,16 @@ export default function CourseDetailOverlay({
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropHit} onPress={onClose} />
 
-        <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+        <View style={[styles.sheet, { borderColor: colors.glassBorder }]}>
+          {NativeBlurView ? (
+            <NativeBlurView
+              intensity={60}
+              tint={scheme}
+              pointerEvents="none"
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassStrong }]} />
           {/* Handle bar */}
           <View style={styles.handleRow}>
             <View style={[styles.handle, { backgroundColor: colors.divider }]} />
@@ -167,14 +190,14 @@ export default function CourseDetailOverlay({
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel="Change course">
-                  <SymbolView name="book.closed" tintColor={colors.tint} size={16} />
+                  <SymbolView name="book.closed" tintColor={colors.accent} size={16} />
                   <View style={styles.professorText}>
                     <Text style={[styles.courseCaption, { color: colors.secondaryText }]}>
                       {event?.courseSectionSource === 'recurring_rule'
                         ? 'Course · assigned from recurring rule'
                         : 'Course'}
                     </Text>
-                    <Text style={[styles.rowText, { color: courseLabel ? colors.text : colors.tint }]}>
+                    <Text style={[styles.rowText, { color: courseLabel ? colors.text : colors.accent }]}>
                       {courseLabel ?? 'Unassigned — assign to course'}
                     </Text>
                   </View>
@@ -230,7 +253,7 @@ export default function CourseDetailOverlay({
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={`Email ${course.instructor}`}>
-                  <SymbolView name="envelope" tintColor={colors.tint} size={16} />
+                  <SymbolView name="envelope" tintColor={colors.accent} size={16} />
                   <View style={styles.professorText}>
                     <Text style={[styles.rowText, { color: colors.text }]}>{course.instructor}</Text>
                     <Text style={[styles.email, { color: colors.secondaryText }]}>
@@ -280,8 +303,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   sheet: {
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
     paddingBottom: 32,
     maxHeight: '75%',
   },

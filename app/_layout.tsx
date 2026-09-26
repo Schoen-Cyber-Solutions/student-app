@@ -60,11 +60,14 @@ function RootLayoutNav() {
         <Stack.Screen name="calendar-event" options={{ title: 'New Event', presentation: 'modal' }} />
         <Stack.Screen name="profile-edit" options={{ title: 'Edit Profile', presentation: 'modal' }} />
         <Stack.Screen name="menu" options={{ title: 'Menu' }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+        <Stack.Screen name="appearance" options={{ title: 'Appearance' }} />
+        <Stack.Screen name="about" options={{ title: 'About' }} />
         <Stack.Screen name="events/index" options={{ title: 'Campus Events' }} />
         <Stack.Screen name="events/[id]" options={{ title: 'Event' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />
         <Stack.Screen name="uni-email/index" options={{ title: 'Email', headerShown: false }} />
-        <Stack.Screen name="uni-email/[id]" options={{ title: 'Email' }} />
+        <Stack.Screen name="uni-email/[id]" options={{ title: 'Email', headerShown: false }} />
         <Stack.Screen name="uni-email/compose" options={{ title: 'New Message', presentation: 'modal' }} />
         <Stack.Screen name="chats/[communityId]" options={{ title: 'Community', headerShown: false }} />
         <Stack.Screen name="chats/[communityId]/new-thread" options={{ title: 'New Thread', presentation: 'modal' }} />

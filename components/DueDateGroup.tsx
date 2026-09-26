@@ -3,6 +3,7 @@ import { SymbolView } from 'expo-symbols';
 import { Assignment } from '@/types';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
+import { glassColors } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 import DueDateItem from './DueDateItem';
@@ -34,7 +35,9 @@ export default function DueDateGroup({
   onPressItem,
   onAssignItem,
 }: DueDateGroupProps) {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = Colors[scheme];
+  const glass = glassColors(scheme);
   const accent = color ?? colors.tint;
 
   const nearest = dueDates[0];
@@ -45,7 +48,7 @@ export default function DueDateGroup({
     <View
       style={[
         styles.group,
-        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        { backgroundColor: glass.glass, borderColor: glass.glassBorder },
       ]}>
       <Pressable
         onPress={onToggleExpand}

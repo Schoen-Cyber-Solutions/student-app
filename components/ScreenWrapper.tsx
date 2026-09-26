@@ -38,7 +38,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingBottom: 24,
+    // Clearance so the last item can scroll above the floating glass tab bar.
+    paddingBottom: 110,
   },
   contentNonScrollable: {
     flex: 1,

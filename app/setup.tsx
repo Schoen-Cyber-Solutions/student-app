@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
+import BackButton from '@/components/BackButton';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -15,6 +17,7 @@ const ACADEMIC_YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate',
 
 export default function SetupScreen() {
   const colors = Colors[useColorScheme()];
+  const insets = useSafeAreaInsets();
   const [loadingUser, setLoadingUser] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [university, setUniversity] = useState('');
@@ -29,6 +32,10 @@ export default function SetupScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Forward-routing by onboarding state runs only on the first load —
+  // if the user navigates back here later, they stay put (data reloaded).
+  const didInitialRoute = useRef(false);
+
   const load = useCallback(async () => {
     try {
       const [{ user }, uni] = await Promise.all([getMe(), getMyUniversity()]);
@@ -40,6 +47,9 @@ export default function SetupScreen() {
       setDay(user.birthDay ? String(user.birthDay) : '');
       setProgram(user.program ?? '');
       setAcademicYear(user.academicYear ?? '');
+
+      if (didInitialRoute.current) return;
+      didInitialRoute.current = true;
 
       if (user.onboardingState === 'needs_academic_setup') {
         router.replace('/academic-setup');
@@ -96,7 +106,7 @@ export default function SetupScreen() {
     setError('');
     try {
       await setupProfile(payload);
-      router.replace('/academic-setup');
+      router.push('/academic-setup');
     } catch (err) {
       const apiErr = toApiError(err);
       if (apiErr.kind === 'client' && apiErr.status === 409) {
@@ -122,8 +132,9 @@ export default function SetupScreen() {
   return (
     <KeyboardAwareScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scroll}>
+      contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.card}>
+          <BackButton />
           <Text style={[styles.title, { color: colors.text }]}>Create your profile</Text>
 
           <View style={[styles.uniRow, { backgroundColor: colors.tintSoft }]}>
@@ -241,7 +252,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   card: {
     width: '100%',

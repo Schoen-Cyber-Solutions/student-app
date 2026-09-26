@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
+import BackButton from '@/components/BackButton';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
-import { connectCalendar, getCalendarStatus, skipCalendar } from '@/services/api/me';
+import { connectCalendar, getCalendarStatus, getMe, skipCalendar } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
 
 type Provider = 'blackboard' | 'canvas';
@@ -28,12 +30,28 @@ const PROVIDER_INFO: Record<Provider, { name: string; instructions: string; plac
 
 export default function CalendarConnectScreen() {
   const colors = Colors[useColorScheme()];
+  const insets = useSafeAreaInsets();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [feedUrl, setFeedUrl] = useState('');
   const [status, setStatus] = useState<{ connected: boolean; provider: string | null; eventCount: number; lastSyncedAt: string | null } | null>(null);
+  const [isOnboarding, setIsOnboarding] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Leaving this screen: during onboarding, completing/skipping ends the
+  // flow — reset the stack so Home has no back-into-onboarding. When opened
+  // from an existing account (Profile / Calendar Options), just go back.
+  const leaveScreen = useCallback(() => {
+    if (isOnboarding) {
+      router.dismissAll();
+      router.replace('/(tabs)');
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [isOnboarding]);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -49,6 +67,14 @@ export default function CalendarConnectScreen() {
       }
     } catch {
       // ignore status load errors
+    }
+    try {
+      const { user } = await getMe();
+      setIsOnboarding(
+        user.onboardingState === 'needs_lms_setup' || user.onboardingState === 'needs_calendar',
+      );
+    } catch {
+      // ignore — defaults to non-onboarding behavior
     }
   }, []);
 
@@ -73,9 +99,7 @@ export default function CalendarConnectScreen() {
       setMessage(`${PROVIDER_INFO[provider].name} connected — ${result.eventsSynced} events synced.`);
       setFeedUrl('');
       void loadStatus();
-      setTimeout(() => {
-        router.replace('/(tabs)');
-      }, 1200);
+      setTimeout(leaveScreen, 1200);
     } catch (err) {
       const apiErr = toApiError(err);
       if (apiErr.kind === 'client' && apiErr.status === 400) {
@@ -96,7 +120,7 @@ export default function CalendarConnectScreen() {
     setLoading(true);
     try {
       await skipCalendar();
-      router.replace('/(tabs)');
+      leaveScreen();
     } catch {
       setError('Could not skip. Please try again.');
       setLoading(false);
@@ -106,8 +130,9 @@ export default function CalendarConnectScreen() {
   return (
     <KeyboardAwareScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scroll}>
+      contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.card}>
+          <BackButton />
           <Text style={[styles.title, { color: colors.text }]}>Connect Blackboard or Canvas</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
             Optional — import assignments, quizzes, and due dates from your learning platform.
@@ -211,7 +236,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   card: {
     width: '100%',

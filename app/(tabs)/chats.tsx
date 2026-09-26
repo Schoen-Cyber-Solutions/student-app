@@ -6,14 +6,20 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import SectionHeader from '@/components/SectionHeader';
 import CourseCommunityRow from '@/components/CourseCommunityRow';
 import EmptyState from '@/components/EmptyState';
+import CalendarBackground from '@/components/CalendarBackground';
+import GlassPanel from '@/components/GlassPanel';
 import Colors from '@/constants/Colors';
 import { spacing } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useMyCommunities } from '@/hooks/useMyCommunities';
 import { useCourseColors } from '@/hooks/useCourseColors';
+import { useTabAccent } from '@/utils/tabAccent';
+import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 
 export default function ChatsScreen() {
   const colors = Colors[useColorScheme()];
+  const accent = useTabAccent('chat');
+  const chatAppearance = useTabAppearance('chat');
   const { status, communities, retry } = useMyCommunities();
   const { colors: courseColors, reload: reloadColors } = useCourseColors();
 
@@ -21,6 +27,8 @@ export default function ChatsScreen() {
     useCallback(() => {
       retry();
       reloadColors();
+      // Refresh the shared store on focus; live writes arrive via subscription.
+      void refreshTabAppearance();
     }, [retry, reloadColors])
   );
 
@@ -29,7 +37,7 @@ export default function ChatsScreen() {
       case 'loading':
         return (
           <View style={styles.loading}>
-            <ActivityIndicator color={colors.tint} />
+            <ActivityIndicator color={accent} />
           </View>
         );
       case 'unauthorized':
@@ -81,11 +89,16 @@ export default function ChatsScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader safeAreaTop />
+      <CalendarBackground appearance={chatAppearance} />
+      <AppHeader safeAreaTop greeting="Chats" accent={accent} />
       <ScreenWrapper>
         <View style={styles.section}>
           <SectionHeader title="Communities" />
-          {renderBody()}
+          <GlassPanel style={styles.listPanel} intensity={30}>
+            <View style={styles.listInner}>
+              {renderBody()}
+            </View>
+          </GlassPanel>
         </View>
       </ScreenWrapper>
     </View>
@@ -99,6 +112,13 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  listPanel: {
+    marginTop: spacing.xs,
+  },
+  listInner: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   loading: {
     paddingVertical: spacing.xl,

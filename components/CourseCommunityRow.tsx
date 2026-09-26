@@ -2,6 +2,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Course } from '@/types';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
+import { glassColors } from '@/constants/Glass';
+import { useTabAccent } from '@/utils/tabAccent';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 
@@ -15,24 +17,27 @@ interface CourseCommunityRowProps {
 }
 
 export default function CourseCommunityRow({ course, activityCount, onPress }: CourseCommunityRowProps) {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = Colors[scheme];
+  const glass = glassColors(scheme);
+  const accent = useTabAccent('chat');
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        { backgroundColor: colors.card, borderColor: colors.cardBorder },
+        { backgroundColor: glass.glass, borderColor: glass.glassBorder },
         pressed && { opacity: 0.7 },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`${course.name}, ${course.code}`}>
-      <View style={[styles.dot, { backgroundColor: course.color ?? colors.tint }]} />
+      <View style={[styles.dot, { backgroundColor: course.color ?? accent }]} />
       <View style={styles.textBlock}>
         <Text style={styles.name} numberOfLines={1}>{course.name}</Text>
         <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
         {activityCount ? (
-          <Text style={[styles.activity, { color: colors.tint }]}>
+          <Text style={[styles.activity, { color: accent }]}>
             {activityCount} new discussion{activityCount !== 1 ? 's' : ''}
           </Text>
         ) : null}
