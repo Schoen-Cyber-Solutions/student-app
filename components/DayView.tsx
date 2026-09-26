@@ -64,7 +64,13 @@ function DayEventCard({
           {course.code}
         </Text>
       ) : null}
-      <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={2}>
+      <Text
+        style={[
+          styles.cardName,
+          { color: course.completed ? colors.mutedText : colors.text },
+          course.completed && { textDecorationLine: 'line-through' },
+        ]}
+        numberOfLines={2}>
         {course.name}
       </Text>
       <Text style={[styles.cardMeta, { color: colors.mutedText }]}>

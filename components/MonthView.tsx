@@ -266,7 +266,13 @@ export default function MonthView({
                       accessibilityRole="button"
                       accessibilityLabel={`${event.title}, ${timeText}`}>
                       <View style={styles.agendaInfo}>
-                        <Text style={[styles.agendaEventTitle, { color: colors.text }]} numberOfLines={1}>
+                        <Text
+                          style={[
+                            styles.agendaEventTitle,
+                            { color: event.isCompleted ? colors.mutedText : colors.text },
+                            event.isCompleted && { textDecorationLine: 'line-through' },
+                          ]}
+                          numberOfLines={1}>
                           {event.title}
                         </Text>
                         <Text style={[styles.agendaMeta, { color: colors.secondaryText }]}>

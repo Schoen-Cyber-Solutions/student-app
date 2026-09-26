@@ -18,7 +18,7 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useMyCourse } from '@/hooks/useMyCourses';
+import { useMyCommunity } from '@/hooks/useMyCommunities';
 import {
   ThreadDetail,
   ThreadMessage,
@@ -32,12 +32,12 @@ import { toApiError } from '@/services/api/client';
 type LoadStatus = 'loading' | 'success' | 'unavailable' | 'error';
 
 export default function ThreadDetailScreen() {
-  const { courseId, threadId } = useLocalSearchParams<{
-    courseId: string;
+  const { communityId, threadId } = useLocalSearchParams<{
+    communityId: string;
     threadId: string;
   }>();
   const colors = Colors[useColorScheme()];
-  const course = useMyCourse(courseId);
+  const community = useMyCommunity(communityId);
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [status, setStatus] = useState<LoadStatus>('loading');
@@ -201,12 +201,12 @@ export default function ThreadDetailScreen() {
     <>
       <Stack.Screen
         options={{
-          title: course?.name ?? 'Thread',
+          title: community?.name ?? 'Thread',
           headerShown: false,
         }}
       />
       <View style={styles.container}>
-        <AppHeader safeAreaTop greeting={course?.name ?? 'Thread'} backLabel="Back" />
+        <AppHeader safeAreaTop greeting={community?.name ?? 'Thread'} backLabel="Back" />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

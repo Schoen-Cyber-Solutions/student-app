@@ -53,7 +53,11 @@ export default function OnboardingScreen() {
   const routeForUser = useCallback((onboardingState: string) => {
     if (onboardingState === 'needs_profile' || onboardingState === 'needs_username') {
       router.replace('/setup');
-    } else if (onboardingState === 'needs_calendar') {
+    } else if (onboardingState === 'needs_academic_setup') {
+      router.replace('/academic-setup');
+    } else if (onboardingState === 'needs_courses') {
+      router.replace('/courses-setup');
+    } else if (onboardingState === 'needs_lms_setup' || onboardingState === 'needs_calendar') {
       router.replace('/calendar-connect');
     } else if (onboardingState === 'complete') {
       router.replace('/(tabs)');

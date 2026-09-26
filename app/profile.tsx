@@ -6,7 +6,15 @@ import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import ScreenWrapper from '@/components/ScreenWrapper';
-import { getCalendarStatus, getMe, getMyUniversity, UserProfile } from '@/services/api/me';
+import CalendarViewSwitcher, { CalendarView } from '@/components/CalendarViewSwitcher';
+import {
+  getCalendarStatus,
+  getMe,
+  getMyUniversity,
+  getPreferences,
+  updatePreferences,
+  UserProfile,
+} from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
 
 function CalendarSection() {
@@ -37,6 +45,32 @@ function CalendarSection() {
       </View>
       <Text style={[styles.linkText, { color: colors.tint }]}>{connected ? 'Reconnect' : 'Connect'}</Text>
     </Pressable>
+  );
+}
+
+function CalendarPreferencesSection() {
+  const [view, setView] = useState<CalendarView>('week');
+
+  useFocusEffect(
+    useCallback(() => {
+      getPreferences()
+        .then(({ preferences }) => setView(preferences.defaultCalendarView))
+        .catch(() => {});
+    }, [])
+  );
+
+  const handleChange = (next: CalendarView) => {
+    const prev = view;
+    setView(next);
+    updatePreferences({ defaultCalendarView: next }).catch(() => setView(prev));
+  };
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Calendar Preferences</Text>
+      <Text style={[styles.sectionValue, { marginBottom: 10 }]}>Default view</Text>
+      <CalendarViewSwitcher active={view} onChange={handleChange} />
+    </View>
   );
 }
 
@@ -123,6 +157,16 @@ export default function ProfileScreen() {
         )}
 
         <CalendarSection />
+
+        <CalendarPreferencesSection />
+
+        <Pressable onPress={() => router.push('/academic-setup')} style={styles.row}>
+          <View style={styles.rowLabel}>
+            <Text style={styles.sectionTitle}>Academic Setup</Text>
+            <Text style={styles.sectionValue}>Program, term & courses</Text>
+          </View>
+          <Text style={[styles.linkText, { color: colors.tint }]}>Edit</Text>
+        </Pressable>
 
         <Pressable onPress={handleLogout} style={styles.logoutRow}>
           <Text style={styles.logoutText}>Log out</Text>

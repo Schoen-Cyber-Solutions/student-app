@@ -94,6 +94,9 @@ export interface Course {
   isCluster?: boolean;
   /** Calendar-only: number of events in the cluster. */
   clusterCount?: number;
+  /** Calendar-only: rendered in muted gray — the user's personal completion
+   *  flag on an imported LMS due event. */
+  completed?: boolean;
 }
 
 export interface CalendarEvent {

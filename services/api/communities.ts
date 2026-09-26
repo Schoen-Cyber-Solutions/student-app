@@ -2,9 +2,21 @@ import { apiRequest } from './client';
 import { getSessionToken } from '../auth/devSession';
 
 /**
- * Course community data as returned by the backend. Public identity is the
- * username only — no university email, names, or LMS identifiers appear here.
+ * Community data as returned by the backend. Public identity is the username
+ * only — no university email, names, or LMS identifiers appear here.
+ *
+ * Communities are addressed by typed ids: "uni:{universityId}" for the
+ * university-wide community and "sec:{courseSectionId}" for a section
+ * community. Authorization is always resolved server-side.
  */
+export interface Community {
+  id: string;
+  type: 'university' | 'section';
+  name: string;
+  subtitle: string;
+  courseCode?: string;
+}
+
 export interface CommunityThread {
   id: string;
   title: string;
@@ -16,7 +28,7 @@ export interface CommunityThread {
 
 export interface ThreadDetail {
   id: string;
-  courseId: string;
+  communityId: string;
   title: string;
   createdAt: string;
   authorUsername: string;
@@ -35,21 +47,41 @@ function token(): string | undefined {
   return getSessionToken() ?? undefined;
 }
 
-export async function getCourseThreads(courseId: string): Promise<CommunityThread[]> {
+// ── In-memory community cache ──────────────────────────────────────────────
+// Lets detail screens resolve a community by id without a second request when
+// the list was just loaded. Memory only; nothing is persisted.
+let lastFetchedCommunities: Community[] | null = null;
+
+export async function getMyCommunities(): Promise<Community[]> {
+  const data = await apiRequest<{ communities: Community[] }>('/api/me/communities', {
+    sessionToken: token(),
+  });
+  lastFetchedCommunities = data.communities;
+  return data.communities;
+}
+
+export async function getMyCommunityById(communityId: string): Promise<Community | undefined> {
+  const cached = lastFetchedCommunities?.find((c) => c.id === communityId);
+  if (cached) return cached;
+  const fresh = await getMyCommunities();
+  return fresh.find((c) => c.id === communityId);
+}
+
+export async function getCommunityThreads(communityId: string): Promise<CommunityThread[]> {
   const data = await apiRequest<{ threads: CommunityThread[] }>(
-    `/api/me/courses/${courseId}/threads`,
+    `/api/me/communities/${encodeURIComponent(communityId)}/threads`,
     { sessionToken: token() },
   );
   return data.threads;
 }
 
-export async function createCourseThread(
-  courseId: string,
+export async function createCommunityThread(
+  communityId: string,
   title: string,
   message: string,
 ): Promise<CommunityThread> {
   const data = await apiRequest<{ thread: CommunityThread }>(
-    `/api/me/courses/${courseId}/threads`,
+    `/api/me/communities/${encodeURIComponent(communityId)}/threads`,
     { method: 'POST', sessionToken: token(), body: { title, message } },
   );
   return data.thread;

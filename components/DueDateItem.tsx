@@ -12,6 +12,10 @@ interface DueDateItemProps {
   isLast?: boolean;
   completed?: boolean;
   onToggleComplete?: () => void;
+  /** Tapping the row opens the event detail surface. */
+  onPress?: () => void;
+  /** Unassigned items: opens the course-assignment picker. */
+  onAssign?: () => void;
 }
 
 /** Whole-day difference between an ISO date's calendar day and today, ignoring time zones. */
@@ -39,6 +43,8 @@ export default function DueDateItem({
   isLast = false,
   completed = false,
   onToggleComplete,
+  onPress,
+  onAssign,
 }: DueDateItemProps) {
   const colors = Colors[useColorScheme()];
   const days = daysFromToday(assignment.dueDate);
@@ -47,12 +53,16 @@ export default function DueDateItem({
   const time = assignment.dueTime ?? '';
 
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
         styles.row,
         completed && { opacity: 0.65 },
+        pressed && onPress && { opacity: 0.7 },
         !isLast && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.cardBorder },
       ]}
+      accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={`${assignment.name}, ${assignment.courseCode}, due ${label} ${time}`}>
       {onToggleComplete ? (
         <Pressable
@@ -79,7 +89,18 @@ export default function DueDateItem({
           numberOfLines={2}>
           {assignment.name}
         </Text>
-        <Text style={[styles.course, { color: colors.secondaryText }]}>{assignment.courseCode}</Text>
+        {assignment.courseCode ? (
+          <Text style={[styles.course, { color: colors.secondaryText }]}>{assignment.courseCode}</Text>
+        ) : null}
+        {onAssign ? (
+          <Pressable onPress={onAssign} hitSlop={8} accessibilityRole="button" accessibilityLabel="Assign to course">
+            {({ pressed }) => (
+              <Text style={[styles.assignLink, { color: colors.tint }, pressed && { opacity: 0.6 }]}>
+                Assign to course
+              </Text>
+            )}
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.right}>
@@ -100,7 +121,7 @@ export default function DueDateItem({
           <Text style={[styles.time, { color: colors.mutedText }]}>{time}</Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -127,6 +148,11 @@ const styles = StyleSheet.create({
   course: {
     ...typography.caption,
     fontWeight: '500',
+  },
+  assignLink: {
+    ...typography.caption,
+    fontWeight: '600',
+    marginTop: 2,
   },
   right: {
     alignItems: 'flex-end',

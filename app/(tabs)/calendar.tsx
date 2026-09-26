@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { spacing, typography } from '@/constants/Theme';
 import AppHeader from '@/components/AppHeader';
@@ -14,7 +14,7 @@ import EmptyState from '@/components/EmptyState';
 import { Course } from '@/types';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
 import { MyCalendarEvent } from '@/services/api/calendar';
-import { getCalendarStatus } from '@/services/api/me';
+import { getCalendarStatus, getPreferences } from '@/services/api/me';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import {
   getMondayOfWeek,
@@ -24,31 +24,14 @@ import {
   formatWeekdayShort,
   formatTime12,
 } from '@/utils/time';
+import { colorForKey, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 
-const EVENT_PALETTE = [
-  '#3B82F6',
-  '#10B981',
-  '#F59E0B',
-  '#8B5CF6',
-  '#EC4899',
-  '#06B6D4',
-  '#84CC16',
-  '#F43F5E',
-];
-
-function colorForKey(key: string | null): string | undefined {
-  if (!key) return undefined;
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = key.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % EVENT_PALETTE.length;
-  return EVENT_PALETTE[index];
-}
-
 function eventColor(event: MyCalendarEvent, courseColors: Record<string, string>): string | undefined {
+  // Completed LMS items render neutral gray everywhere — display override only,
+  // the saved course color is never modified.
+  if (event.isCompleted) return COMPLETED_EVENT_COLOR;
   if (event.provider === 'personal') return event.color ?? colorForKey(event.title);
   const key = event.courseCode ?? event.title;
   return courseColors[key] ?? colorForKey(key);
@@ -76,12 +59,16 @@ function toTimetableCourse(event: MyCalendarEvent, courseColors: Record<string, 
       day: 'numeric',
     }),
     description: event.description ?? undefined,
+    completed: event.isCompleted ?? false,
   };
 }
 
 export default function CalendarScreen() {
-  const [view, setView] = useState<CalendarView>('week');
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  // Null until the saved default view is loaded — avoids flickering between
+  // Week and the user's preference on a cold open.
+  const [view, setView] = useState<CalendarView | null>(null);
+  const suppressResetRef = useRef(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [monthCursor, setMonthCursor] = useState(new Date());
@@ -101,6 +88,30 @@ export default function CalendarScreen() {
   useEffect(() => {
     void loadCalendarStatus();
   }, [loadCalendarStatus]);
+
+  // Apply the saved default view at the start of each Calendar visit. Focus
+  // also fires when returning from a pushed screen (event detail / edit /
+  // connect) — those pushes set suppressResetRef so the user's in-flight
+  // view choice survives.
+  useFocusEffect(
+    useCallback(() => {
+      if (suppressResetRef.current) {
+        suppressResetRef.current = false;
+        return;
+      }
+      let active = true;
+      getPreferences()
+        .then(({ preferences }) => {
+          if (active) setView(preferences.defaultCalendarView);
+        })
+        .catch(() => {
+          if (active) setView((v) => v ?? 'week');
+        });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   const todayMonday = useMemo(() => getMondayOfWeek(new Date()), []);
   const baseMonday = new Date(todayMonday);
@@ -125,8 +136,18 @@ export default function CalendarScreen() {
     return { from, to };
   }, [view, monthCursor, weekDates]);
 
-  const { status, events, retry } = useMyCalendar(range);
+  const { status, events, retry, refresh } = useMyCalendar(range);
   const courses = useMemo(() => events.map((e) => toTimetableCourse(e, courseColors)), [events, courseColors]);
+  // Resolve the selected event from the live list so course-assignment edits
+  // (and re-syncs) re-render the detail overlay automatically.
+  const selectedEvent = useMemo(
+    () => events.find((e) => e.id === selectedEventId) ?? null,
+    [events, selectedEventId]
+  );
+  const selectedCourse = useMemo(
+    () => (selectedEvent ? toTimetableCourse(selectedEvent, courseColors) : null),
+    [selectedEvent, courseColors]
+  );
 
   const goToNextWeek = () => setWeekOffset((o) => o + 1);
   const goToPrevWeek = () => setWeekOffset((o) => o - 1);
@@ -159,12 +180,13 @@ export default function CalendarScreen() {
 
   const handleSelectEvent = (event: MyCalendarEvent) => {
     if (event.provider === 'personal') {
+      suppressResetRef.current = true;
       router.push({
         pathname: '/calendar-event',
         params: { id: event.id, date: event.startAt },
       });
     } else {
-      setSelectedCourse(toTimetableCourse(event, courseColors));
+      setSelectedEventId(event.id);
     }
   };
 
@@ -213,7 +235,11 @@ export default function CalendarScreen() {
             <Text style={[styles.bannerText, { color: colors.text }]}>
               University calendar not connected
             </Text>
-            <Pressable onPress={() => router.push('/calendar-connect')}>
+            <Pressable
+              onPress={() => {
+                suppressResetRef.current = true;
+                router.push('/calendar-connect');
+              }}>
               <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 14 }}>Connect</Text>
             </Pressable>
           </View>
@@ -221,13 +247,22 @@ export default function CalendarScreen() {
 
         <View style={styles.header}>
           <Pressable
-            onPress={() => router.push('/calendar-edit')}
+            onPress={() => {
+              suppressResetRef.current = true;
+              router.push('/calendar-edit');
+            }}
             style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.6 }]}>
             <Text style={{ color: colors.tint, fontWeight: '600', fontSize: 15 }}>Edit</Text>
           </Pressable>
-          <CalendarViewSwitcher active={view} onChange={handleViewChange} />
+          {view !== null && <CalendarViewSwitcher active={view} onChange={handleViewChange} />}
           <View style={styles.editSpacer} />
         </View>
+
+        {view === null && (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.tint} />
+          </View>
+        )}
 
         {view === 'week' && (
           <>
@@ -243,7 +278,7 @@ export default function CalendarScreen() {
                   courses={courses}
                   weekDates={weekDates}
                   weekOffset={weekOffset}
-                  onSelectCourse={setSelectedCourse}
+                  onSelectCourse={(c) => setSelectedEventId(c.id)}
                   onSelectDay={openDay}
                   onSwipeLeft={goToNextWeek}
                   onSwipeRight={goToPrevWeek}
@@ -294,7 +329,7 @@ export default function CalendarScreen() {
                 <DayView
                   selectedDate={selectedDay}
                   courses={courses}
-                  onSelectCourse={setSelectedCourse}
+                  onSelectCourse={(c) => setSelectedEventId(c.id)}
                   onPreviousDay={goToPrevDay}
                   onNextDay={goToNextDay}
                   onGoToToday={goToToday}
@@ -359,7 +394,12 @@ export default function CalendarScreen() {
         )}
       </ScreenWrapper>
 
-      <CourseDetailOverlay course={selectedCourse} onClose={() => setSelectedCourse(null)} />
+      <CourseDetailOverlay
+        course={selectedCourse}
+        event={selectedEvent}
+        onClose={() => setSelectedEventId(null)}
+        onEventChanged={refresh}
+      />
     </View>
   );
 }

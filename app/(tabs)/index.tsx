@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { getMe, completeIntro, UserProfile } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
@@ -9,52 +9,27 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import SectionHeader from '@/components/SectionHeader';
 import CourseCard from '@/components/CourseCard';
 import DueDateGroup from '@/components/DueDateGroup';
+import CourseDetailOverlay from '@/components/CourseDetailOverlay';
 import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
 import { useCourseColors } from '@/hooks/useCourseColors';
-import { MyCalendarEvent } from '@/services/api/calendar';
+import { assignEventCourse, setEventCompletion, MyCalendarEvent, RecurringPreview } from '@/services/api/calendar';
+import { getMyEnrollments, EnrollmentInfo } from '@/services/api/academic';
+import CourseSectionPicker from '@/components/CourseSectionPicker';
+import RecurringAssignSheet from '@/components/RecurringAssignSheet';
 
 import { Course, Assignment } from '@/types';
+import { colorForKey, prettyCourseCode, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
 import { startOfDay, endOfDay, formatTime12, formatWeekdayShort } from '@/utils/time';
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const COURSE_CODE_RE = /\b[A-Z]{2,}(?:\s*[-.]?\s*)?\d{3,}[A-Z]?\b/g;
-
-const EVENT_PALETTE = [
-  '#3B82F6',
-  '#10B981',
-  '#F59E0B',
-  '#8B5CF6',
-  '#EC4899',
-  '#06B6D4',
-  '#84CC16',
-  '#F43F5E',
-];
-
-function colorForKey(key: string | null): string | undefined {
-  if (!key) return undefined;
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = key.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const index = Math.abs(hash) % EVENT_PALETTE.length;
-  return EVENT_PALETTE[index];
-}
-
-function deriveCourseCode(event: MyCalendarEvent): string {
-  if (event.courseCode) return event.courseCode;
-  if (event.courseName) return event.courseName;
-  const matches = event.title.match(COURSE_CODE_RE);
-  if (matches && matches.length > 0) {
-    return matches[0].replace(/\s/g, '');
-  }
-  return 'Other';
-}
+const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
 function eventColor(event: MyCalendarEvent, courseColors: Record<string, string>): string | undefined {
+  // Completed LMS items render neutral gray — display only, never persisted.
+  if (event.isCompleted) return COMPLETED_EVENT_COLOR;
   if (event.provider === 'personal') return event.color ?? colorForKey(event.title);
   const key = event.courseCode ?? event.title;
   return courseColors[key] ?? colorForKey(key);
@@ -75,6 +50,7 @@ function toCourseCard(event: MyCalendarEvent, courseColors: Record<string, strin
     instructor: '',
     instructorEmail: '',
     color: eventColor(event, courseColors),
+    completed: event.isCompleted ?? false,
   };
 }
 
@@ -147,7 +123,7 @@ export default function HomeScreen() {
   const todayStart = useMemo(() => startOfDay(now), [now]);
   const todayEnd = useMemo(() => endOfDay(now), [now]);
   const rangeEnd = useMemo(
-    () => endOfDay(new Date(now.getTime() + SEVEN_DAYS_MS)),
+    () => endOfDay(new Date(now.getTime() + FOURTEEN_DAYS_MS)),
     [now]
   );
 
@@ -159,7 +135,7 @@ export default function HomeScreen() {
     [todayStart, rangeEnd]
   );
 
-  const { status, events, retry } = useMyCalendar(range);
+  const { status, events, retry, refresh } = useMyCalendar(range);
 
   const todayCourses = useMemo(() => {
     const today = events
@@ -172,7 +148,9 @@ export default function HomeScreen() {
     return today;
   }, [events, todayStart, todayEnd, courseColors]);
 
-  const upcomingDueDates: Assignment[] = useMemo(() => {
+  // Each due item keeps its source event so grouping uses the effective
+  // CourseSection link (auto-detected or manually assigned), never the title.
+  const dueItems = useMemo(() => {
     return events
       .filter((e) => {
         const start = new Date(e.startAt);
@@ -181,55 +159,211 @@ export default function HomeScreen() {
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
       .map((e) => {
         const start = new Date(e.startAt);
-        return {
+        const assignment: Assignment = {
           id: e.id,
           courseId: '',
-          courseCode: deriveCourseCode(e),
+          courseCode: '',
           name: e.title,
           dueDate: start.toLocaleDateString('en-CA'),
           dueTime: formatTime12(start),
-          status: 'not_started' as const,
-          urgency: 'medium' as const,
+          status: 'not_started',
+          urgency: 'medium',
         };
+        return { event: e, assignment };
       });
   }, [events, now, rangeEnd]);
 
+  const upcomingDueDates = useMemo(() => dueItems.map((d) => d.assignment), [dueItems]);
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
 
   const toggleExpand = (code: string) => {
     setExpanded((prev) => ({ ...prev, [code]: !prev[code] }));
   };
 
-  const toggleComplete = (id: string) => {
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  const [enrollments, setEnrollments] = useState<EnrollmentInfo[]>([]);
+  useEffect(() => {
+    getMyEnrollments()
+      .then(setEnrollments)
+      .catch(() => setEnrollments([]));
+  }, []);
+
+  // Enrolled sections sharing a course code need the section code shown.
+  const sectionCountByCourse = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const enr of enrollments) {
+      const code = enr.section.course.code;
+      counts.set(code, (counts.get(code) ?? 0) + 1);
+    }
+    return counts;
+  }, [enrollments]);
+
+  const labelForSection = useCallback(
+    (e: MyCalendarEvent): string => {
+      const pretty = prettyCourseCode(e.courseCode ?? e.courseName ?? 'Course');
+      const multi = (sectionCountByCourse.get(e.courseCode ?? '') ?? 0) > 1;
+      return multi && e.courseSectionCode ? `${pretty} · ${e.courseSectionCode}` : pretty;
+    },
+    [sectionCountByCourse]
+  );
+
+  // Track the event id, not a copied object — the overlay stays in sync when
+  // a course assignment or re-sync refreshes the events list.
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [assignTargetId, setAssignTargetId] = useState<string | null>(null);
+  const eventById = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
+  const selectedEvent = selectedEventId ? eventById.get(selectedEventId) ?? null : null;
+  const assignTarget = assignTargetId ? eventById.get(assignTargetId) ?? null : null;
+
+  // Completion is persisted server-side (CalendarEvent.isCompleted). This
+  // override map only holds optimistic values until a refetch confirms them.
+  const [completionOverrides, setCompletionOverrides] = useState<Record<string, boolean>>({});
+  const completionPending = useRef(new Set<string>());
+
+  const isItemCompleted = useCallback(
+    (eventId: string) =>
+      completionOverrides[eventId] ?? eventById.get(eventId)?.isCompleted ?? false,
+    [completionOverrides, eventById]
+  );
+
+  // Once a refetch confirms a value, hand control back to server state.
+  useEffect(() => {
+    setCompletionOverrides((prev) => {
+      if (Object.keys(prev).length === 0) return prev;
+      const next = { ...prev };
+      let changed = false;
+      for (const id of Object.keys(prev)) {
+        const ev = eventById.get(id);
+        if (ev && (ev.isCompleted ?? false) === prev[id]) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
+  }, [eventById]);
+
+  const toggleComplete = (id: string) => {
+    const event = eventById.get(id);
+    if (!event || completionPending.current.has(id)) return;
+    const next = !(completionOverrides[id] ?? event.isCompleted ?? false);
+    completionPending.current.add(id);
+    setCompletionOverrides((prev) => ({ ...prev, [id]: next }));
+    setEventCompletion(id, next)
+      .catch(() => {
+        setCompletionOverrides((prev) => {
+          const nextOverrides = { ...prev };
+          delete nextOverrides[id];
+          return nextOverrides;
+        });
+        Alert.alert('Could not update', 'Please try again.');
+      })
+      .finally(() => {
+        completionPending.current.delete(id);
+      });
   };
 
+  const completedIds = useMemo(
+    () => new Set(dueItems.filter((d) => isItemCompleted(d.event.id)).map((d) => d.assignment.id)),
+    [dueItems, isItemCompleted]
+  );
+
+  const handlePressDueItem = (id: string) => {
+    if (eventById.has(id)) setSelectedEventId(id);
+  };
+
+  const handleAssignItem = (id: string) => {
+    if (eventById.has(id)) setAssignTargetId(id);
+  };
+
+  // When a manual assignment anchors a weekly series, the backend returns a
+  // recurring preview — the sheet offers "this one" vs "apply to all".
+  const [recurringPrompt, setRecurringPrompt] = useState<{
+    eventId: string;
+    courseSectionId: string;
+    courseLabel: string;
+    recurring: RecurringPreview;
+  } | null>(null);
+
+  const handleAssignSelect = (sectionId: string | null, label?: string) => {
+    const id = assignTargetId;
+    setAssignTargetId(null);
+    if (!id) return;
+    assignEventCourse(id, sectionId)
+      .then((result) => {
+        if (sectionId && result.recurring) {
+          setRecurringPrompt({
+            eventId: id,
+            courseSectionId: sectionId,
+            courseLabel: label ?? 'course',
+            recurring: result.recurring,
+          });
+        }
+        refresh();
+      })
+      .catch(() => Alert.alert('Could not assign', 'Please try again.'));
+  };
+
+  // Group by effective CourseSection; unassigned events collect in a single
+  // trailing group the student can triage manually.
   const grouped = useMemo(() => {
-    const byCode = new Map<string, Assignment[]>();
-    for (const a of upcomingDueDates) {
-      const list = byCode.get(a.courseCode) ?? [];
-      list.push(a);
-      byCode.set(a.courseCode, list);
+    interface Group {
+      key: string;
+      label: string;
+      color: string;
+      items: Assignment[];
+      unassigned: boolean;
     }
-    return Array.from(byCode.entries()).map(([code, items]) => ({
-      code,
-      color: code === 'Other' ? colors.tint : courseColors[code] ?? colorForKey(code) ?? colors.tint,
-      items,
-    }));
-  }, [upcomingDueDates, colors.tint, courseColors]);
+    const bySection = new Map<string, Group>();
+    const unassigned: Assignment[] = [];
+    for (const item of dueItems) {
+      const sid = item.event.courseSectionId;
+      if (!sid) {
+        unassigned.push(item.assignment);
+        continue;
+      }
+      const existing = bySection.get(sid) ?? {
+        key: sid,
+        label: labelForSection(item.event),
+        color: item.event.courseCode
+          ? courseColors[item.event.courseCode] ?? colorForKey(item.event.courseCode) ?? colors.tint
+          : colors.tint,
+        items: [],
+        unassigned: false,
+      };
+      existing.items.push(item.assignment);
+      bySection.set(sid, existing);
+    }
+    const groups = [...bySection.values()].sort((a, b) => a.label.localeCompare(b.label));
+    if (unassigned.length > 0) {
+      groups.push({ key: 'unassigned', label: 'Unassigned', color: colors.tint, items: unassigned, unassigned: true });
+    }
+    // Incomplete first, then completed — items arrive date-sorted and this
+    // stable sort keeps chronological order within each status.
+    for (const g of groups) {
+      g.items.sort(
+        (a, b) => Number(isItemCompleted(b.id)) - Number(isItemCompleted(a.id))
+      );
+    }
+    return groups;
+  }, [dueItems, labelForSection, courseColors, colors.tint, isItemCompleted]);
+
+  // Dev-only trace: group label -> member event ids, so an assignment change
+  // can be followed through the grouping in logs. Ids only, no titles.
+  useEffect(() => {
+    if (!__DEV__) return;
+    const summary = grouped
+      .map((g) => `${g.label}[${g.items.map((i) => i.id.slice(0, 8)).join('|')}]`)
+      .join(' ');
+    console.debug(`[home/due-dates] ${summary || '(no due dates)'}`);
+  }, [grouped]);
 
   // Start every group expanded by default.
   useEffect(() => {
     setExpanded((prev) => {
       const next: Record<string, boolean> = { ...prev };
       for (const g of grouped) {
-        if (!(g.code in next)) next[g.code] = true;
+        if (!(g.key in next)) next[g.key] = true;
       }
       return next;
     });
@@ -326,26 +460,50 @@ export default function HomeScreen() {
               <View style={styles.list}>
                 {grouped.map((g) => (
                   <DueDateGroup
-                    key={g.code}
-                    courseCode={g.code}
+                    key={g.key}
+                    courseCode={g.label}
                     color={g.color}
                     dueDates={g.items}
-                    completedIds={completed}
-                    expanded={!!expanded[g.code]}
-                    onToggleExpand={() => toggleExpand(g.code)}
+                    completedIds={completedIds}
+                    expanded={!!expanded[g.key]}
+                    onToggleExpand={() => toggleExpand(g.key)}
                     onToggleComplete={toggleComplete}
+                    onPressItem={handlePressDueItem}
+                    onAssignItem={g.unassigned ? handleAssignItem : undefined}
                   />
                 ))}
               </View>
             ) : (
               <EmptyState
                 title="No upcoming due dates"
-                message="Nothing due in the next 7 days."
+                message="Nothing due in the next 14 days."
                 icon="calendar"
               />
             ))}
         </View>
       </ScreenWrapper>
+
+      <CourseDetailOverlay
+        course={selectedEvent ? toCourseCard(selectedEvent, courseColors) : null}
+        event={selectedEvent}
+        onClose={() => setSelectedEventId(null)}
+        onEventChanged={refresh}
+      />
+      <CourseSectionPicker
+        visible={assignTargetId !== null}
+        selectedSectionId={assignTarget?.courseSectionId ?? null}
+        onSelect={handleAssignSelect}
+        onClose={() => setAssignTargetId(null)}
+      />
+      <RecurringAssignSheet
+        visible={recurringPrompt !== null}
+        eventId={recurringPrompt?.eventId ?? null}
+        courseSectionId={recurringPrompt?.courseSectionId ?? null}
+        courseLabel={recurringPrompt?.courseLabel ?? ''}
+        recurring={recurringPrompt?.recurring ?? null}
+        onApplied={refresh}
+        onClose={() => setRecurringPrompt(null)}
+      />
     </View>
   );
 }

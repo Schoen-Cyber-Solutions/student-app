@@ -16,6 +16,10 @@ interface DueDateGroupProps {
   onToggleExpand: () => void;
   onToggleComplete: (id: string) => void;
   onViewCourse?: (code: string) => void;
+  /** Tapping a row opens the event detail surface. */
+  onPressItem?: (id: string) => void;
+  /** Unassigned group: tapping "Assign to course" opens the picker. */
+  onAssignItem?: (id: string) => void;
 }
 
 export default function DueDateGroup({
@@ -27,6 +31,8 @@ export default function DueDateGroup({
   onToggleExpand,
   onToggleComplete,
   onViewCourse,
+  onPressItem,
+  onAssignItem,
 }: DueDateGroupProps) {
   const colors = Colors[useColorScheme()];
   const accent = color ?? colors.tint;
@@ -75,7 +81,7 @@ export default function DueDateGroup({
         </View>
         <View style={styles.chevron}>
           <SymbolView
-            name={expanded ? 'chevron.up' : 'chevron.down'}
+            name={expanded ? 'chevron.down' : 'chevron.right'}
             tintColor={colors.mutedText}
             size={14}
           />
@@ -91,6 +97,8 @@ export default function DueDateGroup({
               isLast={i === dueDates.length - 1}
               completed={completedIds.has(assignment.id)}
               onToggleComplete={() => onToggleComplete(assignment.id)}
+              onPress={onPressItem ? () => onPressItem(assignment.id) : undefined}
+              onAssign={onAssignItem ? () => onAssignItem(assignment.id) : undefined}
             />
           ))}
         </View>

@@ -108,9 +108,10 @@ export default function CalendarConnectScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.scroll}>
         <View style={styles.card}>
-          <Text style={[styles.title, { color: colors.text }]}>Connect your university calendar</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Connect Blackboard or Canvas</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
-            Which learning platform does your university use?
+            Optional — import assignments, quizzes, and due dates from your learning platform.
+            Your class schedule already comes from your official course selections.
           </Text>
 
           {status?.connected && (

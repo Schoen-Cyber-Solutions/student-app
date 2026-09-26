@@ -13,17 +13,17 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useMyCourse } from '@/hooks/useMyCourses';
-import { createCourseThread } from '@/services/api/communities';
+import { useMyCommunity } from '@/hooks/useMyCommunities';
+import { createCommunityThread } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
 
 const MAX_TITLE_LENGTH = 150;
 const MAX_MESSAGE_LENGTH = 5000;
 
 export default function NewThreadScreen() {
-  const { courseId } = useLocalSearchParams<{ courseId: string }>();
+  const { communityId } = useLocalSearchParams<{ communityId: string }>();
   const colors = Colors[useColorScheme()];
-  const course = useMyCourse(courseId);
+  const community = useMyCommunity(communityId);
 
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -33,23 +33,23 @@ export default function NewThreadScreen() {
     title.trim().length > 0 && message.trim().length > 0 && !submitting;
 
   const handleCreate = useCallback(async () => {
-    if (!canSubmit || !courseId) return;
+    if (!canSubmit || !communityId) return;
     setSubmitting(true);
     try {
-      const thread = await createCourseThread(courseId, title.trim(), message.trim());
-      router.replace(`/chats/${courseId}/thread/${thread.id}`);
+      const thread = await createCommunityThread(communityId, title.trim(), message.trim());
+      router.replace(`/chats/${encodeURIComponent(communityId)}/thread/${thread.id}`);
     } catch (err) {
       const apiErr = toApiError(err);
       const text =
         apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
-          ? 'You no longer have access to this course community.'
+          ? 'You no longer have access to this community.'
           : apiErr.kind === 'client'
             ? 'Your post was rejected. Please shorten it and try again.'
             : 'Check your connection and try again.';
       Alert.alert('Could not post thread', text);
       setSubmitting(false);
     }
-  }, [canSubmit, courseId, title, message]);
+  }, [canSubmit, communityId, title, message]);
 
   return (
     <>
@@ -81,9 +81,9 @@ export default function NewThreadScreen() {
       <KeyboardAwareScrollView
         style={{ flex: 1, backgroundColor: colors.background }}>
           {/* Course subtitle */}
-          {course && (
+          {community && (
             <Text style={[styles.courseLabel, { color: colors.secondaryText }]}>
-              {course.code} · {course.name}
+              {community.name} · {community.subtitle}
             </Text>
           )}
 

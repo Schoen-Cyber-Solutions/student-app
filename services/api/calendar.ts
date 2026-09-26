@@ -1,5 +1,6 @@
 import { apiRequest } from './client';
 import { getSessionToken } from '../auth/devSession';
+import { notifyCalendarMutated } from '@/utils/calendarEvents';
 
 /**
  * Normalized calendar event from GET /api/me/calendar.
@@ -17,6 +18,21 @@ export interface MyCalendarEvent {
   courseCode: string | null;
   courseName: string | null;
   color: string | null;
+  /** Enrolled section this event is mapped to (auto-detected or manually
+   *  assigned by the user). Null when unassigned. */
+  courseSectionId?: string | null;
+  courseSectionCode?: string | null;
+  /** Where the section association came from: 'auto' = feed-detected,
+   *  'manual' = user-picked, 'recurring_rule' = confirmed weekly-series rule,
+   *  'unassigned' = user explicitly chose Unassigned (suppresses
+   *  auto-detection), null = no association. */
+  courseSectionSource?: 'auto' | 'manual' | 'recurring_rule' | 'unassigned' | null;
+  /** Providers whose copies of this event are hidden as duplicates
+   *  (e.g. "blackboard" when the LMS feed also carries this class meeting). */
+  mergedProviders?: string[];
+  /** Personal completion flag — persisted server-side; only meaningful on
+   *  imported LMS events. */
+  isCompleted?: boolean;
 }
 
 interface MyCalendarResponse {
@@ -37,7 +53,18 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
     typeof v.allDay === 'boolean' &&
     (v.courseCode === null || typeof v.courseCode === 'string') &&
     (v.courseName === null || typeof v.courseName === 'string') &&
-    (v.color === null || typeof v.color === 'string')
+    (v.color === null || typeof v.color === 'string') &&
+    (v.courseSectionId === undefined || v.courseSectionId === null || typeof v.courseSectionId === 'string') &&
+    (v.courseSectionCode === undefined || v.courseSectionCode === null || typeof v.courseSectionCode === 'string') &&
+    (v.courseSectionSource === undefined ||
+      v.courseSectionSource === null ||
+      v.courseSectionSource === 'auto' ||
+      v.courseSectionSource === 'manual' ||
+      v.courseSectionSource === 'recurring_rule' ||
+      v.courseSectionSource === 'unassigned') &&
+    (v.mergedProviders === undefined ||
+      (Array.isArray(v.mergedProviders) && v.mergedProviders.every((p) => typeof p === 'string'))) &&
+    (v.isCompleted === undefined || typeof v.isCompleted === 'boolean')
   );
 }
 
@@ -76,6 +103,11 @@ export async function getMyCalendar(
     courseCode: event.courseCode,
     courseName: event.courseName,
     color: event.color,
+    courseSectionId: event.courseSectionId ?? null,
+    courseSectionCode: event.courseSectionCode ?? null,
+    courseSectionSource: event.courseSectionSource ?? null,
+    mergedProviders: event.mergedProviders ?? [],
+    isCompleted: event.isCompleted ?? false,
   }));
 }
 
@@ -111,6 +143,7 @@ export async function createPersonalEvent(input: PersonalEventInput): Promise<Pe
     sessionToken: token(),
     body: input,
   });
+  notifyCalendarMutated();
   return data.event;
 }
 
@@ -120,6 +153,7 @@ export async function updatePersonalEvent(id: string, input: PersonalEventInput)
     sessionToken: token(),
     body: input,
   });
+  notifyCalendarMutated();
   return data.event;
 }
 
@@ -128,4 +162,121 @@ export async function deletePersonalEvent(id: string): Promise<void> {
     method: 'DELETE',
     sessionToken: token(),
   });
+  notifyCalendarMutated();
+}
+
+/** Providers whose imported events the user may course-assign. */
+export const ASSIGNABLE_PROVIDERS = new Set(['blackboard', 'canvas']);
+
+export function isAssignableEvent(event: MyCalendarEvent): boolean {
+  return ASSIGNABLE_PROVIDERS.has(event.provider);
+}
+
+/** Imported LMS events are the only ones the user can mark complete — personal,
+ *  official class meetings, and academic-calendar events are excluded. */
+export function isCompletableEvent(event: MyCalendarEvent): boolean {
+  return ASSIGNABLE_PROVIDERS.has(event.provider);
+}
+
+/**
+ * Set or clear the personal completion flag on one of the user's own imported
+ * LMS events. Personal task-tracking only — nothing is written back to the LMS.
+ */
+export async function setEventCompletion(
+  eventId: string,
+  isCompleted: boolean,
+): Promise<{ id: string; isCompleted: boolean }> {
+  const data = await apiRequest<{ event: { id: string; isCompleted: boolean } }>(
+    `/api/me/calendar/events/${eventId}/completion`,
+    {
+      method: 'PATCH',
+      sessionToken: token(),
+      body: { isCompleted },
+    },
+  );
+  notifyCalendarMutated();
+  return data.event;
+}
+
+export type CourseSectionSource = 'auto' | 'manual' | 'recurring_rule' | 'unassigned';
+
+/** Preview of a weekly series the assignment anchors — the client offers
+ *  "apply to all matching" when this is present. */
+export interface RecurringPreview {
+  matchCount: number;
+  sampleStartAts: string[];
+}
+
+export interface AssignEventCourseResult {
+  id: string;
+  courseSectionId: string | null;
+  courseSectionSource: CourseSectionSource;
+  /** Other same-series events that would follow the new assignment. */
+  recurring: RecurringPreview | null;
+}
+
+/**
+ * Manually assign an imported (LMS) event to one of the user's enrolled
+ * course sections — for feed items with no reliable course identifier.
+ * Pass null for an explicit "Unassigned" choice, which also suppresses any
+ * feed-detected association.
+ */
+export async function assignEventCourse(
+  eventId: string,
+  courseSectionId: string | null,
+): Promise<AssignEventCourseResult> {
+  const data = await apiRequest<{
+    event: { id: string; courseSectionId: string | null; courseSectionSource: CourseSectionSource };
+    recurring?: RecurringPreview | null;
+  }>(`/api/me/calendar/events/${eventId}/course`, {
+    method: 'PATCH',
+    sessionToken: token(),
+    body: { courseSectionId },
+  });
+  if (__DEV__) {
+    // Diagnostic trace: id + section ids only — no event content.
+    console.debug(
+      `[calendar] PATCH course event=${eventId.slice(0, 8)} -> section=${String(data.event.courseSectionId).slice(0, 8)} source=${data.event.courseSectionSource} recurring=${data.recurring?.matchCount ?? 0}`,
+    );
+  }
+  notifyCalendarMutated();
+  return { ...data.event, recurring: data.recurring ?? null };
+}
+
+/**
+ * Confirm "apply to all matching": creates the recurring rule and backfills
+ * every other event in the series that has no stronger user intent.
+ */
+export async function applyRecurringAssignmentRule(
+  eventId: string,
+  courseSectionId: string,
+): Promise<{ ruleId: string; assignedCount: number }> {
+  const data = await apiRequest<{ rule: { id: string }; assignedCount: number }>(
+    '/api/me/calendar/recurring-rules',
+    {
+      method: 'POST',
+      sessionToken: token(),
+      body: { eventId, courseSectionId },
+    },
+  );
+  notifyCalendarMutated();
+  return { ruleId: data.rule.id, assignedCount: data.assignedCount };
+}
+
+/**
+ * Clear a manual course override so the feed-detected association (if any)
+ * applies again.
+ */
+export async function clearEventCourseOverride(
+  eventId: string,
+): Promise<{ id: string; courseSectionId: string | null; courseSectionSource: CourseSectionSource }> {
+  const data = await apiRequest<{
+    event: { id: string; courseSectionId: string | null; courseSectionSource: CourseSectionSource };
+  }>(`/api/me/calendar/events/${eventId}/course`, {
+    method: 'PATCH',
+    sessionToken: token(),
+    body: { clearOverride: true },
+  });
+  notifyCalendarMutated();
+  return data.event;
 }

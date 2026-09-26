@@ -1,5 +1,6 @@
 import { apiRequest } from './client';
 import { getSessionToken } from '../auth/devSession';
+import { notifyCalendarMutated } from '@/utils/calendarEvents';
 
 export interface UserProfile {
   id: string;
@@ -32,6 +33,14 @@ export interface UpdateProfileBody {
   birthDay?: number | null;
   program?: string | null;
   academicYear?: string | null;
+}
+
+export type DefaultCalendarView = 'day' | 'week' | 'month';
+
+export interface PreferencesResponse {
+  preferences: {
+    defaultCalendarView: DefaultCalendarView;
+  };
 }
 
 export interface CalendarStatusResponse {
@@ -81,6 +90,20 @@ export async function completeIntro(): Promise<{ status: string }> {
   });
 }
 
+export async function getPreferences(): Promise<PreferencesResponse> {
+  return apiRequest<PreferencesResponse>('/api/me/preferences', { sessionToken: token() });
+}
+
+export async function updatePreferences(body: {
+  defaultCalendarView?: DefaultCalendarView;
+}): Promise<PreferencesResponse> {
+  return apiRequest<PreferencesResponse>('/api/me/preferences', {
+    method: 'PATCH',
+    sessionToken: token(),
+    body,
+  });
+}
+
 export async function getCalendarStatus(): Promise<CalendarStatusResponse> {
   return apiRequest<CalendarStatusResponse>('/api/me/calendar/status', {
     sessionToken: token(),
@@ -88,18 +111,22 @@ export async function getCalendarStatus(): Promise<CalendarStatusResponse> {
 }
 
 export async function connectCalendar(feedUrl: string, provider: string): Promise<ConnectCalendarResponse> {
-  return apiRequest<ConnectCalendarResponse>('/api/me/calendar/connect', {
+  const res = await apiRequest<ConnectCalendarResponse>('/api/me/calendar/connect', {
     method: 'POST',
     sessionToken: token(),
     body: { feedUrl, provider },
   });
+  notifyCalendarMutated();
+  return res;
 }
 
 export async function syncCalendar(): Promise<{ status: string; eventsSynced: number }> {
-  return apiRequest<{ status: string; eventsSynced: number }>('/api/me/calendar/sync', {
+  const res = await apiRequest<{ status: string; eventsSynced: number }>('/api/me/calendar/sync', {
     method: 'POST',
     sessionToken: token(),
   });
+  notifyCalendarMutated();
+  return res;
 }
 
 export async function skipCalendar(): Promise<{ status: string }> {

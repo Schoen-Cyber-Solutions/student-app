@@ -45,7 +45,7 @@ export default function CalendarEditScreen() {
     [now]
   );
 
-  const { events, retry } = useMyCalendar(wideRange);
+  const { events, refresh } = useMyCalendar(wideRange);
   const { colors: courseColors, setCourseColor, loading: savingColor } = useCourseColors();
 
   const loadStatus = useCallback(async () => {
@@ -83,7 +83,7 @@ export default function CalendarEditScreen() {
         style: 'destructive',
         onPress: () => {
           deletePersonalEvent(id)
-            .then(() => retry())
+            .then(() => refresh())
             .catch(() => setSyncError('Could not delete event.'));
         },
       },
@@ -99,7 +99,7 @@ export default function CalendarEditScreen() {
       const result = await syncCalendar();
       setSyncMessage(`Synced ${result.eventsSynced} events.`);
       void loadStatus();
-      retry();
+      refresh();
     } catch (err) {
       const apiErr = toApiError(err);
       if (apiErr.kind === 'client' && apiErr.status === 404) {

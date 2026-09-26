@@ -9,12 +9,12 @@ import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
 import { spacing } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useMyCourses } from '@/hooks/useMyCourses';
+import { useMyCommunities } from '@/hooks/useMyCommunities';
 import { useCourseColors } from '@/hooks/useCourseColors';
 
 export default function ChatsScreen() {
   const colors = Colors[useColorScheme()];
-  const { status, courses, retry } = useMyCourses();
+  const { status, communities, retry } = useMyCommunities();
   const { colors: courseColors, reload: reloadColors } = useCourseColors();
 
   useFocusEffect(
@@ -36,7 +36,7 @@ export default function ChatsScreen() {
         return (
           <EmptyState
             title="Not signed in"
-            message="Your session is missing or has expired. Sign in again to see your course communities."
+            message="Your session is missing or has expired. Sign in again to see your communities."
             icon="person.crop.circle.badge.exclamationmark"
             actionLabel="Try again"
             onAction={retry}
@@ -45,7 +45,7 @@ export default function ChatsScreen() {
       case 'error':
         return (
           <EmptyState
-            title="Couldn't load courses"
+            title="Couldn't load communities"
             message="Check your connection and try again."
             icon="wifi.exclamationmark"
             actionLabel="Retry"
@@ -53,22 +53,27 @@ export default function ChatsScreen() {
           />
         );
       case 'success':
-        if (courses.length === 0) {
+        if (communities.length === 0) {
           return (
             <EmptyState
-              title="No course communities available yet"
-              message="Connect your university calendar to automatically detect your courses."
+              title="No communities available yet"
+              message="Add your courses in Academic Setup to join their communities."
               icon="book.closed"
-              actionLabel="Connect Calendar"
-              onAction={() => router.push('/calendar-connect')}
+              actionLabel="Academic Setup"
+              onAction={() => router.push('/academic-setup')}
             />
           );
         }
-        return courses.map((course) => (
+        return communities.map((community) => (
           <CourseCommunityRow
-            key={course.id}
-            course={{ ...course, color: courseColors[course.code] }}
-            onPress={() => router.push(`/chats/${course.id}`)}
+            key={community.id}
+            course={{
+              id: community.id,
+              name: community.name,
+              code: community.subtitle,
+              color: community.courseCode ? courseColors[community.courseCode] : undefined,
+            }}
+            onPress={() => router.push(`/chats/${encodeURIComponent(community.id)}`)}
           />
         ));
     }
@@ -79,7 +84,7 @@ export default function ChatsScreen() {
       <AppHeader safeAreaTop />
       <ScreenWrapper>
         <View style={styles.section}>
-          <SectionHeader title="Course Communities" />
+          <SectionHeader title="Communities" />
           {renderBody()}
         </View>
       </ScreenWrapper>

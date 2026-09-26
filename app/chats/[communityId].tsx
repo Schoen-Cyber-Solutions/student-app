@@ -10,23 +10,23 @@ import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
-import { useMyCourse } from '@/hooks/useMyCourses';
-import { CommunityThread, getCourseThreads } from '@/services/api/communities';
+import { useMyCommunity } from '@/hooks/useMyCommunities';
+import { CommunityThread, getCommunityThreads } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
 
 type ThreadsStatus = 'loading' | 'success' | 'unauthorized' | 'not_found' | 'error';
 
-export default function CourseCommunityScreen() {
-  const { courseId } = useLocalSearchParams<{ courseId: string }>();
+export default function CommunityScreen() {
+  const { communityId } = useLocalSearchParams<{ communityId: string }>();
   const colors = Colors[useColorScheme()];
-  const course = useMyCourse(courseId);
+  const community = useMyCommunity(communityId);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
   const [status, setStatus] = useState<ThreadsStatus>('loading');
 
   const loadThreads = useCallback(async () => {
-    if (!courseId) return;
+    if (!communityId) return;
     try {
-      const data = await getCourseThreads(courseId);
+      const data = await getCommunityThreads(communityId);
       setThreads(data);
       setStatus('success');
     } catch (err) {
@@ -35,7 +35,7 @@ export default function CourseCommunityScreen() {
       else if (apiErr.kind === 'not_found') setStatus('not_found');
       else setStatus('error');
     }
-  }, [courseId]);
+  }, [communityId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,7 +57,7 @@ export default function CourseCommunityScreen() {
         return (
           <EmptyState
             title="Community unavailable"
-            message="You don't have access to this course community."
+            message="You don't have access to this community."
             icon="lock.shield"
           />
         );
@@ -80,7 +80,7 @@ export default function CourseCommunityScreen() {
             <ThreadListItem
               key={thread.id}
               thread={thread}
-              onPress={() => router.push(`/chats/${courseId}/thread/${thread.id}`)}
+              onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
             />
           ))
         ) : (
@@ -95,16 +95,16 @@ export default function CourseCommunityScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: course?.name ?? 'Course', headerShown: false }} />
+      <Stack.Screen options={{ title: community?.name ?? 'Community', headerShown: false }} />
       <View style={styles.container}>
-        <AppHeader safeAreaTop greeting={course?.name ?? 'Course Community'} backLabel="Chat" />
+        <AppHeader safeAreaTop greeting={community?.name ?? 'Community'} backLabel="Chat" />
         <ScreenWrapper>
-          {course && (
-            <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
+          {community && (
+            <Text style={[styles.code, { color: colors.secondaryText }]}>{community.subtitle}</Text>
           )}
 
           <Pressable
-            onPress={() => router.push(`/chats/${courseId}/new-thread`)}
+            onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/new-thread`)}
             style={({ pressed }) => [
               styles.newThreadButton,
               { backgroundColor: colors.tintSoft },

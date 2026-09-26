@@ -41,7 +41,11 @@ export default function SetupScreen() {
       setProgram(user.program ?? '');
       setAcademicYear(user.academicYear ?? '');
 
-      if (user.onboardingState === 'needs_calendar') {
+      if (user.onboardingState === 'needs_academic_setup') {
+        router.replace('/academic-setup');
+      } else if (user.onboardingState === 'needs_courses') {
+        router.replace('/courses-setup');
+      } else if (user.onboardingState === 'needs_lms_setup' || user.onboardingState === 'needs_calendar') {
         router.replace('/calendar-connect');
       } else if (user.onboardingState === 'complete') {
         router.replace('/(tabs)');
@@ -92,7 +96,7 @@ export default function SetupScreen() {
     setError('');
     try {
       await setupProfile(payload);
-      router.replace('/calendar-connect');
+      router.replace('/academic-setup');
     } catch (err) {
       const apiErr = toApiError(err);
       if (apiErr.kind === 'client' && apiErr.status === 409) {

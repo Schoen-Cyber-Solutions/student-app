@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, View, Text as RNText } from 'react-native';
 import { Course } from '@/types';
 import { radius, spacing } from '@/constants/Theme';
+import { COMPLETED_EVENT_TEXT } from '@/utils/courseLabel';
 
 const HOUR_HEIGHT = 52;
 
@@ -83,20 +84,29 @@ export default function TimetableCourseBlock({
       accessibilityRole="button">
       {isPointInTime && <View style={styles.pointMarker} />}
       {canShowCode ? (
-        <RNText style={styles.codeText} numberOfLines={1} ellipsizeMode="tail">
+        <RNText
+          style={[styles.codeText, course.completed && styles.completedText]}
+          numberOfLines={1}
+          ellipsizeMode="tail">
           {displayCode}
         </RNText>
       ) : null}
       {canShowName ? (
         <RNText
-          style={styles.nameText}
+          style={[
+            styles.nameText,
+            course.completed && styles.completedNameText,
+          ]}
           numberOfLines={canShowTime ? 1 : 2}
           ellipsizeMode="tail">
           {shortName}
         </RNText>
       ) : null}
       {canShowTime ? (
-        <RNText style={styles.timeText} numberOfLines={1} ellipsizeMode="tail">
+        <RNText
+          style={[styles.timeText, course.completed && styles.completedText]}
+          numberOfLines={1}
+          ellipsizeMode="tail">
           {timeText}
         </RNText>
       ) : null}
@@ -152,6 +162,15 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     marginTop: 2,
     fontVariant: ['tabular-nums'],
+  },
+  // Completed events sit on a light-gray tile — muted dark text reads better
+  // than the usual white-on-color treatment.
+  completedText: {
+    color: COMPLETED_EVENT_TEXT,
+  },
+  completedNameText: {
+    color: COMPLETED_EVENT_TEXT,
+    textDecorationLine: 'line-through',
   },
 });
 

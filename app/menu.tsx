@@ -6,6 +6,8 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 
 const menuItems = [
   { label: 'Profile', href: '/profile', icon: 'person' },
+  { label: 'Academic Setup', href: '/academic-setup', icon: 'graduationcap' },
+  { label: 'Campus Events', href: '/events', icon: 'ticket' },
   { label: 'Settings', href: '/menu', icon: 'gear' },
   { label: 'About', href: '/menu', icon: 'info.circle' },
 ];
