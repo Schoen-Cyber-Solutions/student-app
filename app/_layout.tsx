@@ -49,7 +49,7 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
+      <Stack screenOptions={{ headerTitleAlign: 'left' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Back', headerBackTitle: 'Back' }} />
         <Stack.Screen name="onboarding" options={{ title: 'Get Started', headerShown: false }} />
         <Stack.Screen name="setup" options={{ title: 'Create Profile', headerShown: false }} />
@@ -69,9 +69,7 @@ function RootLayoutNav() {
         <Stack.Screen name="uni-email/index" options={{ title: 'Email', headerShown: false }} />
         <Stack.Screen name="uni-email/[id]" options={{ title: 'Email', headerShown: false }} />
         <Stack.Screen name="uni-email/compose" options={{ title: 'New Message', presentation: 'modal' }} />
-        <Stack.Screen name="chats/[communityId]" options={{ title: 'Community', headerShown: false }} />
-        <Stack.Screen name="chats/[communityId]/new-thread" options={{ title: 'New Thread', presentation: 'modal' }} />
-        <Stack.Screen name="chats/[communityId]/thread/[threadId]" options={{ title: 'Thread', headerShown: false }} />
+
       </Stack>
     </ThemeProvider>
   );

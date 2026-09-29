@@ -6,7 +6,7 @@ import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
-import { getMe, updateProfile, UpdateProfileBody, UserProfile } from '@/services/api/me';
+import { getMe, updateProfile, UpdateProfileBody, UsernamePolicy } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
 
 const ACADEMIC_YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'Other'];
@@ -15,6 +15,9 @@ export default function ProfileEditScreen() {
   const colors = Colors[useColorScheme()];
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [username, setUsername] = useState('');
+  const [originalUsername, setOriginalUsername] = useState('');
+  const [usernamePolicy, setUsernamePolicy] = useState<UsernamePolicy | null>(null);
   const [firstName, setFirstName] = useState('');
   const [month, setMonth] = useState('');
   const [day, setDay] = useState('');
@@ -25,7 +28,10 @@ export default function ProfileEditScreen() {
 
   const load = useCallback(async () => {
     try {
-      const { user } = await getMe();
+      const { user, usernamePolicy: policy } = await getMe();
+      setUsername(user.username);
+      setOriginalUsername(user.username);
+      setUsernamePolicy(policy);
       setFirstName(user.firstName ?? '');
       setMonth(user.birthMonth ? String(user.birthMonth) : '');
       setDay(user.birthDay ? String(user.birthDay) : '');
@@ -55,6 +61,13 @@ export default function ProfileEditScreen() {
       academicYear: academicYear || null,
     };
 
+    // Only send a username when it actually changed — resubmitting the same
+    // value is a server-side no-op and must not consume the term's change.
+    const nextUsername = username.trim().toLowerCase();
+    if (nextUsername && nextUsername !== originalUsername) {
+      payload.username = nextUsername;
+    }
+
     const m = month.trim() === '' ? null : Number(month.trim());
     const d = day.trim() === '' ? null : Number(day.trim());
     if (m !== null || d !== null) {
@@ -67,11 +80,22 @@ export default function ProfileEditScreen() {
 
     try {
       await updateProfile(payload);
+      if (payload.username) setOriginalUsername(nextUsername);
       setMessage('Profile saved.');
       setTimeout(() => router.back(), 800);
     } catch (err) {
       const apiErr = toApiError(err);
-      if (apiErr.kind === 'client' && apiErr.status === 400) {
+      const serverMessage =
+        apiErr.body && typeof apiErr.body === 'object' && 'error' in apiErr.body
+          ? String((apiErr.body as { error: unknown }).error)
+          : null;
+      if (apiErr.kind === 'client' && apiErr.status === 400 && payload.username) {
+        setError(serverMessage ?? 'Invalid username.');
+      } else if (apiErr.kind === 'client' && apiErr.status === 409) {
+        setError(serverMessage ?? 'Username already taken.');
+      } else if (apiErr.kind === 'server' && payload.username) {
+        setError(serverMessage ?? 'Username changes are unavailable right now.');
+      } else if (apiErr.kind === 'client' && apiErr.status === 400) {
         setError('Please check the birthday values.');
       } else {
         setError('Could not save profile. Please try again.');
@@ -80,6 +104,20 @@ export default function ProfileEditScreen() {
       setSaving(false);
     }
   };
+
+  const usernameLocked = usernamePolicy ? !usernamePolicy.canChange : false;
+  const usernameStatus = (() => {
+    if (!usernamePolicy) return null;
+    if (!usernamePolicy.termResolved) {
+      return 'Username changes are temporarily unavailable.';
+    }
+    if (usernamePolicy.canChange) {
+      return 'Username change available this semester.';
+    }
+    return usernamePolicy.nextTermName
+      ? `You can change your username again next semester (${usernamePolicy.nextTermName}).`
+      : 'You can change your username again next semester.';
+  })();
 
   if (loading) {
     return (
@@ -95,6 +133,27 @@ export default function ProfileEditScreen() {
       contentContainerStyle={styles.scroll}>
         <View style={styles.card}>
           <Text style={[styles.title, { color: colors.text }]}>Edit Profile</Text>
+
+          <Text style={[styles.label, { color: colors.secondaryText }]}>Username</Text>
+          <TextInput
+            value={username}
+            onChangeText={setUsername}
+            placeholder="username"
+            editable={!usernameLocked}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[
+              styles.input,
+              { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface },
+              usernameLocked && { opacity: 0.5 },
+            ]}
+            placeholderTextColor={colors.mutedText}
+          />
+          {usernameStatus ? (
+            <Text style={[styles.usernameStatus, { color: colors.secondaryText }]}>
+              {usernameStatus}
+            </Text>
+          ) : null}
 
           <Text style={[styles.label, { color: colors.secondaryText }]}>First name</Text>
           <TextInput
@@ -205,6 +264,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.md,
     fontSize: 16,
+  },
+  usernameStatus: {
+    ...typography.body,
+    fontSize: 13,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
   },
   birthdayRow: {
     flexDirection: 'row',

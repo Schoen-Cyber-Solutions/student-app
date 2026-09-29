@@ -28,7 +28,8 @@ interface AppHeaderProps {
   safeAreaTop?: boolean;
   /** When provided, shows a back button with this label instead of the menu hamburger. */
   backLabel?: string;
-  /** Align the title to the left instead of centering it. */
+  /** Titles are left-aligned app-wide; pass false only if a screen
+   *  explicitly needs a centered title. */
   titleLeft?: boolean;
   /** Tab accent color for title + icons (defaults to the theme tint). */
   accent?: string;
@@ -40,7 +41,7 @@ export default function AppHeader({
   showProfile = true,
   safeAreaTop = false,
   backLabel,
-  titleLeft = false,
+  titleLeft = true,
   accent,
 }: AppHeaderProps) {
   const colorScheme = useColorScheme();
@@ -178,8 +179,11 @@ export default function AppHeader({
           </View>
         ) : null}
 
-        {/* Right */}
-        <View style={styles.sideRight}>{rightControl}</View>
+        {/* Right — shrink to the button so left-aligned titles get the
+            full remaining width; flex:1 is only needed for centered titles. */}
+        <View style={[styles.sideRight, titleLeft && styles.sideCompact]}>
+          {rightControl}
+        </View>
       </View>
     </View>
   );
@@ -208,6 +212,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'flex-end',
     justifyContent: 'center',
+  },
+  // Left-aligned titles: both side controls hug their content so the title
+  // gets all remaining width (long community names, etc.).
+  sideCompact: {
+    flex: 0,
   },
   titleCenter: {
     flex: 1,

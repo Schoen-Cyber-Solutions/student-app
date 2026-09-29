@@ -125,7 +125,7 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Settings' }} />
+      <Stack.Screen options={{ title: 'Settings', headerTitleAlign: 'left' }} />
       <ScreenWrapper>
         <SectionTitle title="Account" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>

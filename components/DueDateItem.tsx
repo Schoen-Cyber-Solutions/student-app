@@ -2,9 +2,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Assignment } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
+import { glassColors, readableAccent, withAlpha } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode, useThemedColors } from './TabTextMode';
 
 interface DueDateItemProps {
   assignment: Assignment;
@@ -16,6 +17,8 @@ interface DueDateItemProps {
   onPress?: () => void;
   /** Unassigned items: opens the course-assignment picker. */
   onAssign?: () => void;
+  /** Accent for the "Assign to course" link (defaults to theme tint). */
+  accent?: string;
 }
 
 /** Whole-day difference between an ISO date's calendar day and today, ignoring time zones. */
@@ -45,8 +48,11 @@ export default function DueDateItem({
   onToggleComplete,
   onPress,
   onAssign,
+  accent,
 }: DueDateItemProps) {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const colors = useThemedColors();
+  const glass = glassColors(scheme, undefined, useTextMode());
   const days = daysFromToday(assignment.dueDate);
   const isSoon = days <= 1;
   const label = relativeLabel(assignment.dueDate);
@@ -73,7 +79,17 @@ export default function DueDateItem({
           accessibilityLabel={completed ? 'Mark as not done' : 'Mark as done'}>
           <SymbolView
             name={completed ? 'checkmark.circle.fill' : 'circle'}
-            tintColor={completed ? colors.success : colors.mutedText}
+            // Unchecked ring carries the shared course color; readableAccent
+            // lifts near-black accents in dark mode and darkens washed-out
+            // ones in light mode so the circle never vanishes into the
+            // background.
+            tintColor={
+              completed
+                ? colors.success
+                : accent
+                  ? readableAccent(accent, scheme)
+                  : colors.mutedText
+            }
             size={20}
           />
         </Pressable>
@@ -90,12 +106,28 @@ export default function DueDateItem({
           {assignment.name}
         </Text>
         {assignment.courseCode ? (
-          <Text style={[styles.course, { color: colors.secondaryText }]}>{assignment.courseCode}</Text>
+          <View style={styles.courseRow}>
+            {accent ? (
+              <View
+                style={[
+                  styles.courseDot,
+                  {
+                    // Filled with the shared course color (luminance-guarded
+                    // for extreme tones); the ring uses mode-aware text-alpha
+                    // so the marker separates from any solid background.
+                    backgroundColor: readableAccent(accent, scheme),
+                    borderColor: withAlpha(colors.text, 0.3),
+                  },
+                ]}
+              />
+            ) : null}
+            <Text style={[styles.course, { color: colors.text }]}>{assignment.courseCode}</Text>
+          </View>
         ) : null}
         {onAssign ? (
           <Pressable onPress={onAssign} hitSlop={8} accessibilityRole="button" accessibilityLabel="Assign to course">
             {({ pressed }) => (
-              <Text style={[styles.assignLink, { color: colors.tint }, pressed && { opacity: 0.6 }]}>
+              <Text style={[styles.assignLink, { color: accent ?? colors.tint }, pressed && { opacity: 0.6 }]}>
                 Assign to course
               </Text>
             )}
@@ -118,7 +150,13 @@ export default function DueDateItem({
           </Text>
         </View>
         {time ? (
-          <Text style={[styles.time, { color: colors.mutedText }]}>{time}</Text>
+          <View
+            style={[
+              styles.timePill,
+              { backgroundColor: glass.glass, borderColor: glass.glassBorder },
+            ]}>
+            <Text style={[styles.time, { color: colors.text }]}>{time}</Text>
+          </View>
         ) : null}
       </View>
     </Pressable>
@@ -145,6 +183,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 3,
   },
+  courseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  courseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+  },
   course: {
     ...typography.caption,
     fontWeight: '500',
@@ -166,9 +215,16 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '600',
   },
+  timePill: {
+    marginTop: 5,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
   time: {
     ...typography.caption,
-    marginTop: 4,
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
 });

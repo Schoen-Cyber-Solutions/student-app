@@ -3,9 +3,8 @@ import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { applyRecurringAssignmentRule, RecurringPreview } from '@/services/api/calendar';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
+import { useThemedColors } from './TabTextMode';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { useColorScheme } from './useColorScheme';
 
 interface RecurringAssignSheetProps {
   visible: boolean;
@@ -37,7 +36,7 @@ export default function RecurringAssignSheet({
   onApplied,
   onClose,
 }: RecurringAssignSheetProps) {
-  const colors = Colors[useColorScheme()];
+  const colors = useThemedColors();
   const [saving, setSaving] = useState(false);
 
   const count = recurring?.matchCount ?? 0;

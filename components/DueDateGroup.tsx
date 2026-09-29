@@ -2,10 +2,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Assignment } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { glassColors } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode, useThemedColors } from './TabTextMode';
 import DueDateItem from './DueDateItem';
 
 interface DueDateGroupProps {
@@ -36,8 +36,8 @@ export default function DueDateGroup({
   onAssignItem,
 }: DueDateGroupProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = Colors[scheme];
-  const glass = glassColors(scheme);
+  const colors = useThemedColors();
+  const glass = glassColors(scheme, undefined, useTextMode());
   const accent = color ?? colors.tint;
 
   const nearest = dueDates[0];
@@ -78,7 +78,7 @@ export default function DueDateGroup({
               </Pressable>
             ) : null}
           </View>
-          <Text style={[styles.summary, { color: colors.secondaryText }]}>
+          <Text style={[styles.summary, { color: colors.text }]}>
             {pendingCount} due{pendingCount !== 1 ? '' : ''} · Next {nearest.dueTime} {nearest.dueDate ? `· ${nearest.dueDate}` : ''}
           </Text>
         </View>
@@ -102,6 +102,7 @@ export default function DueDateGroup({
               onToggleComplete={() => onToggleComplete(assignment.id)}
               onPress={onPressItem ? () => onPressItem(assignment.id) : undefined}
               onAssign={onAssignItem ? () => onAssignItem(assignment.id) : undefined}
+              accent={accent}
             />
           ))}
         </View>
@@ -146,6 +147,7 @@ const styles = StyleSheet.create({
   },
   summary: {
     ...typography.caption,
+    fontWeight: '600',
     marginTop: 2,
   },
   chevron: {

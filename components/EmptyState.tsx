@@ -1,9 +1,8 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { useColorScheme } from './useColorScheme';
+import { useThemedColors } from './TabTextMode';
 
 interface EmptyStateProps {
   title: string;
@@ -22,7 +21,7 @@ export default function EmptyState({
   actionLabel,
   onAction,
 }: EmptyStateProps) {
-  const colors = Colors[useColorScheme()];
+  const colors = useThemedColors();
   return (
     <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.cardBorder }]}>
       <SymbolView name={icon as any} tintColor={colors.mutedText} size={26} />

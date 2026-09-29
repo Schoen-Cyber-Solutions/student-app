@@ -1,15 +1,17 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Course, CourseUpdate } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { glassColors } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode, useThemedColors } from './TabTextMode';
 
 interface CourseCardProps {
   course: Course;
   update?: CourseUpdate;
+  /** When provided, the whole card is tappable (e.g. opens event detail). */
+  onPress?: () => void;
 }
 
 const updateLabels: Record<CourseUpdate['type'], string> = {
@@ -20,10 +22,10 @@ const updateLabels: Record<CourseUpdate['type'], string> = {
   general: 'Update',
 };
 
-export default function CourseCard({ course, update }: CourseCardProps) {
+export default function CourseCard({ course, update, onPress }: CourseCardProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = Colors[scheme];
-  const glass = glassColors(scheme);
+  const colors = useThemedColors();
+  const glass = glassColors(scheme, undefined, useTextMode());
   const accent = course.color ?? colors.tint;
   const isCancelled = update?.type === 'cancellation';
   const noticeTone =
@@ -32,13 +34,20 @@ export default function CourseCard({ course, update }: CourseCardProps) {
       : { bg: colors.infoSoft, fg: colors.infoText };
 
   return (
-    <View
-      style={[styles.card, { backgroundColor: glass.glass, borderColor: glass.glassBorder }]}
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: glass.glass, borderColor: glass.glassBorder },
+        pressed && { opacity: 0.7 },
+      ]}
+      accessibilityRole={onPress ? 'button' : undefined}
       accessibilityLabel={`${course.name}, ${course.code}, ${course.startTime} to ${course.endTime}, ${course.location}`}>
       <View style={styles.body}>
         <View style={styles.timeColumn}>
           <Text style={[styles.time, isCancelled && styles.struck]}>{course.startTime}</Text>
-          <Text style={[styles.timeEnd, { color: colors.mutedText }, isCancelled && styles.struck]}>
+          <Text style={[styles.timeEnd, { color: colors.text }, isCancelled && styles.struck]}>
             {course.endTime}
           </Text>
         </View>
@@ -46,23 +55,23 @@ export default function CourseCard({ course, update }: CourseCardProps) {
         <View style={[styles.accent, { backgroundColor: accent }]} />
 
         <View style={styles.details}>
-          <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
+          <Text style={[styles.code, { color: colors.text }]}>{course.code}</Text>
           <Text style={styles.name} numberOfLines={2}>
             {course.name}
           </Text>
 
           {course.location ? (
             <View style={styles.metaRow}>
-              <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={13} />
-              <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
+              <SymbolView name="mappin.and.ellipse" tintColor={colors.secondaryText} size={13} />
+              <Text style={[styles.meta, { color: colors.text }]} numberOfLines={1}>
                 {course.location}
               </Text>
             </View>
           ) : null}
           {course.instructor ? (
             <View style={styles.metaRow}>
-              <SymbolView name="person" tintColor={colors.mutedText} size={13} />
-              <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
+              <SymbolView name="person" tintColor={colors.secondaryText} size={13} />
+              <Text style={[styles.meta, { color: colors.text }]} numberOfLines={1}>
                 {course.instructor}
               </Text>
             </View>
@@ -80,7 +89,7 @@ export default function CourseCard({ course, update }: CourseCardProps) {
           </Text>
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }
 

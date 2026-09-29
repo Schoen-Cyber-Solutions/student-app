@@ -101,3 +101,64 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 export function toApiError(err: unknown): ApiError {
   return err instanceof ApiError ? err : new ApiError('network');
 }
+
+/**
+ * Multipart/form-data upload for file fields. Uses Expo FileSystem's native
+ * multipart upload instead of fetch+FormData — FormData on this stack cannot
+ * reliably carry { uri, name, type } file parts (the append throws synchronously
+ * or serializes the object), which surfaced as a generic "network" failure.
+ * `fields` are sent as multipart form fields alongside the `image` part.
+ */
+export async function apiUpload<T>(
+  path: string,
+  options: { sessionToken?: string; fields?: Record<string, string>; file?: { uri: string; name: string; type: string } },
+): Promise<T> {
+  if (!isApiConfigured) {
+    throw new ApiError('not_configured');
+  }
+
+  if (!options.file?.uri) {
+    throw new ApiError('client');
+  }
+
+  const { uploadAsync, FileSystemUploadType } = await import('expo-file-system/legacy');
+
+  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (options.sessionToken) headers.Authorization = `Bearer ${options.sessionToken}`;
+
+  let result;
+  try {
+    result = await uploadAsync(url, options.file?.uri ?? '', {
+      httpMethod: 'POST',
+      uploadType: FileSystemUploadType.MULTIPART,
+      fieldName: 'image',
+      mimeType: options.file?.type ?? 'image/jpeg',
+      parameters: options.fields ?? {},
+      headers,
+    });
+  } catch (err) {
+    if (__DEV__) console.warn('[apiUpload] transport failed:', err);
+    throw new ApiError('network');
+  }
+
+  let body: unknown = undefined;
+  try {
+    body = JSON.parse(result.body);
+  } catch {
+    // Non-JSON body — status decides the outcome below.
+  }
+
+  if (__DEV__) {
+    // Safe diagnostics only — never the URI path, token, or file contents.
+    console.log('[apiUpload]', { path, status: result.status, error: (body as { error?: string })?.error });
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new ApiError(kindForStatus(result.status), result.status, body);
+  }
+  if (body === undefined) {
+    throw new ApiError('invalid_response', result.status);
+  }
+  return body as T;
+}

@@ -1,5 +1,5 @@
 import Colors from './Colors';
-import { DEFAULT_ACCENT } from '@/utils/calendarAppearance';
+import { DEFAULT_ACCENT, TAB_TEXT_COLORS, TextMode } from '@/utils/tabAppearance';
 
 type Scheme = 'light' | 'dark';
 
@@ -115,14 +115,46 @@ export function hsvToHex({ h, s, v }: HSV): string {
 }
 
 /**
+ * Base palette with the neutral text tokens remapped by the tab's textMode
+ * ('light' = light text, 'dark' = dark text). Semantic colors (warning,
+ * info, success, urgent) and surfaces are untouched; accent is unaffected.
+ * When textMode is omitted the plain scheme palette is returned.
+ */
+export function themedColors(scheme: Scheme, textMode?: TextMode | null) {
+  const base = Colors[scheme];
+  if (!textMode) return base;
+  const t = TAB_TEXT_COLORS[textMode];
+  // Neutral surfaces (solid cards, chips, borders) flip to the contrasting
+  // palette so the chosen text stays readable — light text gets dark
+  // surfaces and vice versa. Translucent glass fills are unaffected.
+  const surfaces = textMode === 'light' ? Colors.dark : Colors.light;
+  return {
+    ...base,
+    text: t.primary,
+    secondaryText: t.secondary,
+    mutedText: t.tertiary,
+    tabIconDefault: t.icon,
+    surface: surfaces.surface,
+    card: surfaces.card,
+    cardBorder: surfaces.cardBorder,
+    divider: surfaces.divider,
+  };
+}
+
+/**
  * Glassmorphism tokens for the Calendar redesign. Surfaces stay genuinely
  * translucent so a custom background photo remains visible; borders are
  * hairlines; `accent` is the user's configurable Calendar accent (persisted
- * in calendar appearance prefs) — text colors still come from the base theme
- * for readability. Course colors are never altered by the accent.
+ * in calendar appearance prefs) — text colors follow the tab's textMode when
+ * provided, otherwise the base theme. Course colors are never altered by
+ * the accent or textMode.
  */
-export function glassColors(scheme: Scheme, accent: string = DEFAULT_ACCENT) {
-  const base = Colors[scheme];
+export function glassColors(
+  scheme: Scheme,
+  accent: string = DEFAULT_ACCENT,
+  textMode?: TextMode | null,
+) {
+  const base = themedColors(scheme, textMode);
   const dark = scheme === 'dark';
   return {
     ...base,

@@ -3,11 +3,10 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } fro
 import { SymbolView } from 'expo-symbols';
 import { getMyEnrollments, EnrollmentInfo } from '@/services/api/academic';
 import { useCourseColors } from '@/hooks/useCourseColors';
-import { colorForKey, prettyCourseCode } from '@/utils/courseLabel';
+import { getCourseColor, prettyCourseCode } from '@/utils/courseLabel';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
+import { useThemedColors } from './TabTextMode';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { useColorScheme } from './useColorScheme';
 
 interface CourseSectionPickerProps {
   visible: boolean;
@@ -30,8 +29,8 @@ export default function CourseSectionPicker({
   onSelect,
   onClose,
 }: CourseSectionPickerProps) {
-  const colors = Colors[useColorScheme()];
-  const { colors: courseColors } = useCourseColors();
+  const colors = useThemedColors();
+  const { colors: courseColors, colorMap } = useCourseColors();
   const [enrollments, setEnrollments] = useState<EnrollmentInfo[] | null>(null);
 
   useEffect(() => {
@@ -121,7 +120,15 @@ export default function CourseSectionPicker({
                   enr.section.id,
                   `${prettyCourseCode(code)} · ${enr.section.sectionCode}`,
                   enr.section.course.name,
-                  courseColors[code] ?? colorForKey(code),
+                  getCourseColor(
+                    {
+                      courseSectionId: enr.section.id,
+                      courseCode: code,
+                      courseName: enr.section.course.name,
+                    },
+                    courseColors,
+                    colorMap,
+                  ),
                   selectedSectionId === enr.section.id,
                   () => onSelect(enr.section.id, `${prettyCourseCode(code)} · ${enr.section.sectionCode}`),
                 );

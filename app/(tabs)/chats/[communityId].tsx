@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
-import { Stack, useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
@@ -9,12 +9,15 @@ import EmptyState from '@/components/EmptyState';
 import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
 import { Text } from '@/components/Themed';
-import Colors from '@/constants/Colors';
 import { glassColors, readableAccent } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useTextMode } from '@/components/TabTextMode';
 import { useMyCommunity } from '@/hooks/useMyCommunities';
-import { CommunityThread, getCommunityThreads } from '@/services/api/communities';
+import { useChatSearch } from '@/hooks/useChatSearch';
+import ChatSearchBar from '@/components/ChatSearchBar';
+import ChatSearchResults from '@/components/ChatSearchResults';
+import { CommunityThread, communityDisplayName, getCommunityThreads } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
 import { useTabAccent } from '@/utils/tabAccent';
 import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
@@ -24,13 +27,14 @@ type ThreadsStatus = 'loading' | 'success' | 'unauthorized' | 'not_found' | 'err
 export default function CommunityScreen() {
   const { communityId } = useLocalSearchParams<{ communityId: string }>();
   const scheme = useColorScheme();
-  const colors = Colors[scheme];
   const accent = useTabAccent('chat');
-  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent, useTextMode());
   const chatAppearance = useTabAppearance('chat');
   const community = useMyCommunity(communityId);
   const [threads, setThreads] = useState<CommunityThread[]>([]);
   const [status, setStatus] = useState<ThreadsStatus>('loading');
+  // Scoped search within this community only.
+  const search = useChatSearch({ communityId });
 
   const loadThreads = useCallback(async () => {
     if (!communityId) return;
@@ -87,13 +91,15 @@ export default function CommunityScreen() {
       case 'success':
         return threads.length ? (
           <GlassPanel style={styles.threadPanel} intensity={30}>
-            {threads.map((thread) => (
-              <ThreadListItem
-                key={thread.id}
-                thread={thread}
-                onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
-              />
-            ))}
+            <View style={styles.threadCards}>
+              {threads.map((thread) => (
+                <ThreadListItem
+                  key={thread.id}
+                  thread={thread}
+                  onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
+                />
+              ))}
+            </View>
           </GlassPanel>
         ) : (
           <EmptyState
@@ -105,22 +111,41 @@ export default function CommunityScreen() {
     }
   };
 
+  // Navigation options are static in app/(tabs)/chats/_layout.tsx.
   return (
-    <>
-      <Stack.Screen options={{ title: community?.name ?? 'Community', headerShown: false }} />
       <View style={styles.container}>
         <CalendarBackground appearance={chatAppearance} />
         <AppHeader
           safeAreaTop
-          greeting={community?.name ?? 'Community'}
+          greeting={community ? communityDisplayName(community) : 'Community'}
           backLabel="Chat"
           accent={accent}
         />
         <ScreenWrapper>
-          {community && (
-            <Text style={[styles.code, { color: colors.secondaryText }]}>{community.subtitle}</Text>
-          )}
 
+          <View style={styles.searchWrap}>
+            <ChatSearchBar
+              value={search.query}
+              onChange={search.setQuery}
+              accent={accent}
+              placeholder="Search this community"
+            />
+          </View>
+
+          {search.query.trim().length > 0 ? (
+            <View style={styles.searchResults}>
+              <ChatSearchResults
+                results={search.results}
+                searching={search.searching}
+                query={search.query.trim()}
+                accent={accent}
+                type={search.type}
+                onTypeChange={search.setType}
+                hideCommunityName
+              />
+            </View>
+          ) : (
+            <>
           <Pressable
             onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/new-thread`)}
             style={({ pressed }) => [
@@ -148,9 +173,10 @@ export default function CommunityScreen() {
           </Pressable>
 
           <View style={styles.list}>{renderBody()}</View>
+            </>
+          )}
         </ScreenWrapper>
       </View>
-    </>
   );
 }
 
@@ -161,11 +187,6 @@ const styles = StyleSheet.create({
   loading: {
     paddingVertical: spacing.xl,
     alignItems: 'center',
-  },
-  code: {
-    ...typography.overline,
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.sm,
   },
   newThreadButton: {
     flexDirection: 'row',
@@ -184,11 +205,24 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
   },
+  threadCards: {
+    padding: spacing.sm,
+    // 12pt gap separates each thread card — no dividers, no touching cards.
+    gap: spacing.md,
+  },
   newThreadText: {
     ...typography.label,
     fontWeight: '600',
   },
   list: {
     marginTop: spacing.sm,
+  },
+  searchWrap: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+  },
+  searchResults: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
   },
 });

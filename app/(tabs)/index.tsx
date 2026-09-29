@@ -9,10 +9,11 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import SectionHeader from '@/components/SectionHeader';
 import CourseCard from '@/components/CourseCard';
 import DueDateGroup from '@/components/DueDateGroup';
+import DueDateItem from '@/components/DueDateItem';
 import CourseDetailOverlay from '@/components/CourseDetailOverlay';
 import EmptyState from '@/components/EmptyState';
-import Colors from '@/constants/Colors';
-import { contrastText, glassColors } from '@/constants/Glass';
+import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { TabTextModeProvider, useTextMode, useThemedColors } from '@/components/TabTextMode';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import CalendarBackground from '@/components/CalendarBackground';
@@ -27,20 +28,35 @@ import CourseSectionPicker from '@/components/CourseSectionPicker';
 import RecurringAssignSheet from '@/components/RecurringAssignSheet';
 
 import { Course, Assignment } from '@/types';
-import { colorForKey, prettyCourseCode, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
-import { startOfDay, endOfDay, formatTime12, formatWeekdayShort } from '@/utils/time';
+import { colorForKey, getCourseColor, prettyCourseCode, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
+import { startOfDay, endOfDay, formatTime12, formatWeekdayShort, getMondayOfWeek, upcomingWeekBucket } from '@/utils/time';
 
-const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
-function eventColor(event: MyCalendarEvent, courseColors: Record<string, string>): string | undefined {
+
+function eventColor(
+  event: MyCalendarEvent,
+  courseColors: Record<string, string>,
+  colorMap?: Record<string, string>,
+): string | undefined {
   // Completed LMS items render neutral gray — display only, never persisted.
   if (event.isCompleted) return COMPLETED_EVENT_COLOR;
   if (event.provider === 'personal') return event.color ?? colorForKey(event.title);
-  const key = event.courseCode ?? event.title;
-  return courseColors[key] ?? colorForKey(key);
+  return getCourseColor(
+    {
+      courseSectionId: event.courseSectionId,
+      courseCode: event.courseCode,
+      courseName: event.courseName ?? event.title,
+    },
+    courseColors,
+    colorMap,
+  );
 }
 
-function toCourseCard(event: MyCalendarEvent, courseColors: Record<string, string>): Course {
+function toCourseCard(
+  event: MyCalendarEvent,
+  courseColors: Record<string, string>,
+  colorMap?: Record<string, string>,
+): Course {
   const start = new Date(event.startAt);
   const end = event.endAt ? new Date(event.endAt) : start;
 
@@ -54,7 +70,7 @@ function toCourseCard(event: MyCalendarEvent, courseColors: Record<string, strin
     days: [formatWeekdayShort(start) as Course['days'][number]],
     instructor: '',
     instructorEmail: '',
-    color: eventColor(event, courseColors),
+    color: eventColor(event, courseColors, colorMap),
     completed: event.isCompleted ?? false,
   };
 }
@@ -66,12 +82,20 @@ function isDueDate(event: MyCalendarEvent): boolean {
 }
 
 export default function HomeScreen() {
+  return (
+    <TabTextModeProvider tab="home">
+      <HomeScreenContent />
+    </TabTextModeProvider>
+  );
+}
+
+function HomeScreenContent() {
   const scheme = useColorScheme();
-  const colors = Colors[scheme];
+  const colors = useThemedColors();
   const accent = useTabAccent('home');
-  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent, useTextMode());
   const homeAppearance = useTabAppearance('home');
-  const { colors: courseColors } = useCourseColors();
+  const { colors: courseColors, colorMap } = useCourseColors();
 
   // Refresh the shared appearance store on focus so Settings changes show
   // without an app restart; live writes already arrive via subscription.
@@ -98,32 +122,9 @@ export default function HomeScreen() {
 
   const now = useMemo(() => new Date(), []);
 
-  const isBirthdayToday = useMemo(() => {
-    if (!profile || !profile.birthMonth || !profile.birthDay) return false;
-    return (
-      now.getMonth() + 1 === profile.birthMonth && now.getDate() === profile.birthDay
-    );
-  }, [now, profile]);
-
   const showIntro = useMemo(() => {
     return Boolean(profile && profile.onboardingState === 'complete' && !profile.introCompleted);
   }, [profile]);
-
-  const greetingText = useMemo(() => {
-    if (isBirthdayToday && profile?.firstName) {
-      return `Happy Birthday, ${profile.firstName}!`;
-    }
-    if (showIntro && profile?.firstName) {
-      return `Hello, ${profile.firstName}`;
-    }
-    if (showIntro) {
-      return 'Hello';
-    }
-    if (profile?.firstName) {
-      return `Welcome back, ${profile.firstName}`;
-    }
-    return 'Welcome back';
-  }, [isBirthdayToday, profile, showIntro]);
 
   const handleDismissIntro = async () => {
     if (!profile) return;
@@ -139,10 +140,15 @@ export default function HomeScreen() {
   };
   const todayStart = useMemo(() => startOfDay(now), [now]);
   const todayEnd = useMemo(() => endOfDay(now), [now]);
-  const rangeEnd = useMemo(
-    () => endOfDay(new Date(now.getTime() + FOURTEEN_DAYS_MS)),
-    [now]
-  );
+  // Due window ends at the end of NEXT week (local Sunday), not a rolling
+  // 14 days — Upcoming Due Dates only ever covers this week's remainder
+  // and the following Mon–Sun week.
+  const rangeEnd = useMemo(() => {
+    const monday = getMondayOfWeek(now);
+    const nextSunday = new Date(monday);
+    nextSunday.setDate(monday.getDate() + 13);
+    return endOfDay(nextSunday);
+  }, [now]);
 
   const range = useMemo(
     () => ({
@@ -155,23 +161,28 @@ export default function HomeScreen() {
   const { status, events, retry, refresh } = useMyCalendar(range);
 
   const todayCourses = useMemo(() => {
+    // Schedule shows timed events only — zero-duration due dates live in the
+    // "Today's Due" section, not as pseudo-classes here.
     const today = events
       .filter((e) => {
+        if (isDueDate(e)) return false;
         const start = new Date(e.startAt);
         return start.getTime() >= todayStart.getTime() && start.getTime() <= todayEnd.getTime();
       })
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
-      .map((e) => toCourseCard(e, courseColors));
+      .map((e) => toCourseCard(e, courseColors, colorMap));
     return today;
-  }, [events, todayStart, todayEnd, courseColors]);
+  }, [events, todayStart, todayEnd, courseColors, colorMap]);
 
   // Each due item keeps its source event so grouping uses the effective
   // CourseSection link (auto-detected or manually assigned), never the title.
+  // "Today" is the full local day [todayStart, todayEnd] — an item due at
+  // 9 AM still counts as due today at 5 PM, and 12:01 AM tomorrow is upcoming.
   const dueItems = useMemo(() => {
     return events
       .filter((e) => {
         const start = new Date(e.startAt);
-        return isDueDate(e) && start.getTime() >= now.getTime() && start.getTime() <= rangeEnd.getTime();
+        return isDueDate(e) && start.getTime() >= todayStart.getTime() && start.getTime() <= rangeEnd.getTime();
       })
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
       .map((e) => {
@@ -179,7 +190,7 @@ export default function HomeScreen() {
         const assignment: Assignment = {
           id: e.id,
           courseId: '',
-          courseCode: '',
+          courseCode: e.courseCode ?? e.courseName ?? '',
           name: e.title,
           dueDate: start.toLocaleDateString('en-CA'),
           dueTime: formatTime12(start),
@@ -188,9 +199,41 @@ export default function HomeScreen() {
         };
         return { event: e, assignment };
       });
-  }, [events, now, rangeEnd]);
+  }, [events, todayStart, rangeEnd]);
 
-  const upcomingDueDates = useMemo(() => dueItems.map((d) => d.assignment), [dueItems]);
+  // Local-day boundary split — the two sections are disjoint by construction.
+  const todayDueItems = useMemo(
+    () => dueItems.filter((d) => new Date(d.event.startAt).getTime() <= todayEnd.getTime()),
+    [dueItems, todayEnd]
+  );
+  const upcomingDueItems = useMemo(
+    () => dueItems.filter((d) => new Date(d.event.startAt).getTime() > todayEnd.getTime()),
+    [dueItems, todayEnd]
+  );
+
+  // Week buckets for Upcoming: Monday-start weeks in local time. "This Week"
+  // is the remainder of the current Mon–Sun week (tomorrow → Sunday) and
+  // "Next Week" the following Mon–Sun; the fetch window already ends at next
+  // Sunday so nothing later can appear. Items stay a flat chronological
+  // list — urgency ordering outranks course grouping.
+  const upcomingBuckets = useMemo(() => {
+    const buckets: { key: string; label: string; items: typeof upcomingDueItems }[] = [
+      { key: 'this-week', label: 'Due This Week', items: [] },
+      { key: 'next-week', label: 'Due Next Week', items: [] },
+    ];
+    for (const item of upcomingDueItems) {
+      const bucket = upcomingWeekBucket(new Date(item.event.startAt), now);
+      if (bucket === 'this-week') buckets[0].items.push(item);
+      else if (bucket === 'next-week') buckets[1].items.push(item);
+    }
+    for (const b of buckets) {
+      b.items.sort((a, b) => +new Date(a.event.startAt) - +new Date(b.event.startAt));
+    }
+    return buckets.filter((b) => b.items.length > 0);
+  }, [upcomingDueItems, now]);
+
+  const todayDueDates = useMemo(() => todayDueItems.map((d) => d.assignment), [todayDueItems]);
+  const upcomingDueDates = useMemo(() => upcomingDueItems.map((d) => d.assignment), [upcomingDueItems]);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -322,69 +365,83 @@ export default function HomeScreen() {
   };
 
   // Group by effective CourseSection; unassigned events collect in a single
-  // trailing group the student can triage manually.
-  const grouped = useMemo(() => {
-    interface Group {
-      key: string;
-      label: string;
-      color: string;
-      items: Assignment[];
-      unassigned: boolean;
-    }
-    const bySection = new Map<string, Group>();
-    const unassigned: Assignment[] = [];
-    for (const item of dueItems) {
-      const sid = item.event.courseSectionId;
-      if (!sid) {
-        unassigned.push(item.assignment);
-        continue;
+  // trailing group the student can triage manually. Shared by Today's Due
+  // and Upcoming Due Dates.
+  interface DueGroup {
+    key: string;
+    label: string;
+    color: string;
+    items: Assignment[];
+    unassigned: boolean;
+  }
+  const groupDueItems = useCallback(
+    (items: typeof dueItems): DueGroup[] => {
+      const bySection = new Map<string, DueGroup>();
+      const unassigned: Assignment[] = [];
+      for (const item of items) {
+        const sid = item.event.courseSectionId;
+        if (!sid) {
+          unassigned.push(item.assignment);
+          continue;
+        }
+        const existing = bySection.get(sid) ?? {
+          key: sid,
+          label: labelForSection(item.event),
+          color:
+            getCourseColor(
+              {
+                courseSectionId: item.event.courseSectionId,
+                courseCode: item.event.courseCode,
+                courseName: item.event.courseName,
+              },
+              courseColors,
+              colorMap,
+            ) ?? accent,
+          items: [],
+          unassigned: false,
+        };
+        existing.items.push(item.assignment);
+        bySection.set(sid, existing);
       }
-      const existing = bySection.get(sid) ?? {
-        key: sid,
-        label: labelForSection(item.event),
-        color: item.event.courseCode
-          ? courseColors[item.event.courseCode] ?? colorForKey(item.event.courseCode) ?? accent
-          : accent,
-        items: [],
-        unassigned: false,
-      };
-      existing.items.push(item.assignment);
-      bySection.set(sid, existing);
-    }
-    const groups = [...bySection.values()].sort((a, b) => a.label.localeCompare(b.label));
-    if (unassigned.length > 0) {
-      groups.push({ key: 'unassigned', label: 'Unassigned', color: accent, items: unassigned, unassigned: true });
-    }
-    // Incomplete first, then completed — items arrive date-sorted and this
-    // stable sort keeps chronological order within each status.
-    for (const g of groups) {
-      g.items.sort(
-        (a, b) => Number(isItemCompleted(b.id)) - Number(isItemCompleted(a.id))
-      );
-    }
-    return groups;
-  }, [dueItems, labelForSection, courseColors, accent, isItemCompleted]);
+      const groups = [...bySection.values()].sort((a, b) => a.label.localeCompare(b.label));
+      if (unassigned.length > 0) {
+        groups.push({ key: 'unassigned', label: 'Unassigned', color: accent, items: unassigned, unassigned: true });
+      }
+      // Incomplete first, then completed — items arrive date-sorted and this
+      // stable sort keeps chronological order within each status.
+      for (const g of groups) {
+        g.items.sort(
+          (a, b) => Number(isItemCompleted(b.id)) - Number(isItemCompleted(a.id))
+        );
+      }
+      return groups;
+    },
+    [labelForSection, courseColors, colorMap, accent, isItemCompleted]
+  );
+
+  const todayGrouped = useMemo(() => groupDueItems(todayDueItems), [groupDueItems, todayDueItems]);
 
   // Dev-only trace: group label -> member event ids, so an assignment change
   // can be followed through the grouping in logs. Ids only, no titles.
   useEffect(() => {
     if (!__DEV__) return;
-    const summary = grouped
-      .map((g) => `${g.label}[${g.items.map((i) => i.id.slice(0, 8)).join('|')}]`)
-      .join(' ');
-    console.debug(`[home/due-dates] ${summary || '(no due dates)'}`);
-  }, [grouped]);
+    const fmt = (gs: DueGroup[]) =>
+      gs.map((g) => `${g.label}[${g.items.map((i) => i.id.slice(0, 8)).join('|')}]`).join(' ');
+    console.debug(
+      `[home/due-dates] today: ${fmt(todayGrouped) || '(none)'} | upcoming: ${upcomingBuckets.map((b) => `${b.label}: ${b.items.map((i) => i.event.id.slice(0, 8)).join('|') || '(none)'}`).join(' | ') || '(none)'}`
+    );
+  }, [todayGrouped, upcomingBuckets]);
 
   // Start every group expanded by default.
   useEffect(() => {
     setExpanded((prev) => {
       const next: Record<string, boolean> = { ...prev };
-      for (const g of grouped) {
+      for (const g of todayGrouped) {
         if (!(g.key in next)) next[g.key] = true;
       }
       return next;
     });
-  }, [grouped]);
+  }, [todayGrouped]);
 
   const todayLabel = now.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -397,13 +454,12 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={homeAppearance} />
-      <AppHeader safeAreaTop accent={accent} />
+      <AppHeader safeAreaTop greeting="Home" accent={accent} />
       <ScreenWrapper>
         <View style={styles.greeting}>
-          <Text style={[styles.welcome, { color: colors.secondaryText }]}>
-            {greetingText}
+          <Text style={[styles.date, { color: readableAccent(accent, scheme === 'dark' ? 'dark' : 'light') }]}>
+            {todayLabel}
           </Text>
-          <Text style={styles.date}>{todayLabel}</Text>
         </View>
 
         {showIntro && (
@@ -411,7 +467,7 @@ export default function HomeScreen() {
             <Text style={[styles.introTitle, { color: colors.text }]}>Welcome to Student App</Text>
             <Text style={[styles.introBody, { color: colors.secondaryText }]}>
               • Home shows today's schedule and upcoming due dates.
-              {'\n'}• Calendar has your classes, assignments, and personal events.
+              {'\n'}• Calendar has your classes and personal events.
               {'\n'}• Chat opens course communities once your enrollment is verified.
             </Text>
             <Pressable
@@ -433,6 +489,7 @@ export default function HomeScreen() {
           <SectionHeader
             title="Today's Schedule"
             detail={todayCourses.length ? `${todayCourses.length} scheduled` : undefined}
+            accent={accent}
           />
 
           {status === 'loading' && (
@@ -461,7 +518,13 @@ export default function HomeScreen() {
             (todayCourses.length ? (
               <GlassPanel style={styles.sectionPanel} intensity={30}>
                 <View style={styles.panelInner}>
-                  {todayCourses.map((course) => <CourseCard key={course.id} course={course} />)}
+                  {todayCourses.map((course) => (
+                    <CourseCard
+                      key={course.id}
+                      course={course}
+                      onPress={() => setSelectedEventId(course.id)}
+                    />
+                  ))}
                 </View>
               </GlassPanel>
             ) : (
@@ -477,15 +540,16 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <SectionHeader
-            title="Upcoming Due Dates"
-            detail={upcomingDueDates.length ? `${upcomingDueDates.length} due` : undefined}
+            title="Today's Due"
+            detail={todayDueDates.length ? `${todayDueDates.length} due` : undefined}
+            accent={accent}
           />
 
           {showContent &&
-            (grouped.length ? (
+            (todayGrouped.length ? (
               <GlassPanel style={styles.sectionPanel} intensity={30}>
                 <View style={styles.listInner}>
-                  {grouped.map((g) => (
+                  {todayGrouped.map((g) => (
                     <DueDateGroup
                       key={g.key}
                       courseCode={g.label}
@@ -504,6 +568,66 @@ export default function HomeScreen() {
             ) : (
               <GlassPanel style={styles.sectionPanel} intensity={30}>
                 <EmptyState
+                  title="Nothing due today"
+                  message="Assignments due later are listed below."
+                  icon="checkmark.circle"
+                />
+              </GlassPanel>
+            ))}
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Upcoming Due Dates"
+            detail={upcomingDueDates.length ? `${upcomingDueDates.length} due` : undefined}
+            accent={accent}
+          />
+
+          {showContent &&
+            (upcomingBuckets.length ? (
+              upcomingBuckets.map((bucket) => (
+                <View key={bucket.key} style={styles.weekBucket}>
+                  <Text style={[styles.bucketLabel, { color: colors.secondaryText }]}>
+                    {bucket.label}
+                  </Text>
+                  <GlassPanel style={styles.sectionPanel} intensity={30}>
+                    <View style={styles.listInner}>
+                      {/* Flat chronological list — the due timestamp wins over
+                          course grouping; each row carries its own course
+                          dot + code so identity stays visible. */}
+                      {bucket.items.map((item, i) => (
+                        <DueDateItem
+                          key={item.event.id}
+                          assignment={item.assignment}
+                          isLast={i === bucket.items.length - 1}
+                          completed={completedIds.has(item.assignment.id)}
+                          onToggleComplete={() => toggleComplete(item.event.id)}
+                          onPress={() => handlePressDueItem(item.assignment.id)}
+                          onAssign={
+                            item.event.courseSectionId
+                              ? undefined
+                              : () => handleAssignItem(item.assignment.id)
+                          }
+                          accent={
+                            getCourseColor(
+                              {
+                                courseSectionId: item.event.courseSectionId,
+                                courseCode: item.event.courseCode,
+                                courseName: item.event.courseName,
+                              },
+                              courseColors,
+                              colorMap,
+                            ) ?? accent
+                          }
+                        />
+                      ))}
+                    </View>
+                  </GlassPanel>
+                </View>
+              ))
+            ) : (
+              <GlassPanel style={styles.sectionPanel} intensity={30}>
+                <EmptyState
                   title="No upcoming due dates"
                   message="Nothing due in the next 14 days."
                   icon="calendar"
@@ -514,7 +638,7 @@ export default function HomeScreen() {
       </ScreenWrapper>
 
       <CourseDetailOverlay
-        course={selectedEvent ? toCourseCard(selectedEvent, courseColors) : null}
+        course={selectedEvent ? toCourseCard(selectedEvent, courseColors, colorMap) : null}
         event={selectedEvent}
         onClose={() => setSelectedEventId(null)}
         onEventChanged={refresh}
@@ -544,7 +668,7 @@ const styles = StyleSheet.create({
   },
   greeting: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xl,
   },
   introCard: {
@@ -576,12 +700,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
   },
-  welcome: {
-    ...typography.label,
-    marginBottom: 2,
-  },
   date: {
-    ...typography.title,
+    ...typography.heading,
+    fontSize: 22,
+    fontWeight: '700',
   },
   section: {
     paddingHorizontal: spacing.lg,
@@ -592,6 +714,17 @@ const styles = StyleSheet.create({
   },
   sectionPanel: {
     marginTop: spacing.sm,
+  },
+  weekBucket: {
+    marginTop: spacing.sm,
+  },
+  bucketLabel: {
+    ...typography.label,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    marginBottom: 2,
+    marginLeft: spacing.xs,
   },
   panelInner: {
     padding: spacing.sm,

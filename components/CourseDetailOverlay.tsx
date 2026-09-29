@@ -1,14 +1,29 @@
-import { useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  Linking,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
 import { router } from 'expo-router';
 import { Course } from '@/types';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { glassColors } from '@/constants/Glass';
+import { glassColors, withAlpha } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
+import { useTextColors, useTextMode } from './TabTextMode';
 import CourseSectionPicker from './CourseSectionPicker';
+import { resolveExternalLinks, ExternalLinkSpec } from '@/utils/externalLinks';
+import { getMyUniversity } from '@/services/api/me';
 import {
   assignEventCourse,
   isAssignableEvent,
@@ -32,6 +47,16 @@ try {
   NativeBlurView = null;
 }
 
+// The sheet opens to ~72% of the window height. A downward drag past
+// DISMISS_DISTANCE (or a fast flick) dismisses it. The gesture must be
+// claimed with a very small threshold — the inner ScrollView's native pan
+// recognizer engages almost immediately on downward pulls at scroll-top, so
+// a large slop loses the race and the sheet never moves.
+const SHEET_FRACTION = 0.72;
+const DISMISS_DISTANCE = 70;
+const DISMISS_VELOCITY = 0.35;
+const DRAG_THRESHOLD = 4;
+
 interface CourseDetailOverlayProps {
   course: Course | null;
   /** Source event; enables the course-assignment row for imported (LMS)
@@ -49,10 +74,118 @@ export default function CourseDetailOverlay({
   onEventChanged,
 }: CourseDetailOverlayProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = glassColors(scheme, useCalendarAccent());
+  const textMode = useTextMode();
+  const text = useTextColors();
+  const colors = glassColors(scheme, useCalendarAccent(), textMode);
+  // Neutral ink follows the tab's Light/Dark text preference; the sheet fill
+  // flips with it so the frosted panel always contrasts with its text.
+  const ink = text.primary;
+  const inkSecondary = text.secondary;
+  const sheetFill =
+    textMode === 'light' ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.82)';
+  const sheetTint = textMode === 'light' ? 'dark' : 'light';
+  const rowFill = withAlpha(text.primary, 0.08);
   const visible = course !== null;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const sheetHeight = windowHeight * SHEET_FRACTION;
+
+  // Instructor name + official profile URL arrive on the event payload
+  // (validated server-side); the university domain is fetched only to re-run
+  // the same host allowlist client-side before rendering the link.
+  const instructor = event?.instructor ?? null;
+  const [links, setLinks] = useState<ExternalLinkSpec[]>([]);
+
+  useEffect(() => {
+    if (!visible) {
+      setLinks([]);
+      return;
+    }
+    let cancelled = false;
+    getMyUniversity()
+      .then((university) => {
+        if (cancelled) return;
+        const resolved = resolveExternalLinks({
+          domain: university?.domain ?? null,
+          instructor: event?.instructor ?? null,
+          instructorProfileUrl: event?.instructorProfileUrl ?? null,
+          provider: event?.provider ?? null,
+        });
+        if (__DEV__) {
+          // Safe diagnostics only — instructor name + whether a URL resolved.
+          console.log(
+            `[course-detail] instructor=${event?.instructor ?? 'none'} | ` +
+              `apiUrl=${event?.instructorProfileUrl ? 'yes' : 'no'} | ` +
+              `domain=${university?.domain ?? 'none'} | links=${resolved.length}`,
+          );
+        }
+        setLinks(resolved);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, event?.instructor, event?.instructorProfileUrl, event?.provider]);
+
+  // Drag-to-dismiss: translateY follows a downward pull only while the inner
+  // ScrollView is scrolled to its top, so normal content scrolling is never
+  // hijacked. The responder is claimed in the capture phase (before the
+  // ScrollView's pan recognizer engages) and once held it refuses to release
+  // mid-gesture.
+  const scrollAtTop = useRef(true);
+  const scrollRef = useRef<ScrollView>(null);
+  const translateY = useRef(new Animated.Value(0)).current;
+  const dismissSheet = () => {
+    Animated.timing(translateY, {
+      toValue: sheetHeight + insets.bottom,
+      duration: 160,
+      useNativeDriver: true,
+    }).start(() => {
+      translateY.setValue(0);
+      onClose();
+    });
+  };
+  const dismissRef = useRef(dismissSheet);
+  dismissRef.current = dismissSheet;
+
+  // Every open starts scrolled to the top — the ScrollView keeps its offset
+  // between opens inside the persistent Modal, which would otherwise leave
+  // scrollAtTop stale and swallow the dismiss gesture.
+  useEffect(() => {
+    if (visible) {
+      scrollAtTop.current = true;
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [visible]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // Claim any downward pull at scroll-top before the ScrollView's
+      // gesture recognizer activates. Touches on the drag handle (outside
+      // the ScrollView) reach here via the bubble phase.
+      onMoveShouldSetPanResponder: (_e, g) =>
+        scrollAtTop.current && g.dy > DRAG_THRESHOLD && g.dy > Math.abs(g.dx),
+      onMoveShouldSetPanResponderCapture: (_e, g) =>
+        scrollAtTop.current && g.dy > DRAG_THRESHOLD && g.dy > Math.abs(g.dx) * 1.2,
+      // Once claimed, never hand the drag back to the ScrollView mid-gesture.
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderMove: (_e, g) => {
+        translateY.setValue(Math.max(0, g.dy));
+      },
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy > DISMISS_DISTANCE || g.vy > DISMISS_VELOCITY) {
+          dismissRef.current();
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+      },
+    }),
+  ).current;
 
   const assignable = event != null && isAssignableEvent(event);
   const completable = event != null && isCompletableEvent(event);
@@ -100,6 +233,16 @@ export default function CourseDetailOverlay({
       .finally(() => setSaving(false));
   };
 
+  const handleOpenLink = (url: string) => {
+    Linking.canOpenURL(url)
+      .then((supported) => {
+        if (supported) return Linking.openURL(url);
+        Alert.alert('Cannot open link', 'This link could not be opened on this device.');
+        return null;
+      })
+      .catch(() => Alert.alert('Cannot open link', 'Please try again later.'));
+  };
+
   const handleEmailProfessor = () => {
     if (!course) return;
     onClose();
@@ -122,19 +265,35 @@ export default function CourseDetailOverlay({
       <View style={styles.backdrop}>
         <Pressable style={styles.backdropHit} onPress={onClose} />
 
-        <View style={[styles.sheet, { borderColor: colors.glassBorder }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            { borderColor: colors.glassBorder, height: sheetHeight },
+            { transform: [{ translateY }] },
+          ]}
+          {...panResponder.panHandlers}>
           {NativeBlurView ? (
             <NativeBlurView
               intensity={60}
-              tint={scheme}
+              tint={sheetTint}
               pointerEvents="none"
               style={StyleSheet.absoluteFill}
             />
           ) : null}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.glassStrong }]} />
-          {/* Handle bar */}
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: sheetFill },
+            ]}
+          />
+          {/* Handle bar — generously sized so the drag zone is easy to grab */}
           <View style={styles.handleRow}>
-            <View style={[styles.handle, { backgroundColor: colors.divider }]} />
+            <View
+              style={[
+                styles.handle,
+                { backgroundColor: text.tertiary },
+              ]}
+            />
             <Pressable
               onPress={onClose}
               style={styles.closeButton}
@@ -146,26 +305,37 @@ export default function CourseDetailOverlay({
           </View>
 
           {course && (
-            <View style={styles.content}>
+            <ScrollView
+              ref={scrollRef}
+              style={styles.scroll}
+              contentContainerStyle={[
+                styles.content,
+                { paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.lg },
+              ]}
+              showsVerticalScrollIndicator={false}
+              scrollEventThrottle={16}
+              onScroll={(e) => {
+                scrollAtTop.current = e.nativeEvent.contentOffset.y <= 0;
+              }}>
               <View style={styles.header}>
                 {course.code ? (
-                  <Text style={[styles.code, { color: colors.secondaryText }]}>{course.code}</Text>
+                  <Text style={[styles.code, { color: inkSecondary }]}>{course.code}</Text>
                 ) : null}
-                <Text style={[styles.name, { color: colors.text }]} numberOfLines={0}>
+                <Text style={[styles.name, { color: ink }]} numberOfLines={0}>
                   {course.name}
                 </Text>
               </View>
 
               {course.date ? (
                 <View style={styles.row}>
-                  <SymbolView name="calendar" tintColor={colors.mutedText} size={16} />
-                  <Text style={[styles.rowText, { color: colors.text }]}>{course.date}</Text>
+                  <SymbolView name="calendar" tintColor={inkSecondary} size={16} />
+                  <Text style={[styles.rowText, { color: ink }]}>{course.date}</Text>
                 </View>
               ) : null}
 
               <View style={styles.row}>
-                <SymbolView name="clock" tintColor={colors.mutedText} size={16} />
-                <Text style={[styles.rowText, { color: colors.text }]}>
+                <SymbolView name="clock" tintColor={inkSecondary} size={16} />
+                <Text style={[styles.rowText, { color: ink }]}>
                   {course.startTime}
                   {course.endTime ? ` – ${course.endTime}` : ''}
                 </Text>
@@ -173,8 +343,8 @@ export default function CourseDetailOverlay({
 
               {course.location ? (
                 <View style={styles.row}>
-                  <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={16} />
-                  <Text style={[styles.rowText, { color: colors.text }]}>{course.location}</Text>
+                  <SymbolView name="mappin.and.ellipse" tintColor={inkSecondary} size={16} />
+                  <Text style={[styles.rowText, { color: ink }]}>{course.location}</Text>
                 </View>
               ) : null}
 
@@ -185,19 +355,19 @@ export default function CourseDetailOverlay({
                   style={({ pressed }) => [
                     styles.row,
                     styles.courseRow,
-                    { backgroundColor: colors.surface },
+                    { backgroundColor: rowFill },
                     pressed && { opacity: 0.7 },
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel="Change course">
                   <SymbolView name="book.closed" tintColor={colors.accent} size={16} />
                   <View style={styles.professorText}>
-                    <Text style={[styles.courseCaption, { color: colors.secondaryText }]}>
+                    <Text style={[styles.courseCaption, { color: inkSecondary }]}>
                       {event?.courseSectionSource === 'recurring_rule'
                         ? 'Course · assigned from recurring rule'
                         : 'Course'}
                     </Text>
-                    <Text style={[styles.rowText, { color: courseLabel ? colors.text : colors.accent }]}>
+                    <Text style={[styles.rowText, { color: courseLabel ? ink : colors.accent }]}>
                       {courseLabel ?? 'Unassigned — assign to course'}
                     </Text>
                   </View>
@@ -212,7 +382,7 @@ export default function CourseDetailOverlay({
                   style={({ pressed }) => [
                     styles.row,
                     styles.courseRow,
-                    { backgroundColor: colors.surface },
+                    { backgroundColor: rowFill },
                     pressed && { opacity: 0.7 },
                   ]}
                   accessibilityRole="button"
@@ -223,8 +393,8 @@ export default function CourseDetailOverlay({
                     size={16}
                   />
                   <View style={styles.professorText}>
-                    <Text style={[styles.courseCaption, { color: colors.secondaryText }]}>Done</Text>
-                    <Text style={[styles.rowText, { color: colors.text }]}>
+                    <Text style={[styles.courseCaption, { color: inkSecondary }]}>Done</Text>
+                    <Text style={[styles.rowText, { color: ink }]}>
                       {completed ? 'Completed — tap to undo' : 'Mark as done'}
                     </Text>
                   </View>
@@ -233,12 +403,22 @@ export default function CourseDetailOverlay({
 
               {course.description ? (
                 <View style={[styles.row, styles.descriptionRow]}>
-                  <SymbolView name="text.alignleft" tintColor={colors.mutedText} size={16} />
+                  <SymbolView name="text.alignleft" tintColor={inkSecondary} size={16} />
                   <Text
-                    style={[styles.descriptionText, { color: colors.text }]}
+                    style={[styles.descriptionText, { color: ink }]}
                     numberOfLines={0}>
                     {course.description}
                   </Text>
+                </View>
+              ) : null}
+
+              {instructor ? (
+                <View style={styles.row}>
+                  <SymbolView name="person" tintColor={inkSecondary} size={16} />
+                  <View style={styles.professorText}>
+                    <Text style={[styles.courseCaption, { color: inkSecondary }]}>Professor</Text>
+                    <Text style={[styles.rowText, { color: ink }]}>{instructor}</Text>
+                  </View>
                 </View>
               ) : null}
 
@@ -248,15 +428,15 @@ export default function CourseDetailOverlay({
                   style={({ pressed }) => [
                     styles.row,
                     styles.professorRow,
-                    { backgroundColor: colors.surface },
+                    { backgroundColor: rowFill },
                     pressed && { opacity: 0.7 },
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={`Email ${course.instructor}`}>
                   <SymbolView name="envelope" tintColor={colors.accent} size={16} />
                   <View style={styles.professorText}>
-                    <Text style={[styles.rowText, { color: colors.text }]}>{course.instructor}</Text>
-                    <Text style={[styles.email, { color: colors.secondaryText }]}>
+                    <Text style={[styles.rowText, { color: ink }]}>{course.instructor}</Text>
+                    <Text style={[styles.email, { color: inkSecondary }]}>
                       {course.instructorEmail}
                     </Text>
                   </View>
@@ -268,9 +448,36 @@ export default function CourseDetailOverlay({
                   />
                 </Pressable>
               ) : null}
-            </View>
+
+              {links.map((link) => (
+                <Pressable
+                  key={link.kind}
+                  onPress={() => handleOpenLink(link.url)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.courseRow,
+                    { backgroundColor: rowFill },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={link.label}>
+                  <SymbolView
+                    name={link.kind === 'professor_profile' ? 'person.crop.rectangle' : 'safari'}
+                    tintColor={colors.accent}
+                    size={16}
+                  />
+                  <Text style={[styles.rowText, { color: colors.accent }]}>{link.label}</Text>
+                  <SymbolView
+                    name="arrow.up.right"
+                    tintColor={colors.mutedText}
+                    size={14}
+                    style={styles.chevron}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
           )}
-        </View>
+        </Animated.View>
       </View>
       {event ? (
         <CourseSectionPicker
@@ -307,21 +514,22 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
-    paddingBottom: 32,
-    maxHeight: '75%',
   },
+  // Generous vertical padding = large invisible grab zone around the
+  // visually subtle handle; the row sits above the ScrollView so drags here
+  // always reach the sheet's responder.
   handleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
     position: 'relative',
   },
   handle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
+    width: 44,
+    height: 5,
+    borderRadius: 3,
   },
   closeButton: {
     position: 'absolute',
@@ -331,6 +539,9 @@ const styles = StyleSheet.create({
     height: 32,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scroll: {
+    flexGrow: 0,
   },
   content: {
     paddingHorizontal: spacing.lg,

@@ -1,11 +1,11 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Course } from '@/types';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { glassColors } from '@/constants/Glass';
 import { useTabAccent } from '@/utils/tabAccent';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode, useThemedColors } from './TabTextMode';
 
 /** The row only needs identity + display fields, so it accepts backend courses too. */
 type CourseRowData = Pick<Course, 'id' | 'name' | 'code'> & { color?: string };
@@ -18,8 +18,8 @@ interface CourseCommunityRowProps {
 
 export default function CourseCommunityRow({ course, activityCount, onPress }: CourseCommunityRowProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = Colors[scheme];
-  const glass = glassColors(scheme);
+  const colors = useThemedColors();
+  const glass = glassColors(scheme, undefined, useTextMode());
   const accent = useTabAccent('chat');
 
   return (

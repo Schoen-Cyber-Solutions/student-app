@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { Stack, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
@@ -13,12 +13,15 @@ import { contrastText, glassColors } from '@/constants/Glass';
 import { spacing, typography, radius } from '@/constants/Theme';
 import {
   ACCENT_PRESETS,
-  DimLevel,
+  SOLID_BACKGROUND_PRESETS,
+  TAB_TEXT_COLORS,
   TabKey,
-  clearTabBackground,
-  pickAndStoreTabBackground,
+  TextMode,
+  resolveBackgroundColor,
+  resolveTextMode,
   setTabAccent,
-  setTabDim,
+  setTabBackgroundColor,
+  setTabTextMode,
 } from '@/utils/tabAppearance';
 import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 import { useTabAccent } from '@/utils/tabAccent';
@@ -29,10 +32,9 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'chat', label: 'Chat' },
 ];
 
-const DIM_OPTIONS: { key: DimLevel; label: string }[] = [
-  { key: 'off', label: 'Off' },
-  { key: 'subtle', label: 'Subtle' },
-  { key: 'strong', label: 'Strong' },
+const TEXT_OPTIONS: { key: TextMode; label: string }[] = [
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' },
 ];
 
 function ActionRow({
@@ -77,8 +79,10 @@ export default function AppearanceScreen() {
   const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
   // Shared runtime store — live updates, no per-screen SecureStore reads.
   const appearance = useTabAppearance(tab);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<'accent' | 'background' | null>(null);
+  const textMode = resolveTextMode(appearance, scheme === 'dark' ? 'dark' : 'light');
+  const previewText = TAB_TEXT_COLORS[textMode];
+  const bgColor = resolveBackgroundColor(appearance, scheme === 'dark' ? 'dark' : 'light');
 
   useFocusEffect(
     useCallback(() => {
@@ -86,30 +90,17 @@ export default function AppearanceScreen() {
     }, []),
   );
 
-  const handleChoose = async () => {
-    setBusy(true);
+  const handleTextMode = async (textMode: TextMode) => {
     try {
-      await pickAndStoreTabBackground(tab); // store notifies subscribers
-      await refreshTabAppearance();
+      await setTabTextMode(tab, textMode);
     } catch {
-      Alert.alert('Could not use photo', 'Please try a different image.');
-    } finally {
-      setBusy(false);
+      await refreshTabAppearance();
     }
   };
 
-  const handleRemove = async () => {
-    setBusy(true);
+  const handleBgColor = async (hex: string) => {
     try {
-      await clearTabBackground(tab);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleDim = async (dim: DimLevel) => {
-    try {
-      await setTabDim(tab, dim);
+      await setTabBackgroundColor(tab, hex);
     } catch {
       await refreshTabAppearance();
     }
@@ -164,8 +155,11 @@ export default function AppearanceScreen() {
             <View style={styles.previewInner}>
               <GlassPanel intensity={30}>
                 <View style={styles.previewPanelContent}>
-                  <Text style={[styles.previewTitle, { color: colors.text }]}>
+                  <Text style={[styles.previewTitle, { color: previewText.primary }]}>
                     {TABS.find((t) => t.key === tab)?.label}
+                  </Text>
+                  <Text style={[styles.previewMeta, { color: previewText.secondary }]}>
+                    {textMode === 'light' ? 'Light text over dark backgrounds' : 'Dark text over light backgrounds'}
                   </Text>
                   <View style={styles.previewRow}>
                     <View style={[styles.previewChip, { backgroundColor: glass.accent }]} />
@@ -180,22 +174,99 @@ export default function AppearanceScreen() {
             </View>
           </View>
           <Text style={[styles.previewCaption, { color: colors.mutedText }]}>
-            {appearance.imageUri ? 'Custom photo background' : 'Default gradient background'}
+            Solid background
           </Text>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Background</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.swatchRow}>
+            {SOLID_BACKGROUND_PRESETS.map((p) => {
+              const active = bgColor === p.hex;
+              return (
+                <Pressable
+                  key={p.hex}
+                  onPress={() => handleBgColor(p.hex)}
+                  style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${p.name} background`}>
+                  <View
+                    style={[
+                      styles.swatchRing,
+                      active && { borderColor: glass.accent, borderWidth: 2 },
+                    ]}>
+                    <View
+                      style={[
+                        styles.swatch,
+                        {
+                          backgroundColor: p.hex,
+                          borderColor: colors.cardBorder,
+                          borderWidth: StyleSheet.hairlineWidth,
+                        },
+                      ]}>
+                      {active ? (
+                        <SymbolView
+                          name="checkmark"
+                          tintColor={contrastText(p.hex)}
+                          size={13}
+                          weight="bold"
+                        />
+                      ) : null}
+                    </View>
+                  </View>
+                  <Text
+                    style={[
+                      styles.swatchLabel,
+                      { color: active ? colors.text : colors.mutedText },
+                    ]}
+                    numberOfLines={1}>
+                    {p.name.split(' ')[0]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
           <ActionRow
-            icon="photo"
-            label={appearance.imageUri ? 'Choose a Different Photo' : 'Choose Photo'}
-            onPress={handleChoose}
+            icon="paintpalette"
+            label="Custom color…"
+            onPress={() => setPickerTarget('background')}
           />
-          {appearance.imageUri ? (
-            <ActionRow icon="trash" label="Remove Background" destructive onPress={handleRemove} />
-          ) : (
-            <ActionRow icon="arrow.counterclockwise" label="Restore Default" onPress={handleRemove} />
-          )}
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Text</Text>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={styles.dimRow}>
+            {TEXT_OPTIONS.map((o) => {
+              const active = textMode === o.key;
+              return (
+                <Pressable
+                  key={o.key}
+                  onPress={() => handleTextMode(o.key)}
+                  style={[
+                    styles.dimPill,
+                    {
+                      backgroundColor: active ? glass.accent : colors.surface,
+                      borderColor: active ? glass.accent : colors.cardBorder,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`${o.label} text`}>
+                  <Text
+                    style={[
+                      styles.dimLabel,
+                      { color: active ? contrastText(glass.accent) : colors.secondaryText },
+                    ]}>
+                    {o.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={[styles.hint, { color: colors.mutedText }]}>
+            Light text suits dark backgrounds; dark text suits light ones. Accent and course colors are unaffected.
+          </Text>
         </View>
 
         <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Accent color</Text>
@@ -242,64 +313,26 @@ export default function AppearanceScreen() {
           <ActionRow
             icon="paintpalette"
             label="Custom color…"
-            onPress={() => setPickerOpen(true)}
+            onPress={() => setPickerTarget('accent')}
           />
         </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Background dim</Text>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-          <View style={styles.dimRow}>
-            {DIM_OPTIONS.map((o) => {
-              const active = appearance?.dim === o.key;
-              return (
-                <Pressable
-                  key={o.key}
-                  onPress={() => handleDim(o.key)}
-                  style={[
-                    styles.dimPill,
-                    {
-                      backgroundColor: active ? glass.accent : colors.surface,
-                      borderColor: active ? glass.accent : colors.cardBorder,
-                    },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                  accessibilityLabel={`Dim ${o.label}`}>
-                  <Text
-                    style={[
-                      styles.dimLabel,
-                      { color: active ? contrastText(glass.accent) : colors.secondaryText },
-                    ]}>
-                    {o.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={[styles.hint, { color: colors.mutedText }]}>
-            A subtle dim keeps text readable over bright photos.
-          </Text>
-        </View>
-
-        {busy ? (
-          <View style={styles.busyWrap}>
-            <ActivityIndicator color={colors.tint} />
-          </View>
-        ) : null}
-
         <Text style={[styles.footer, { color: colors.mutedText }]}>
-          Photos stay on this device. Changes apply immediately on each tab.
+          Changes apply immediately on each tab.
         </Text>
       </ScreenWrapper>
 
       <AccentColorPicker
-        visible={pickerOpen}
-        initial={appearance.accent}
+        visible={pickerTarget !== null}
+        title={pickerTarget === 'background' ? 'Custom background' : 'Custom accent'}
+        initial={pickerTarget === 'background' ? bgColor : appearance.accent}
+        presets={pickerTarget === 'background' ? SOLID_BACKGROUND_PRESETS : ACCENT_PRESETS}
         onApply={(hex) => {
-          setPickerOpen(false);
-          void handleAccent(hex);
+          const target = pickerTarget;
+          setPickerTarget(null);
+          void (target === 'background' ? handleBgColor(hex) : handleAccent(hex));
         }}
-        onCancel={() => setPickerOpen(false)}
+        onCancel={() => setPickerTarget(null)}
       />
     </>
   );
@@ -345,6 +378,10 @@ const styles = StyleSheet.create({
   previewTitle: {
     ...typography.heading,
     fontSize: 16,
+  },
+  previewMeta: {
+    ...typography.caption,
+    fontSize: 11,
   },
   previewRow: {
     flexDirection: 'row',
@@ -396,7 +433,9 @@ const styles = StyleSheet.create({
   },
   swatchRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    rowGap: spacing.sm,
     padding: spacing.md,
   },
   swatchRing: {
@@ -443,10 +482,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.md,
-  },
-  busyWrap: {
-    alignItems: 'center',
-    marginTop: spacing.md,
   },
   footer: {
     ...typography.caption,

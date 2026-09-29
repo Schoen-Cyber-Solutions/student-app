@@ -29,7 +29,7 @@ export default function CampusEventDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Event' }} />
+      <Stack.Screen options={{ title: 'Event', headerTitleAlign: 'left' }} />
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         contentContainerStyle={styles.scroll}>

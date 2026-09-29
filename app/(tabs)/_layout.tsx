@@ -4,12 +4,10 @@ import { SymbolView } from 'expo-symbols';
 import { Tabs, router } from 'expo-router';
 import type { ColorValue } from 'react-native';
 
-import Colors from '@/constants/Colors';
 import { glassColors } from '@/constants/Glass';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { getSessionToken, isSessionReady } from '@/services/auth/devSession';
-import { useTabAccent } from '@/utils/tabAccent';
 
 // expo-blur calls requireNativeViewManager at module eval — guard it so a
 // dev client that predates the package still renders the translucent fill.
@@ -59,12 +57,13 @@ function GlassTabBarBackground() {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const glass = glassColors(colorScheme === 'dark' ? 'dark' : 'light');
-  // Each tab's saved accent drives the active tab tint; the values update
-  // live via the shared accent store when tabs/screens seed it.
-  const homeAccent = useTabAccent('home');
-  const calendarAccent = useTabAccent('calendar');
-  const chatAccent = useTabAccent('chat');
+  const scheme = colorScheme === 'dark' ? 'dark' : 'light';
+  const glass = glassColors(scheme);
+  // Tab icons are deliberately neutral — solid black on light glass, white on
+  // dark — and never inherit per-tab accent colors. The active tab reads
+  // through icon/label emphasis only; no background pill.
+  const iconActive = scheme === 'dark' ? '#FFFFFF' : '#000000';
+  const iconInactive = scheme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
 
   useEffect(() => {
     if (isSessionReady() && !getSessionToken()) {
@@ -75,8 +74,16 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
+        tabBarActiveTintColor: iconActive,
+        tabBarInactiveTintColor: iconInactive,
+        // Slightly heavier label keeps the active state legible since icons
+        // are no longer accent-tinted.
+        tabBarLabelStyle: {
+          fontWeight: '600',
+        },
+        // The floating bar hides while the keyboard is open so it can't
+        // overlap chat composers/inputs, and returns when it closes.
+        tabBarHideOnKeyboard: true,
         headerShown: useClientOnlyValue(false, true),
         tabBarBackground: () => <GlassTabBarBackground />,
         // Floating translucent bar — screens render underneath so the
@@ -97,7 +104,6 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           headerShown: false,
-          tabBarActiveTintColor: homeAccent,
           tabBarIcon: ({ color }) => <TabIcon name="house" color={color} />,
         }}
       />
@@ -106,7 +112,6 @@ export default function TabLayout() {
         options={{
           title: 'Calendar',
           headerShown: false,
-          tabBarActiveTintColor: calendarAccent,
           tabBarIcon: ({ color }) => <TabIcon name="calendar" color={color} />,
         }}
       />
@@ -115,7 +120,6 @@ export default function TabLayout() {
         options={{
           title: 'Chat',
           headerShown: false,
-          tabBarActiveTintColor: chatAccent,
           tabBarIcon: ({ color }) => <TabIcon name="bubble.left.and.bubble.right" color={color} />,
         }}
       />

@@ -1,11 +1,12 @@
 import { Pressable, StyleSheet, View } from 'react-native';
-import { ThreadMessage } from '@/services/api/communities';
+import { MessageAttachment, ThreadMessage } from '@/services/api/communities';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
 import { glassColors, readableAccent } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode, useThemedColors } from './TabTextMode';
 import { relativeTime } from '@/utils/time';
+import AttachedImage from './AttachedImage';
 
 interface ThreadReplyItemProps {
   reply: ThreadMessage;
@@ -13,12 +14,13 @@ interface ThreadReplyItemProps {
   onLongPress?: () => void;
   /** Tab accent — own messages get an accent-tinted bubble. */
   accent?: string;
+  onPressImage?: (attachment: MessageAttachment) => void;
 }
 
-export default function ThreadReplyItem({ reply, onLongPress, accent }: ThreadReplyItemProps) {
+export default function ThreadReplyItem({ reply, onLongPress, accent, onPressImage }: ThreadReplyItemProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = Colors[scheme];
-  const glass = glassColors(scheme, accent ?? colors.tint);
+  const colors = useThemedColors();
+  const glass = glassColors(scheme, accent ?? colors.tint, useTextMode());
   const isMine = reply.isAuthor;
 
   return (
@@ -46,7 +48,12 @@ export default function ThreadReplyItem({ reply, onLongPress, accent }: ThreadRe
           {relativeTime(reply.createdAt)}
         </Text>
       </View>
-      <Text style={[styles.body, { color: colors.text }]}>{reply.body}</Text>
+      {reply.body.length > 0 && (
+        <Text style={[styles.body, { color: colors.text }]}>{reply.body}</Text>
+      )}
+      {reply.attachment && (
+        <AttachedImage attachment={reply.attachment} onPress={onPressImage} style={styles.attachment} />
+      )}
     </Pressable>
   );
 }
@@ -76,5 +83,8 @@ const styles = StyleSheet.create({
     ...typography.bodyRegular,
     fontSize: 15,
     lineHeight: 20,
+  },
+  attachment: {
+    marginTop: spacing.sm,
   },
 });

@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
-import SafeLinearGradient from '@/components/SafeLinearGradient';
 import { Text } from '@/components/Themed';
 import { spacing, typography } from '@/constants/Theme';
 import AppHeader from '@/components/AppHeader';
 import CalendarViewSwitcher, { CalendarView } from '@/components/CalendarViewSwitcher';
+import { DraggableFab } from '@/components/DraggableFab';
 import WeekTimetable from '@/components/WeekTimetable';
 import DayView from '@/components/DayView';
 import MonthView from '@/components/MonthView';
@@ -17,10 +16,10 @@ import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
-import { contrastText, glassColors } from '@/constants/Glass';
+import { glassColors } from '@/constants/Glass';
 import { Course } from '@/types';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
-import { MyCalendarEvent } from '@/services/api/calendar';
+import { CALENDAR_VIEW_PROVIDERS, MyCalendarEvent } from '@/services/api/calendar';
 import { getCalendarStatus, getPreferences } from '@/services/api/me';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import {
@@ -31,24 +30,39 @@ import {
   formatWeekdayShort,
   formatTime12,
 } from '@/utils/time';
-import { colorForKey, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
-import Colors from '@/constants/Colors';
+import { colorForKey, getCourseColor, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
 import { useColorScheme } from '@/components/useColorScheme';
+import { TabTextModeProvider, useTextMode, useThemedColors } from '@/components/TabTextMode';
 
 // Standard iOS tab-bar content height (the glass bar floats over the scene,
 // so the FAB must clear it plus the home-indicator inset).
 const TAB_BAR_HEIGHT = 49;
 
-function eventColor(event: MyCalendarEvent, courseColors: Record<string, string>): string | undefined {
+function eventColor(
+  event: MyCalendarEvent,
+  courseColors: Record<string, string>,
+  colorMap?: Record<string, string>,
+): string | undefined {
   // Completed LMS items render neutral gray everywhere — display override only,
   // the saved course color is never modified.
   if (event.isCompleted) return COMPLETED_EVENT_COLOR;
   if (event.provider === 'personal') return event.color ?? colorForKey(event.title);
-  const key = event.courseCode ?? event.title;
-  return courseColors[key] ?? colorForKey(key);
+  return getCourseColor(
+    {
+      courseSectionId: event.courseSectionId,
+      courseCode: event.courseCode,
+      courseName: event.courseName ?? event.title,
+    },
+    courseColors,
+    colorMap,
+  );
 }
 
-function toTimetableCourse(event: MyCalendarEvent, courseColors: Record<string, string>): Course {
+function toTimetableCourse(
+  event: MyCalendarEvent,
+  courseColors: Record<string, string>,
+  colorMap?: Record<string, string>,
+): Course {
   const start = new Date(event.startAt);
   const end = event.endAt ? new Date(event.endAt) : null;
   const isZeroDuration = !end || end.getTime() <= start.getTime();
@@ -63,18 +77,27 @@ function toTimetableCourse(event: MyCalendarEvent, courseColors: Record<string, 
     days: [formatWeekdayShort(start) as Course['days'][number]],
     instructor: '',
     instructorEmail: '',
-    color: eventColor(event, courseColors),
+    color: eventColor(event, courseColors, colorMap),
     date: start.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
     }),
+    startAt: event.startAt,
     description: event.description ?? undefined,
     completed: event.isCompleted ?? false,
   };
 }
 
 export default function CalendarScreen() {
+  return (
+    <TabTextModeProvider tab="calendar">
+      <CalendarScreenContent />
+    </TabTextModeProvider>
+  );
+}
+
+function CalendarScreenContent() {
   // Null until the saved default view is loaded — avoids flickering between
   // Week and the user's preference on a cold open.
   const [view, setView] = useState<CalendarView | null>(null);
@@ -87,10 +110,11 @@ export default function CalendarScreen() {
   const appearance = useTabAppearance('calendar');
   const scheme = useColorScheme();
   const insets = useSafeAreaInsets();
-  const colors = Colors[scheme];
+  const textMode = useTextMode();
+  const colors = useThemedColors();
   const accent = useCalendarAccent();
-  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
-  const { colors: courseColors } = useCourseColors();
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent, textMode);
+  const { colors: courseColors, colorMap } = useCourseColors();
 
   const loadCalendarStatus = useCallback(async () => {
     try {
@@ -135,10 +159,12 @@ export default function CalendarScreen() {
   baseMonday.setDate(todayMonday.getDate() + weekOffset * 7);
   const weekDates = getWeekDayDates(baseMonday);
 
-  const range = useMemo(() => {
-    if (view === 'month') {
-      const firstOfMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth(), 1);
-      const lastOfMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
+  /** ISO range covering the Mon–Sun grid of the month `delta` steps from
+   *  monthCursor. */
+  const monthGridRange = useCallback(
+    (delta: number) => {
+      const firstOfMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + delta, 1);
+      const lastOfMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + delta + 1, 0);
       const gridStart = getMondayOfWeek(firstOfMonth);
       const gridEndMonday = getMondayOfWeek(lastOfMonth);
       const gridEnd = new Date(gridEndMonday);
@@ -147,14 +173,57 @@ export default function CalendarScreen() {
         from: startOfDay(gridStart).toISOString(),
         to: endOfDay(gridEnd).toISOString(),
       };
-    }
-    const from = startOfDay(weekDates[0]).toISOString();
-    const to = endOfDay(weekDates[weekDates.length - 1]).toISOString();
-    return { from, to };
-  }, [view, monthCursor, weekDates]);
+    },
+    [monthCursor]
+  );
 
-  const { status, events, retry, refresh } = useMyCalendar(range);
-  const courses = useMemo(() => events.map((e) => toTimetableCourse(e, courseColors)), [events, courseColors]);
+  const range = useMemo(() => {
+    if (view === 'month') {
+      // Fetch prev+current+next month grids — the month pager pre-renders
+      // both neighbors so a swipe lands on loaded event dots.
+      const prev = monthGridRange(-1);
+      const next = monthGridRange(1);
+      return { from: prev.from, to: next.to };
+    }
+    // Week view fetches the surrounding weeks too — the timetable pager
+    // pre-renders previous/next pages so a swipe lands on loaded events.
+    const rangeStart = new Date(weekDates[0]);
+    rangeStart.setDate(rangeStart.getDate() - 7);
+    const rangeEnd = new Date(weekDates[weekDates.length - 1]);
+    rangeEnd.setDate(rangeEnd.getDate() + 7);
+    return {
+      from: startOfDay(rangeStart).toISOString(),
+      to: endOfDay(rangeEnd).toISOString(),
+    };
+  }, [view, monthCursor, weekDates, monthGridRange]);
+
+  // Ranges to warm after each load — the windows a pager swipe would land on
+  // next. Week/day ranges slide by exactly 7 days; month pages slide one
+  // month-grid each way (the fetch range already covers ±1 month, so ±2
+  // grids are the newly exposed pages).
+  const prefetchRanges = useMemo(() => {
+    if (view === 'month') {
+      return [monthGridRange(-2), monthGridRange(2)];
+    }
+    const step = 7 * 24 * 60 * 60 * 1000;
+    return [-1, 1].map((dir) => ({
+      from: new Date(Date.parse(range.from) + dir * step).toISOString(),
+      to: new Date(Date.parse(range.to) + dir * step).toISOString(),
+    }));
+  }, [view, monthGridRange, range.from, range.to]);
+
+  // The Calendar shows class meetings + personal events only; LMS
+  // assignment/due events are excluded at the API layer (Home's Due list
+  // still receives them via its own unfiltered fetch).
+  // After each load, the hook silently prefetches the adjacent page windows
+  // (next/prev week for Week/Day, next/prev month grid for Month) so pager
+  // navigation never waits on the network — stale-while-revalidate keeps
+  // the current page mounted either way.
+  const { status, events, retry, refresh } = useMyCalendar(range, {
+    providers: CALENDAR_VIEW_PROVIDERS,
+    prefetchRanges,
+  });
+  const courses = useMemo(() => events.map((e) => toTimetableCourse(e, courseColors, colorMap)), [events, courseColors, colorMap]);
   // Resolve the selected event from the live list so course-assignment edits
   // (and re-syncs) re-render the detail overlay automatically.
   const selectedEvent = useMemo(
@@ -162,8 +231,8 @@ export default function CalendarScreen() {
     [events, selectedEventId]
   );
   const selectedCourse = useMemo(
-    () => (selectedEvent ? toTimetableCourse(selectedEvent, courseColors) : null),
-    [selectedEvent, courseColors]
+    () => (selectedEvent ? toTimetableCourse(selectedEvent, courseColors, colorMap) : null),
+    [selectedEvent, courseColors, colorMap]
   );
 
   const goToNextWeek = () => setWeekOffset((o) => o + 1);
@@ -300,7 +369,7 @@ export default function CalendarScreen() {
 
         {view === null && (
           <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.tint} />
+            <ActivityIndicator size="large" color={accent} />
           </View>
         )}
 
@@ -308,7 +377,7 @@ export default function CalendarScreen() {
           <>
             {status === 'loading' && (
               <View style={styles.center}>
-                <ActivityIndicator size="large" color={colors.tint} />
+                <ActivityIndicator size="large" color={accent} />
               </View>
             )}
 
@@ -360,7 +429,7 @@ export default function CalendarScreen() {
           <>
             {status === 'loading' && (
               <View style={styles.center}>
-                <ActivityIndicator size="large" color={colors.tint} />
+                <ActivityIndicator size="large" color={accent} />
               </View>
             )}
 
@@ -405,7 +474,7 @@ export default function CalendarScreen() {
                 monthCursor={monthCursor}
                 selectedDate={selectedDay}
                 events={events}
-                colorForEvent={(e) => eventColor(e, courseColors)}
+                colorForEvent={(e) => eventColor(e, courseColors, colorMap)}
                 onSelectDate={selectMonthDate}
                 onPrevMonth={() => shiftMonth(-1)}
                 onNextMonth={() => shiftMonth(1)}
@@ -443,24 +512,15 @@ export default function CalendarScreen() {
         onEventChanged={refresh}
       />
 
-      {/* Floating add button — sits above the tab bar. */}
-      <Pressable
+      {/* Floating add button — draggable, persists its position. */}
+      <DraggableFab
+        colors={[glass.accent, glass.accentDark]}
+        bottomBase={insets.bottom + TAB_BAR_HEIGHT + 14}
+        topInset={insets.top}
+        bottomKeepout={insets.bottom + TAB_BAR_HEIGHT}
+        shadowColor={accent}
         onPress={openAddSheet}
-        style={({ pressed }) => [
-          styles.fab,
-          { bottom: insets.bottom + TAB_BAR_HEIGHT + 14 },
-          pressed && { transform: [{ scale: 0.92 }], opacity: 0.9 },
-        ]}
-        accessibilityRole="button"
-        accessibilityLabel="Add calendar item">
-        <SafeLinearGradient
-          colors={[glass.accent, glass.accentDark]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        <SymbolView name="plus" tintColor={contrastText(glass.accent)} size={28} weight="semibold" />
-      </Pressable>
+      />
     </View>
   );
 }
@@ -478,23 +538,6 @@ const styles = StyleSheet.create({
   },
   switcherWrap: {
     marginTop: spacing.xs,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#312E81',
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
   },
   banner: {
     flexDirection: 'row',

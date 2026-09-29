@@ -88,6 +88,9 @@ export interface Course {
   externalRefs?: ExternalReference[];
   /** Calendar-only: human-readable event date for the detail overlay. */
   date?: string;
+  /** Calendar-only: ISO startAt of the source event. Exact-date matching —
+   *  prevents same-weekday events from ghosting onto other weeks. */
+  startAt?: string;
   /** Calendar-only: full description if available. */
   description?: string;
   /** Calendar-only: this item is a visual cluster of multiple same-time point events. */

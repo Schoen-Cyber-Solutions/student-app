@@ -36,7 +36,7 @@ export default function AboutScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'About' }} />
+      <Stack.Screen options={{ title: 'About', headerTitleAlign: 'left' }} />
       <ScreenWrapper>
         <View style={styles.header}>
           <SymbolView name="graduationcap.fill" tintColor={colors.tint} size={64} />

@@ -16,6 +16,7 @@ import {
   UserProfile,
 } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
+import { contrastText } from '@/constants/Glass';
 
 function CalendarSection() {
   const colors = Colors[useColorScheme()];
@@ -112,21 +113,7 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Profile',
-          headerRight: () => (
-            <Pressable
-              onPress={handleEditProfile}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Edit profile"
-              style={({ pressed }) => [styles.headerEditButton, pressed && { opacity: 0.5 }]}>
-              <SymbolView name="pencil" tintColor={colors.tint} size={20} />
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ title: 'Profile', headerTitleAlign: 'left' }} />
       <ScreenWrapper>
         <View style={styles.header}>
           <SymbolView name="person.crop.circle.fill" tintColor={colors.tint} size={80} />
@@ -134,6 +121,20 @@ export default function ProfileScreen() {
           <View style={styles.badges}>
             {university && <StatusBadge active label="Verified Student" />}
           </View>
+          <Pressable
+            onPress={handleEditProfile}
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+            style={({ pressed }) => [
+              styles.editButton,
+              { backgroundColor: colors.tint },
+              pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
+            ]}>
+            <SymbolView name="pencil" tintColor={contrastText(colors.tint)} size={16} />
+            <Text style={[styles.editButtonText, { color: contrastText(colors.tint) }]}>
+              Edit Profile
+            </Text>
+          </Pressable>
         </View>
 
         {university && (
@@ -178,11 +179,23 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerEditButton: {
-    width: 36,
-    height: 36,
+  editButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    minHeight: 44,
+    borderRadius: 999,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
+  editButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   header: {
     alignItems: 'center',

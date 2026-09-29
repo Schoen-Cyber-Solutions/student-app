@@ -35,6 +35,9 @@ export interface CourseSectionInfo {
   id: string;
   sectionCode: string;
   instructor: string | null;
+  /** Official faculty profile URL from the university source; validated
+   *  server-side against the university's trusted profile host. */
+  instructorProfileUrl: string | null;
   modality: string | null;
   sessionCode: string | null;
   sessionStartDate: string | null;

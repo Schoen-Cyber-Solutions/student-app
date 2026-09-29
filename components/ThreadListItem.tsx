@@ -1,9 +1,10 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { CommunityThread } from '@/services/api/communities';
 import { Text } from './Themed';
-import Colors from '@/constants/Colors';
-import { spacing, typography } from '@/constants/Theme';
+import { glassColors } from '@/constants/Glass';
+import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode, useThemedColors } from './TabTextMode';
 import { relativeTime } from '@/utils/time';
 
 interface ThreadListItemProps {
@@ -12,26 +13,31 @@ interface ThreadListItemProps {
 }
 
 export default function ThreadListItem({ thread, onPress }: ThreadListItemProps) {
-  const colors = Colors[useColorScheme()];
+  const scheme = useColorScheme();
+  const colors = useThemedColors();
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', undefined, useTextMode());
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.row,
-        { borderBottomColor: colors.divider },
+        styles.card,
+        {
+          backgroundColor: glass.glass,
+          borderColor: glass.glassBorder,
+        },
         pressed && { opacity: 0.7 },
       ]}
       accessibilityRole="button"
       accessibilityLabel={`${thread.title}, by ${thread.authorUsername}`}>
-      <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+      <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
         {thread.title}
       </Text>
       <View style={styles.metaRow}>
-        <Text style={[styles.meta, { color: colors.secondaryText }]}>
+        <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
           {thread.authorUsername}
         </Text>
-        <Text style={[styles.meta, { color: colors.mutedText }]}>
+        <Text style={[styles.meta, { color: colors.mutedText }]} numberOfLines={1}>
           {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'} · {relativeTime(thread.createdAt)}
         </Text>
       </View>
@@ -40,24 +46,30 @@ export default function ThreadListItem({ thread, onPress }: ThreadListItemProps)
 }
 
 const styles = StyleSheet.create({
-  row: {
-    paddingVertical: spacing.md + 2,
+  // Standalone translucent card — spacing between cards comes from the
+  // parent list's `gap`, no hairline dividers.
+  card: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: spacing.md + 2,
   },
   title: {
     ...typography.body,
     fontSize: 15,
+    fontWeight: '600',
     marginBottom: 4,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 6,
     gap: 8,
   },
   meta: {
     ...typography.caption,
     fontWeight: '400',
+    flexShrink: 1,
   },
 });

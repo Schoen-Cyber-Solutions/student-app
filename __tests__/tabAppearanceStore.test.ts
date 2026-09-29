@@ -13,25 +13,6 @@ vi.mock('expo-secure-store', () => ({
   },
 }));
 
-// getAllTabAppearance verifies stored URIs still exist — pretend they do.
-vi.mock('expo-file-system', () => ({
-  File: class {
-    uri: string;
-    constructor(...uris: unknown[]) {
-      this.uri = uris.join('/');
-    }
-    get exists() {
-      return true;
-    }
-  },
-  Directory: class {
-    list() {
-      return [];
-    }
-  },
-  Paths: { document: 'file:///docs', cache: 'file:///cache' },
-}));
-
 const seed = (raw: Record<string, unknown>) =>
   secureStore.set('tab_appearance_v1', JSON.stringify(raw));
 
@@ -52,14 +33,19 @@ async function freshStore() {
 describe('tabAppearanceStore', () => {
   it('loads persisted prefs on first refresh', async () => {
     seed({
-      calendar: { imageUri: 'file:///docs/a.jpg', dim: 'strong', accent: '#0D9488' },
+      calendar: {
+        imageUri: 'file:///docs/a.jpg', // legacy photo field — ignored on read
+        dim: 'strong',
+        accent: '#0D9488',
+        backgroundColor: '#DBEAFE',
+      },
     });
     const store = await freshStore();
     await store.refreshTabAppearance();
     expect(store.getTabAppearanceSnapshot('calendar')).toEqual({
-      imageUri: 'file:///docs/a.jpg',
-      dim: 'strong',
       accent: '#0D9488',
+      textMode: undefined,
+      backgroundColor: '#DBEAFE',
     });
   });
 
@@ -76,7 +62,7 @@ describe('tabAppearanceStore', () => {
 
   it('a stale async read never overwrites a newer write', async () => {
     seed({
-      home: { imageUri: 'file:///docs/old.jpg', dim: 'subtle', accent: '#111111' },
+      home: { accent: '#111111' },
     });
     const store = await freshStore();
     const { setTabAccent } = await import('../utils/tabAppearance');
@@ -98,18 +84,14 @@ describe('tabAppearanceStore', () => {
     expect(store.getTabAppearanceSnapshot('home').accent).toBe('#FDE047');
 
     // The stale read resolves with the pre-write value — it must be ignored.
-    resolveRead(
-      JSON.stringify({
-        home: { imageUri: 'file:///docs/old.jpg', dim: 'subtle', accent: '#111111' },
-      }),
-    );
+    resolveRead(JSON.stringify({ home: { accent: '#111111' } }));
     await refresh;
 
     expect(store.getTabAppearanceSnapshot('home').accent).toBe('#FDE047');
   });
 
   it('writes to one tab do not perturb the others', async () => {
-    seed({ chat: { imageUri: null, dim: 'off', accent: '#E56B8A' } });
+    seed({ chat: { accent: '#E56B8A' } });
     const store = await freshStore();
     const { setTabAccent } = await import('../utils/tabAppearance');
     await store.refreshTabAppearance();

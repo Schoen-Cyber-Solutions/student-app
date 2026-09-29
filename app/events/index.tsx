@@ -124,7 +124,7 @@ export default function CampusEventsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Campus Events' }} />
+      <Stack.Screen options={{ title: 'Campus Events', headerTitleAlign: 'left' }} />
       <ScreenWrapper>
         <View style={styles.header}>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>

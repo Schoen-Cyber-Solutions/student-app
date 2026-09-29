@@ -15,7 +15,7 @@ const menuItems = [
 export default function MenuScreen() {
   return (
     <>
-      <Stack.Screen options={{ title: 'Menu' }} />
+      <Stack.Screen options={{ title: 'Menu', headerTitleAlign: 'left' }} />
       <ScreenWrapper>
         <View style={styles.list}>
           {menuItems.map((item) => (

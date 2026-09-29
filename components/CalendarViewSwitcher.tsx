@@ -4,6 +4,7 @@ import { radius, spacing, typography } from '@/constants/Theme';
 import { contrastText, glassColors } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode } from './TabTextMode';
 
 export type CalendarView = 'day' | 'week' | 'month';
 
@@ -19,7 +20,7 @@ const VIEWS: { key: CalendarView; label: string }[] = [
 ];
 
 export default function CalendarViewSwitcher({ active, onChange }: CalendarViewSwitcherProps) {
-  const colors = glassColors(useColorScheme() === 'dark' ? 'dark' : 'light', useCalendarAccent());
+  const colors = glassColors(useColorScheme() === 'dark' ? 'dark' : 'light', useCalendarAccent(), useTextMode());
 
   return (
     <View
@@ -37,7 +38,7 @@ export default function CalendarViewSwitcher({ active, onChange }: CalendarViewS
               styles.pill,
               isActive && {
                 backgroundColor: colors.accent,
-                shadowColor: '#312E81',
+                shadowColor: colors.accent,
                 shadowOpacity: 0.25,
                 shadowRadius: 6,
                 shadowOffset: { width: 0, height: 2 },

@@ -3,10 +3,12 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors } from '@/constants/Glass';
+import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
+import { useTextMode } from './TabTextMode';
 import GlassPanel from './GlassPanel';
+import PagerStrip from './PagerStrip';
 import { MyCalendarEvent } from '@/services/api/calendar';
 import { getMondayOfWeek, isSameCalendarDay, formatTime12, endOfDay, startOfDay } from '@/utils/time';
 
@@ -33,6 +35,27 @@ function eventOccursOn(event: MyCalendarEvent, day: Date): boolean {
   return start <= endOfDay(day) && end >= startOfDay(day);
 }
 
+/** Monday-start grid (6x7 day cells) covering the month that contains `d`. */
+function monthGridRows(d: Date): Date[][] {
+  const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+  const lastOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  const gridStart = getMondayOfWeek(firstOfMonth);
+  const dayCount = Math.round((lastOfMonth.getTime() - gridStart.getTime()) / DAY_MS) + 1;
+  const totalCells = Math.ceil(dayCount / 7) * 7;
+
+  const cells: Date[] = [];
+  for (let i = 0; i < totalCells; i++) {
+    const cell = new Date(gridStart);
+    cell.setDate(gridStart.getDate() + i);
+    cells.push(cell);
+  }
+  const rows: Date[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    rows.push(cells.slice(i, i + 7));
+  }
+  return rows;
+}
+
 export default function MonthView({
   monthCursor,
   selectedDate,
@@ -45,63 +68,137 @@ export default function MonthView({
   onSelectEvent,
 }: MonthViewProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = glassColors(scheme, useCalendarAccent());
+  const colors = glassColors(scheme, useCalendarAccent(), useTextMode());
   const today = new Date();
 
-  const year = monthCursor.getFullYear();
-  const month = monthCursor.getMonth();
-  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  // Grids for all three pager pages (prev | current | next month).
+  const pageWeeks = useMemo(
+    () =>
+      [-1, 0, 1].map((offset) =>
+        monthGridRows(
+          new Date(monthCursor.getFullYear(), monthCursor.getMonth() + offset, 1)
+        )
+      ),
+    [monthCursor]
+  );
 
-  const monthLabel = monthCursor.toLocaleDateString('en-US', {
-    month: 'long',
-    year: 'numeric',
-  });
-
-  const weeks = useMemo(() => {
-    const firstOfMonth = new Date(year, month, 1);
-    const lastOfMonth = new Date(year, month + 1, 0);
-    const gridStart = getMondayOfWeek(firstOfMonth);
-    const dayCount = Math.round((lastOfMonth.getTime() - gridStart.getTime()) / DAY_MS) + 1;
-    const totalCells = Math.ceil(dayCount / 7) * 7;
-
-    const cells: Date[] = [];
-    for (let i = 0; i < totalCells; i++) {
-      const d = new Date(gridStart);
-      d.setDate(gridStart.getDate() + i);
-      cells.push(d);
-    }
-    const rows: Date[][] = [];
-    for (let i = 0; i < cells.length; i += 7) {
-      rows.push(cells.slice(i, i + 7));
-    }
-    return rows;
-  }, [year, month]);
-
+  // One shared day→events index covering every rendered day cell across all
+  // three pages, so neighbor months show their dots while dragging.
   const eventsByDay = useMemo(() => {
     const map = new Map<string, MyCalendarEvent[]>();
-    for (const row of weeks) {
-      for (const day of row) {
-        const key = day.toDateString();
-        map.set(
-          key,
-          events
-            .filter((e) => eventOccursOn(e, day))
-            .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
-        );
+    for (const rows of pageWeeks) {
+      for (const row of rows) {
+        for (const day of row) {
+          const key = day.toDateString();
+          if (map.has(key)) continue; // grid edges overlap between months
+          map.set(
+            key,
+            events
+              .filter((e) => eventOccursOn(e, day))
+              .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
+          );
+        }
       }
     }
     return map;
-  }, [weeks, events]);
+  }, [pageWeeks, events]);
 
   const selectedEvents = eventsByDay.get(selectedDate.toDateString()) ?? [];
   const selectedIsToday = isSameCalendarDay(selectedDate, today);
+
+  const isCurrentMonth =
+    monthCursor.getFullYear() === today.getFullYear() &&
+    monthCursor.getMonth() === today.getMonth();
+
+  /** One month page — just the weekday row + grid. The header is fixed
+   *  chrome above the pager and updates when the swipe settles. */
+  const renderMonthGrid = (weeks: Date[][], cursor: Date) => {
+    const pageMonth = cursor.getMonth();
+
+    return (
+      <GlassPanel style={styles.gridPanel} intensity={30} variant="faint">
+       <View style={styles.gridInner}>
+          <View style={styles.weekdayRow}>
+            {WEEKDAY_LETTERS.map((letter, i) => (
+              <Text key={i} style={[styles.weekdayLabel, { color: colors.secondaryText }]}>
+                {letter}
+              </Text>
+            ))}
+          </View>
+
+          {weeks.map((week, wi) => (
+            <View key={wi} style={styles.weekRow}>
+              {week.map((day) => {
+                const inMonth = day.getMonth() === pageMonth;
+                const isToday = isSameCalendarDay(day, today);
+                const isSelected = isSameCalendarDay(day, selectedDate);
+                const dayEvents = eventsByDay.get(day.toDateString()) ?? [];
+                const dots = dayEvents.slice(0, MAX_DOTS);
+                const extra = dayEvents.length - dots.length;
+
+                return (
+                  <Pressable
+                    key={day.toDateString()}
+                    onPress={() => onSelectDate(day)}
+                    style={({ pressed }) => [
+                      styles.cell,
+                      isSelected && {
+                        borderColor: colors.accent,
+                        backgroundColor: colors.accentSoft,
+                      },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${day.toDateString()}${dayEvents.length ? `, ${dayEvents.length} events` : ''}`}
+                    accessibilityState={{ selected: isSelected }}>
+                    <View
+                      style={[
+                        styles.dayNumberWrap,
+                        isToday && { backgroundColor: colors.accent },
+                      ]}>
+                      <Text
+                        style={[
+                          styles.dayNumber,
+                          { color: inMonth ? colors.text : colors.mutedText },
+                          isSelected && !isToday && { color: colors.accent, fontWeight: '700' },
+                          isToday && { color: contrastText(colors.accent), fontWeight: '700' },
+                        ]}>
+                        {day.getDate()}
+                      </Text>
+                    </View>
+
+                    <View style={styles.dotsRow}>
+                      {dots.map((e) => (
+                        <View
+                          key={e.id}
+                          style={[
+                            styles.dot,
+                            { backgroundColor: colorForEvent(e) ?? colors.accent },
+                          ]}
+                        />
+                      ))}
+                      {extra > 0 && (
+                        <Text style={[styles.moreText, { color: colors.secondaryText }]}>
+                          +{extra}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+         </View>
+      </GlassPanel>
+    );
+  };
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}>
-      {/* Month navigation */}
+      {/* Fixed chrome — never slides during month paging. */}
       <GlassPanel style={styles.headerPanel} intensity={40}>
       <View style={styles.header}>
         <Pressable
@@ -114,7 +211,9 @@ export default function MonthView({
         </Pressable>
 
         <View style={styles.title}>
-          <Text style={[styles.monthLabel, { color: colors.text }]}>{monthLabel}</Text>
+          <Text style={[styles.monthLabel, { color: readableAccent(colors.accent, scheme) }]}>
+            {monthCursor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          </Text>
           {!isCurrentMonth || !selectedIsToday ? (
             <Pressable
               onPress={onGoToToday}
@@ -144,81 +243,21 @@ export default function MonthView({
       </View>
       </GlassPanel>
 
-      {/* Glass month grid */}
-      <GlassPanel style={styles.gridPanel} intensity={30} variant="faint">
-       <View style={styles.gridInner}>
-        <View style={styles.weekdayRow}>
-          {WEEKDAY_LETTERS.map((letter, i) => (
-            <Text key={i} style={[styles.weekdayLabel, { color: colors.mutedText }]}>
-              {letter}
-            </Text>
-          ))}
-        </View>
-
-        {weeks.map((week, wi) => (
-          <View key={wi} style={styles.weekRow}>
-            {week.map((day) => {
-              const inMonth = day.getMonth() === month;
-              const isToday = isSameCalendarDay(day, today);
-              const isSelected = isSameCalendarDay(day, selectedDate);
-              const dayEvents = eventsByDay.get(day.toDateString()) ?? [];
-              const dots = dayEvents.slice(0, MAX_DOTS);
-              const extra = dayEvents.length - dots.length;
-
-              return (
-                <Pressable
-                  key={day.toDateString()}
-                  onPress={() => onSelectDate(day)}
-                  style={({ pressed }) => [
-                    styles.cell,
-                    isSelected && {
-                      borderColor: colors.accent,
-                      backgroundColor: colors.accentSoft,
-                    },
-                    pressed && { opacity: 0.7 },
-                  ]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${day.toDateString()}${dayEvents.length ? `, ${dayEvents.length} events` : ''}`}
-                  accessibilityState={{ selected: isSelected }}>
-                  <View
-                    style={[
-                      styles.dayNumberWrap,
-                      isToday && { backgroundColor: colors.accent },
-                    ]}>
-                    <Text
-                      style={[
-                        styles.dayNumber,
-                        { color: inMonth ? colors.text : colors.mutedText },
-                        isSelected && !isToday && { color: colors.accent, fontWeight: '700' },
-                        isToday && { color: contrastText(colors.accent), fontWeight: '700' },
-                      ]}>
-                      {day.getDate()}
-                    </Text>
-                  </View>
-
-                  <View style={styles.dotsRow}>
-                    {dots.map((e) => (
-                      <View
-                        key={e.id}
-                        style={[
-                          styles.dot,
-                          { backgroundColor: colorForEvent(e) ?? colors.accent },
-                        ]}
-                      />
-                    ))}
-                    {extra > 0 && (
-                      <Text style={[styles.moreText, { color: colors.mutedText }]}>
-                        +{extra}
-                      </Text>
-                    )}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-       </View>
-      </GlassPanel>
+      {/* previous | current | next month grids — fitContent because the
+          strip lives inside a ScrollView, where a flex:1 clip collapses
+          to zero height and blanks the grid. */}
+      <PagerStrip
+        fitContent
+        position={`${monthCursor.getFullYear()}-${monthCursor.getMonth()}`}
+        renderPage={(slot) =>
+          renderMonthGrid(
+            pageWeeks[slot + 1],
+            new Date(monthCursor.getFullYear(), monthCursor.getMonth() + slot, 1)
+          )
+        }
+        onSwipeLeft={onNextMonth}
+        onSwipeRight={onPrevMonth}
+      />
 
       {/* Selected-day agenda */}
       <GlassPanel style={styles.agendaPanel} intensity={40}>
@@ -330,7 +369,6 @@ const styles = StyleSheet.create({
   },
   todayText: {
     ...typography.caption,
-    color: '#FFFFFF',
     fontWeight: '700',
   },
   gridPanel: {
@@ -361,7 +399,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'transparent',
     alignItems: 'center',
-    paddingTop: 4,
+    paddingTop: 6,
     margin: 1,
   },
   dayNumberWrap: {
@@ -380,7 +418,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 3,
+    marginTop: 4,
     gap: 3,
     minHeight: 10,
   },

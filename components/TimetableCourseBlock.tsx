@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View, Text as RNText } from 'react-native';
 import { Course } from '@/types';
 import { radius, spacing } from '@/constants/Theme';
 import { COMPLETED_EVENT_TEXT, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
-import { withAlpha } from '@/constants/Glass';
+import { contrastText, withAlpha } from '@/constants/Glass';
 
 const HOUR_HEIGHT = 52;
 
@@ -12,6 +12,9 @@ interface TimetableCourseBlockProps {
   height: number;
   widthPercent: number;
   leftPercent: number;
+  /** Compact mode (fit-to-screen Week view): tighter padding and lower
+   *  height thresholds so short events still show their code/name. */
+  compact?: boolean;
   onPress?: (course: Course) => void;
 }
 
@@ -48,6 +51,7 @@ export default function TimetableCourseBlock({
   height,
   widthPercent,
   leftPercent,
+  compact = false,
   onPress,
 }: TimetableCourseBlockProps) {
   const isPointInTime = !course.endTime && !course.isCluster;
@@ -55,9 +59,11 @@ export default function TimetableCourseBlock({
   const displayCode = extractRecognizableCode(course.name, knownCode);
   const shortName = displayCode ? cleanShortName(course.name, displayCode) : course.name;
 
-  const canShowCode = height >= 30 && displayCode.length > 0;
-  const canShowName = height >= 36 && shortName.length > 0;
-  const canShowTime = height >= 52;
+  // Compact blocks show their identifier earlier and fit name+time on
+  // shorter events; the course code is the priority label.
+  const canShowCode = height >= (compact ? 22 : 30) && displayCode.length > 0;
+  const canShowName = height >= (compact ? 34 : 36) && shortName.length > 0;
+  const canShowTime = height >= (compact ? 46 : 52);
 
   const timeText = isPointInTime
     ? course.startTime
@@ -70,11 +76,16 @@ export default function TimetableCourseBlock({
   const blockColor = course.completed
     ? COMPLETED_EVENT_COLOR
     : withAlpha(course.color ?? '#64748B', 0.88);
+  // Text on the course-colored block picks black or white by luminance —
+  // white is not assumed to work on every palette color.
+  const fg = course.completed ? COMPLETED_EVENT_TEXT : contrastText(course.color ?? '#64748B');
+  const fgSoft = withAlpha(fg, 0.85);
 
   return (
     <Pressable
       style={[
         styles.block,
+        compact && styles.blockCompact,
         isPointInTime && styles.pointBlock,
         {
           top,
@@ -89,10 +100,10 @@ export default function TimetableCourseBlock({
         course.endTime ? ` to ${course.endTime}` : ''
       }${course.location ? `, ${course.location}` : ''}`}
       accessibilityRole="button">
-      {isPointInTime && <View style={styles.pointMarker} />}
+      {isPointInTime && <View style={[styles.pointMarker, { backgroundColor: fgSoft }]} />}
       {canShowCode ? (
         <RNText
-          style={[styles.codeText, course.completed && styles.completedText]}
+          style={[styles.codeText, { color: fg }]}
           numberOfLines={1}
           ellipsizeMode="tail">
           {displayCode}
@@ -102,6 +113,7 @@ export default function TimetableCourseBlock({
         <RNText
           style={[
             styles.nameText,
+            { color: fg },
             course.completed && styles.completedNameText,
           ]}
           numberOfLines={canShowTime ? 1 : 2}
@@ -111,7 +123,7 @@ export default function TimetableCourseBlock({
       ) : null}
       {canShowTime ? (
         <RNText
-          style={[styles.timeText, course.completed && styles.completedText]}
+          style={[styles.timeText, { color: fgSoft }]}
           numberOfLines={1}
           ellipsizeMode="tail">
           {timeText}
@@ -133,6 +145,12 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.25)',
   },
+  blockCompact: {
+    paddingHorizontal: 3,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    justifyContent: 'flex-start',
+  },
   pointBlock: {
     // Point-in-time events get a slightly stronger left edge.
     borderLeftWidth: 3,
@@ -148,14 +166,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.75)',
   },
   codeText: {
-    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
     lineHeight: 13,
     letterSpacing: 0.3,
   },
   nameText: {
-    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '600',
     lineHeight: 13,

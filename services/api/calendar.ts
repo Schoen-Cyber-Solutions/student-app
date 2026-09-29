@@ -33,6 +33,12 @@ export interface MyCalendarEvent {
   /** Personal completion flag — persisted server-side; only meaningful on
    *  imported LMS events. */
   isCompleted?: boolean;
+  /** Instructor display name from the official course schedule (effective
+   *  CourseSection). Null when the section has no named instructor. */
+  instructor?: string | null;
+  /** Official university faculty profile URL (e.g. roosevelt.edu/profile/<id>),
+   *  captured from the source listing and validated server-side. */
+  instructorProfileUrl?: string | null;
 }
 
 interface MyCalendarResponse {
@@ -64,7 +70,11 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
       v.courseSectionSource === 'unassigned') &&
     (v.mergedProviders === undefined ||
       (Array.isArray(v.mergedProviders) && v.mergedProviders.every((p) => typeof p === 'string'))) &&
-    (v.isCompleted === undefined || typeof v.isCompleted === 'boolean')
+    (v.isCompleted === undefined || typeof v.isCompleted === 'boolean') &&
+    (v.instructor === undefined || v.instructor === null || typeof v.instructor === 'string') &&
+    (v.instructorProfileUrl === undefined ||
+      v.instructorProfileUrl === null ||
+      typeof v.instructorProfileUrl === 'string')
   );
 }
 
@@ -74,14 +84,24 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
  * Returns the authenticated user's normalized calendar events. The user is
  * identified by the session token only; no userId is sent.
  */
+/**
+ * Providers the visual Calendar (Day/Week/Month) is allowed to show:
+ * official course meetings and personal events. LMS-imported events
+ * ('blackboard', 'canvas' — assignments, due dates, etc.) stay in the API
+ * for consumers that need them, like Home's Due list.
+ */
+export const CALENDAR_VIEW_PROVIDERS = ['course_schedule', 'personal'] as const;
+
 export async function getMyCalendar(
   sessionToken: string,
   from?: string,
   to?: string,
+  providers?: readonly string[],
 ): Promise<MyCalendarEvent[]> {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to) params.set('to', to);
+  if (providers?.length) params.set('providers', providers.join(','));
   const query = params.toString() ? `?${params.toString()}` : '';
 
   const data = await apiRequest<MyCalendarResponse>(`/api/me/calendar${query}`, { sessionToken });
@@ -108,6 +128,8 @@ export async function getMyCalendar(
     courseSectionSource: event.courseSectionSource ?? null,
     mergedProviders: event.mergedProviders ?? [],
     isCompleted: event.isCompleted ?? false,
+    instructor: event.instructor ?? null,
+    instructorProfileUrl: event.instructorProfileUrl ?? null,
   }));
 }
 

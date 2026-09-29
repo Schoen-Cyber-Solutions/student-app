@@ -14,8 +14,16 @@ export interface UserProfile {
   academicYear: string | null;
 }
 
+export interface UsernamePolicy {
+  canChange: boolean;
+  termResolved: boolean;
+  currentTermName: string | null;
+  nextTermName: string | null;
+}
+
 export interface MeResponse {
   user: UserProfile;
+  usernamePolicy: UsernamePolicy;
 }
 
 export interface ProfileSetupBody {
@@ -28,6 +36,8 @@ export interface ProfileSetupBody {
 }
 
 export interface UpdateProfileBody {
+  /** At most one change per academic term — enforced server-side. */
+  username?: string;
   firstName?: string | null;
   birthMonth?: number | null;
   birthDay?: number | null;

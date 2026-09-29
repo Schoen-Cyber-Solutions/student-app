@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import { View } from './Themed';
+import { TAB_BAR_CLEARANCE } from '@/constants/Theme';
 
 interface ScreenWrapperProps {
   children: ReactNode;
@@ -39,7 +40,7 @@ const styles = StyleSheet.create({
   },
   content: {
     // Clearance so the last item can scroll above the floating glass tab bar.
-    paddingBottom: 110,
+    paddingBottom: TAB_BAR_CLEARANCE,
   },
   contentNonScrollable: {
     flex: 1,

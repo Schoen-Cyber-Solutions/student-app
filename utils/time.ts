@@ -42,6 +42,20 @@ export function formatWeekLabel(dates: Date[]): string {
   return `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${year}`;
 }
 
+/**
+ * ISO 8601 week number (Monday-first). Week 1 is the week containing the
+ * year's first Thursday — the convention used by printed "KW" calendars.
+ */
+export function isoWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - day + 3); // shift to this week's Thursday
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const firstDay = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDay + 3);
+  return 1 + Math.round((d.getTime() - firstThursday.getTime()) / 604800000);
+}
+
 /** Check whether two Date objects represent the same calendar day. */
 export function isSameCalendarDay(a: Date, b: Date): boolean {
   return (
@@ -105,10 +119,37 @@ export function endOfDay(date: Date): Date {
   return d;
 }
 
-/** Return courses that occur on a specific weekday. */
-export function getCoursesForDay(courses: Course[], day: Course['days'][number]): Course[] {
+/** Week bucket for an upcoming due date, relative to `now`. Monday-start
+ *  weeks in local time: "this-week" = remainder of the current Mon–Sun week
+ *  (any time after `now` through Sunday), "next-week" = the following
+ *  Mon–Sun, "later" = anything beyond that. */
+export type UpcomingWeekBucket = 'this-week' | 'next-week' | 'later';
+
+export function upcomingWeekBucket(start: Date, now: Date): UpcomingWeekBucket {
+  const monday = getMondayOfWeek(now);
+  const thisSunday = new Date(monday);
+  thisSunday.setDate(monday.getDate() + 6);
+  if (start.getTime() <= endOfDay(thisSunday).getTime()) return 'this-week';
+  const nextSunday = new Date(thisSunday);
+  nextSunday.setDate(thisSunday.getDate() + 7);
+  if (start.getTime() <= endOfDay(nextSunday).getTime()) return 'next-week';
+  return 'later';
+}
+
+/** Return courses that occur on a specific weekday. When `date` is given,
+ *  events carrying an exact `startAt` must fall on that calendar day —
+ *  weekday-name matching alone would repeat them every week. */
+export function getCoursesForDay(
+  courses: Course[],
+  day: Course['days'][number],
+  date?: Date,
+): Course[] {
   return courses
-    .filter((c) => c.days.includes(day))
+    .filter(
+      (c) =>
+        c.days.includes(day) &&
+        (!date || !c.startAt || isSameCalendarDay(new Date(c.startAt), date))
+    )
     .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 }
 

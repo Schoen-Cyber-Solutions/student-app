@@ -1,4 +1,5 @@
-import { apiRequest } from './client';
+import { apiRequest, apiUpload } from './client';
+import { API_BASE_URL } from '@/constants/Api';
 import { getSessionToken } from '../auth/devSession';
 
 /**
@@ -14,7 +15,15 @@ export interface Community {
   type: 'university' | 'section';
   name: string;
   subtitle: string;
+  courseName?: string;
   courseCode?: string;
+}
+
+/** Display title for headers: section communities show the course name
+ *  ("Cybersecurity & Information Assurance"), not the code ("CSIA 301-01");
+ *  university communities keep their name. */
+export function communityDisplayName(c: Community): string {
+  return c.type === 'section' ? c.courseName ?? c.name : c.name;
 }
 
 export interface CommunityThread {
@@ -35,12 +44,52 @@ export interface ThreadDetail {
   isAuthor: boolean;
 }
 
+/** An image attached to a thread post or reply. `url` is auth-gated. */
+export interface MessageAttachment {
+  id: string;
+  url: string;
+  mimeType: string;
+  width: number | null;
+  height: number | null;
+}
+
 export interface ThreadMessage {
   id: string;
   body: string;
   createdAt: string;
   authorUsername: string;
   isAuthor: boolean;
+  attachment?: MessageAttachment | null;
+}
+
+/** A chat search hit: a thread title/opening-post match or a reply match. */
+export interface ChatSearchResult {
+  type: 'thread' | 'reply';
+  threadId: string;
+  communityId: string;
+  communityName: string;
+  threadTitle: string;
+  snippet: string;
+  authorUsername: string;
+  createdAt: string;
+}
+
+/** Local image picked + compressed on-device, ready for upload. */
+export interface ChatImageDraft {
+  uri: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * Image source for <Image> — attachment URLs require the session bearer token,
+ * so callers must pass `headers` through to the image component.
+ */
+export function chatAttachmentSource(attachment: MessageAttachment): { uri: string; headers: Record<string, string> } {
+  const headers: Record<string, string> = {};
+  const t = token();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  return { uri: `${API_BASE_URL}${attachment.url}`, headers };
 }
 
 function token(): string | undefined {
@@ -79,7 +128,19 @@ export async function createCommunityThread(
   communityId: string,
   title: string,
   message: string,
+  image?: ChatImageDraft | null,
 ): Promise<CommunityThread> {
+  if (image) {
+    const data = await apiUpload<{ thread: CommunityThread }>(
+      `/api/me/communities/${encodeURIComponent(communityId)}/threads`,
+      {
+        sessionToken: token(),
+        fields: { title, message },
+        file: { uri: image.uri, name: 'image.jpg', type: 'image/jpeg' },
+      },
+    );
+    return data.thread;
+  }
   const data = await apiRequest<{ thread: CommunityThread }>(
     `/api/me/communities/${encodeURIComponent(communityId)}/threads`,
     { method: 'POST', sessionToken: token(), body: { title, message } },
@@ -99,12 +160,43 @@ export async function getThread(
 export async function postThreadMessage(
   threadId: string,
   body: string,
+  image?: ChatImageDraft | null,
 ): Promise<ThreadMessage> {
+  if (image) {
+    const data = await apiUpload<{ message: ThreadMessage }>(
+      `/api/me/threads/${threadId}/messages`,
+      {
+        sessionToken: token(),
+        fields: { body },
+        file: { uri: image.uri, name: 'image.jpg', type: 'image/jpeg' },
+      },
+    );
+    return data.message;
+  }
   const data = await apiRequest<{ message: ThreadMessage }>(
     `/api/me/threads/${threadId}/messages`,
     { method: 'POST', sessionToken: token(), body: { body } },
   );
   return data.message;
+}
+
+/**
+ * Search threads and replies across the caller's accessible communities.
+ * Pass communityId to scope to one community; omit for a global Chat search.
+ */
+export async function searchChat(
+  query: string,
+  options: { communityId?: string; type?: 'all' | 'threads' | 'replies'; limit?: number } = {},
+): Promise<ChatSearchResult[]> {
+  const params = new URLSearchParams({ q: query });
+  if (options.communityId) params.set('communityId', options.communityId);
+  if (options.type && options.type !== 'all') params.set('type', options.type);
+  if (options.limit) params.set('limit', String(options.limit));
+  const data = await apiRequest<{ results: ChatSearchResult[] }>(
+    `/api/me/chat/search?${params.toString()}`,
+    { sessionToken: token() },
+  );
+  return data.results;
 }
 
 export async function deleteThread(threadId: string): Promise<void> {

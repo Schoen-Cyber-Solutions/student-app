@@ -9,8 +9,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import AppHeader from '@/components/AppHeader';
 import ThreadPost from '@/components/ThreadPost';
 import ThreadReplyItem from '@/components/ThreadReplyItem';
@@ -19,22 +18,27 @@ import EmptyState from '@/components/EmptyState';
 import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
 import { Text } from '@/components/Themed';
-import Colors from '@/constants/Colors';
 import { glassColors } from '@/constants/Glass';
-import { spacing, typography } from '@/constants/Theme';
+import { spacing, typography, TAB_BAR_CLEARANCE } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
+import { useTextMode, useThemedColors } from '@/components/TabTextMode';
 import { useMyCommunity } from '@/hooks/useMyCommunities';
 import { useTabAccent } from '@/utils/tabAccent';
 import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 import {
+  ChatImageDraft,
+  MessageAttachment,
   ThreadDetail,
   ThreadMessage,
+  chatAttachmentSource,
+  communityDisplayName,
   getThread,
   postThreadMessage,
   deleteThread,
   deleteMessage,
 } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
+import ImageViewerModal from '@/components/ImageViewerModal';
 
 type LoadStatus = 'loading' | 'success' | 'unavailable' | 'error';
 
@@ -44,16 +48,16 @@ export default function ThreadDetailScreen() {
     threadId: string;
   }>();
   const scheme = useColorScheme();
-  const colors = Colors[scheme];
+  const colors = useThemedColors();
   const accent = useTabAccent('chat');
-  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent);
+  const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent, useTextMode());
   const chatAppearance = useTabAppearance('chat');
-  const insets = useSafeAreaInsets();
   const community = useMyCommunity(communityId);
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [sending, setSending] = useState(false);
+  const [viewingImage, setViewingImage] = useState<MessageAttachment | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const loadData = useCallback(async () => {
@@ -97,23 +101,32 @@ export default function ThreadDetailScreen() {
     return () => sub.remove();
   }, []);
 
-  const handleReply = async (text: string) => {
-    if (!threadId || sending) return;
+  // Returns success so the composer only clears its draft on a real send —
+  // a failed upload keeps the typed text and picked image.
+  const handleReply = async (text: string, image: ChatImageDraft | null): Promise<boolean> => {
+    if (!threadId || sending) return false;
+    if (__DEV__) console.log(`[thread] reply submit len=${text.length} image=${!!image} threadId=${threadId}`);
     setSending(true);
     try {
-      const message = await postThreadMessage(threadId, text);
+      const message = await postThreadMessage(threadId, text, image);
+      if (__DEV__) console.log(`[thread] reply ok id=${message.id}`);
       setMessages((prev) => [...prev, message]);
       requestAnimationFrame(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
       });
+      return true;
     } catch (err) {
+      if (__DEV__) console.warn('[thread] reply failed:', err);
       const apiErr = toApiError(err);
       Alert.alert(
         'Could not send reply',
         apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
           ? 'You no longer have access to this discussion.'
-          : 'Check your connection and try again.',
+          : apiErr.kind === 'client'
+            ? 'Your reply was rejected. Check the image and text length.'
+            : 'Check your connection and try again.',
       );
+      return false;
     } finally {
       setSending(false);
     }
@@ -206,12 +219,14 @@ export default function ThreadDetailScreen() {
                 authorUsername={thread.authorUsername}
                 createdAt={thread.createdAt}
                 body={openingPost?.body ?? ''}
+                attachment={openingPost?.attachment}
+                onPressImage={setViewingImage}
                 onDelete={thread.isAuthor ? handleDeleteThread : undefined}
               />
               <View style={[styles.divider, { borderColor: glass.glassBorder }]}>
                 <Text style={[styles.replyCount, { color: colors.secondaryText }]}>
                   {replies.length === 0
-                    ? 'No replies yet'
+                    ? 'No replies yet. Start the conversation.'
                     : `${replies.length} ${replies.length === 1 ? 'Reply' : 'Replies'}`}
                 </Text>
               </View>
@@ -220,6 +235,7 @@ export default function ThreadDetailScreen() {
                   key={reply.id}
                   reply={reply}
                   accent={accent}
+                  onPressImage={setViewingImage}
                   onLongPress={
                     reply.isAuthor ? () => handleDeleteMessage(reply) : undefined
                   }
@@ -232,30 +248,34 @@ export default function ThreadDetailScreen() {
     }
   };
 
+  // Navigation options are static in app/(tabs)/chats/_layout.tsx.
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: community?.name ?? 'Thread',
-          headerShown: false,
-        }}
-      />
-      <View style={styles.container}>
+    <View style={styles.container}>
         <CalendarBackground appearance={chatAppearance} />
+        {/* Header prefers the thread title; falls back to the community name
+            while loading. Left-aligned, truncates with ellipsis. */}
         <AppHeader
           safeAreaTop
-          greeting={community?.name ?? 'Thread'}
+          greeting={thread?.title ?? (community ? communityDisplayName(community) : 'Thread')}
           backLabel="Back"
           accent={accent}
         />
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          // AppHeader + safe area sit above this view — without the offset the
-          // composer overshoots when the keyboard opens.
-          keyboardVerticalOffset={insets.top + 52}>
+          // keyboardVerticalOffset is measured from the TOP OF THE SCREEN to
+          // the top of this view's parent frame — our AppHeader lives inside
+          // the RN tree above the KAV, so the frame already accounts for it.
+          // Passing the header height again would over-pad by ~100pt and float
+          // the composer a full header-height above the keyboard.
+          keyboardVerticalOffset={0}>
           <ScrollView
             ref={scrollRef}
+            // flex:1 + flexGrow pins the composer at the bottom — without it a
+            // tall thread overflows the KAV column and pushes the composer
+            // off-screen (the actual "cannot reply" symptom).
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
             // 'interactive' feeds every drag frame back into KAV padding,
             // producing the jitter loop. 'on-drag' dismisses once per drag.
@@ -263,11 +283,20 @@ export default function ThreadDetailScreen() {
             {renderBody()}
           </ScrollView>
           {status === 'success' && (
-            <ReplyComposer onSubmit={handleReply} sending={sending} accent={accent} />
+            <ReplyComposer
+              onSubmit={handleReply}
+              sending={sending}
+              accent={accent}
+              // Clear the floating tab bar while the keyboard is closed.
+              reservedBottom={TAB_BAR_CLEARANCE}
+            />
           )}
         </KeyboardAvoidingView>
-      </View>
-    </>
+        <ImageViewerModal
+          source={viewingImage ? chatAttachmentSource(viewingImage) : null}
+          onClose={() => setViewingImage(null)}
+        />
+    </View>
   );
 }
 

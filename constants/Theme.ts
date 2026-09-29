@@ -25,3 +25,7 @@ export const typography = {
   caption: { fontSize: 12, fontWeight: '500', letterSpacing: 0.2 },
   overline: { fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
 } satisfies Record<string, TextStyle>;
+
+/** Bottom clearance for content over the floating glass tab bar
+ *  (bar height + breathing room). Shared by ScreenWrapper and chat subpages. */
+export const TAB_BAR_CLEARANCE = 110;

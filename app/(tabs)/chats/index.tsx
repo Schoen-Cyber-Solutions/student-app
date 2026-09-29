@@ -3,25 +3,29 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import AppHeader from '@/components/AppHeader';
 import ScreenWrapper from '@/components/ScreenWrapper';
-import SectionHeader from '@/components/SectionHeader';
 import CourseCommunityRow from '@/components/CourseCommunityRow';
+import ChatSearchBar from '@/components/ChatSearchBar';
+import ChatSearchResults from '@/components/ChatSearchResults';
 import EmptyState from '@/components/EmptyState';
 import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
-import Colors from '@/constants/Colors';
 import { spacing } from '@/constants/Theme';
-import { useColorScheme } from '@/components/useColorScheme';
+import { useThemedColors } from '@/components/TabTextMode';
 import { useMyCommunities } from '@/hooks/useMyCommunities';
+import { useChatSearch } from '@/hooks/useChatSearch';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import { useTabAccent } from '@/utils/tabAccent';
+import { getCourseColor } from '@/utils/courseLabel';
 import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 
 export default function ChatsScreen() {
-  const colors = Colors[useColorScheme()];
+  const colors = useThemedColors();
   const accent = useTabAccent('chat');
   const chatAppearance = useTabAppearance('chat');
   const { status, communities, retry } = useMyCommunities();
-  const { colors: courseColors, reload: reloadColors } = useCourseColors();
+  const { colors: courseColors, colorMap, reload: reloadColors } = useCourseColors();
+  // Global search across every community the user can access.
+  const search = useChatSearch();
 
   useFocusEffect(
     useCallback(() => {
@@ -79,7 +83,19 @@ export default function ChatsScreen() {
               id: community.id,
               name: community.name,
               code: community.subtitle,
-              color: community.courseCode ? courseColors[community.courseCode] : undefined,
+              // Same shared course color as Calendar/Home — university-wide
+              // communities have no course and keep the accent dot.
+              color:
+                community.type === 'section'
+                  ? getCourseColor(
+                      {
+                        courseCode: community.courseCode,
+                        courseName: community.courseName ?? community.name,
+                      },
+                      courseColors,
+                      colorMap,
+                    )
+                  : undefined,
             }}
             onPress={() => router.push(`/chats/${encodeURIComponent(community.id)}`)}
           />
@@ -90,15 +106,33 @@ export default function ChatsScreen() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={chatAppearance} />
-      <AppHeader safeAreaTop greeting="Chats" accent={accent} />
+      <AppHeader safeAreaTop greeting="Chats" titleLeft accent={accent} />
       <ScreenWrapper>
         <View style={styles.section}>
-          <SectionHeader title="Communities" />
-          <GlassPanel style={styles.listPanel} intensity={30}>
-            <View style={styles.listInner}>
-              {renderBody()}
+          <ChatSearchBar
+            value={search.query}
+            onChange={search.setQuery}
+            accent={accent}
+            placeholder="Search your discussions"
+          />
+          {search.query.trim().length > 0 ? (
+            <View style={styles.searchResults}>
+              <ChatSearchResults
+                results={search.results}
+                searching={search.searching}
+                query={search.query.trim()}
+                accent={accent}
+                type={search.type}
+                onTypeChange={search.setType}
+              />
             </View>
-          </GlassPanel>
+          ) : (
+            <GlassPanel style={styles.listPanel} intensity={30}>
+              <View style={styles.listInner}>
+                {renderBody()}
+              </View>
+            </GlassPanel>
+          )}
         </View>
       </ScreenWrapper>
     </View>
@@ -115,6 +149,9 @@ const styles = StyleSheet.create({
   },
   listPanel: {
     marginTop: spacing.xs,
+  },
+  searchResults: {
+    marginTop: spacing.md,
   },
   listInner: {
     paddingHorizontal: spacing.sm,

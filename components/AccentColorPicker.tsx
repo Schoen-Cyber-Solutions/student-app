@@ -49,6 +49,10 @@ interface AccentColorPickerProps {
   initial: string;
   onApply: (hex: string) => void;
   onCancel: () => void;
+  /** Sheet title — defaults to "Custom accent". */
+  title?: string;
+  /** Preset dots shown under the HEX field — defaults to ACCENT_PRESETS. */
+  presets?: { name: string; hex: string }[];
 }
 
 function useDragResponder(onDrag: (x: number, y: number, w: number, h: number) => void) {
@@ -71,6 +75,8 @@ export default function AccentColorPicker({
   initial,
   onApply,
   onCancel,
+  title = 'Custom accent',
+  presets = ACCENT_PRESETS,
 }: AccentColorPickerProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = Colors[scheme];
@@ -166,7 +172,7 @@ export default function AccentColorPicker({
               styles.sheet,
               { backgroundColor: colors.card, borderColor: colors.cardBorder },
             ]}>
-            <Text style={[styles.title, { color: colors.text }]}>Custom accent</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
 
           {/* Live preview */}
           <View style={styles.previewRow}>
@@ -267,7 +273,7 @@ export default function AccentColorPicker({
 
           {/* Presets */}
           <View style={styles.presetRow}>
-            {ACCENT_PRESETS.map((p) => (
+            {presets.map((p) => (
               <Pressable
                 key={p.hex}
                 onPress={() => applyPreset(p.hex)}

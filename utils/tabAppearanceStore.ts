@@ -11,15 +11,15 @@ import { setTabAccentRuntime } from './tabAccent';
 
 /**
  * Single in-memory source of truth for per-tab appearance, backed by the
- * persisted store in ./tabAppearance. Every successful write (photo pick,
- * clear, dim, accent) lands here via the registered write listener, so all
- * mounted screens update live — no per-screen SecureStore polling needed.
+ * persisted store in ./tabAppearance. Every successful write (background
+ * color, text mode, accent) lands here via the registered write listener, so
+ * all mounted screens update live — no per-screen SecureStore polling needed.
  */
 
 const cache: Record<TabKey, TabAppearance> = {
-  home: { imageUri: null, dim: 'subtle', accent: DEFAULT_ACCENT },
-  calendar: { imageUri: null, dim: 'subtle', accent: DEFAULT_ACCENT },
-  chat: { imageUri: null, dim: 'subtle', accent: DEFAULT_ACCENT },
+  home: { accent: DEFAULT_ACCENT },
+  calendar: { accent: DEFAULT_ACCENT },
+  chat: { accent: DEFAULT_ACCENT },
 };
 const listeners = new Set<() => void>();
 const notify = () => listeners.forEach((l) => l());
@@ -50,9 +50,9 @@ export async function refreshTabAppearance(): Promise<void> {
     // Applies on the very first load too: a write mid-read must win.
     if (writeSeq[tab] !== seq[tab]) continue;
     if (
-      cache[tab].imageUri !== all[tab].imageUri ||
-      cache[tab].dim !== all[tab].dim ||
-      cache[tab].accent !== all[tab].accent
+      cache[tab].accent !== all[tab].accent ||
+      cache[tab].textMode !== all[tab].textMode ||
+      cache[tab].backgroundColor !== all[tab].backgroundColor
     ) {
       applyTab(tab, all[tab]);
       changed = true;
