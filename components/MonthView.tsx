@@ -3,14 +3,15 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { contrastText, glassColors, readableAccent, withAlpha } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
 import GlassPanel from './GlassPanel';
 import PagerStrip from './PagerStrip';
 import { MyCalendarEvent } from '@/services/api/calendar';
-import { getMondayOfWeek, isSameCalendarDay, formatTime12, endOfDay, startOfDay } from '@/utils/time';
+import { isSameCalendarDay, formatTime12, eventOccursOnDay } from '@/utils/time';
+import { monthGridRows } from '@/utils/monthGrid';
 
 interface MonthViewProps {
   /** Any date inside the currently displayed month. */
@@ -23,38 +24,16 @@ interface MonthViewProps {
   onNextMonth: () => void;
   onGoToToday: () => void;
   onSelectEvent: (event: MyCalendarEvent) => void;
+  onEventLongPress?: (event: MyCalendarEvent) => void;
 }
 
-const WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+// Monday-first, matching monthGridRows (gridStart = getMondayOfWeek).
+const WEEKDAY_LETTERS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 const MAX_DOTS = 3;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
-function eventOccursOn(event: MyCalendarEvent, day: Date): boolean {
-  const start = new Date(event.startAt);
-  const end = event.endAt ? new Date(event.endAt) : start;
-  return start <= endOfDay(day) && end >= startOfDay(day);
-}
 
-/** Monday-start grid (6x7 day cells) covering the month that contains `d`. */
-function monthGridRows(d: Date): Date[][] {
-  const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-  const lastOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  const gridStart = getMondayOfWeek(firstOfMonth);
-  const dayCount = Math.round((lastOfMonth.getTime() - gridStart.getTime()) / DAY_MS) + 1;
-  const totalCells = Math.ceil(dayCount / 7) * 7;
 
-  const cells: Date[] = [];
-  for (let i = 0; i < totalCells; i++) {
-    const cell = new Date(gridStart);
-    cell.setDate(gridStart.getDate() + i);
-    cells.push(cell);
-  }
-  const rows: Date[][] = [];
-  for (let i = 0; i < cells.length; i += 7) {
-    rows.push(cells.slice(i, i + 7));
-  }
-  return rows;
-}
+
 
 export default function MonthView({
   monthCursor,
@@ -66,6 +45,7 @@ export default function MonthView({
   onNextMonth,
   onGoToToday,
   onSelectEvent,
+  onEventLongPress,
 }: MonthViewProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = glassColors(scheme, useCalendarAccent(), useTextMode());
@@ -94,7 +74,7 @@ export default function MonthView({
           map.set(
             key,
             events
-              .filter((e) => eventOccursOn(e, day))
+              .filter((e) => eventOccursOnDay(e, day))
               .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
           );
         }
@@ -194,10 +174,7 @@ export default function MonthView({
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       {/* Fixed chrome — never slides during month paging. */}
       <GlassPanel style={styles.headerPanel} intensity={40}>
       <View style={styles.header}>
@@ -243,9 +220,11 @@ export default function MonthView({
       </View>
       </GlassPanel>
 
-      {/* previous | current | next month grids — fitContent because the
-          strip lives inside a ScrollView, where a flex:1 clip collapses
-          to zero height and blanks the grid. */}
+      {/* previous | current | next month grids. The strip must NOT live
+          inside a ScrollView — ScrollView's own move-capture responder runs
+          in an ancestor and swallows the horizontal gesture before it can
+          reach the pager. fitContent sizes the clip to the grid's natural
+          height; only the agenda below scrolls vertically. */}
       <PagerStrip
         fitContent
         position={`${monthCursor.getFullYear()}-${monthCursor.getMonth()}`}
@@ -259,22 +238,26 @@ export default function MonthView({
         onSwipeRight={onPrevMonth}
       />
 
-      {/* Selected-day agenda */}
+      {/* Selected-day agenda — own ScrollView preserves vertical scrolling. */}
+      <ScrollView
+        style={styles.agendaScroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
       <GlassPanel style={styles.agendaPanel} intensity={40}>
        <View style={styles.agendaInner}>
         <View style={styles.agendaHeader}>
           <Text style={[styles.agendaTitle, { color: colors.text }]}>
             {selectedDate.toLocaleDateString('en-US', {
-              weekday: 'short',
-              month: 'short',
+              weekday: 'long',
+              month: 'long',
               day: 'numeric',
             })}
           </Text>
-          {selectedIsToday ? (
-            <View style={[styles.todayPill, { backgroundColor: colors.accentSoft }]}>
-              <Text style={[styles.todayText, { color: colors.accent }]}>Today</Text>
-            </View>
-          ) : null}
+          <Text style={[styles.agendaCount, { color: colors.secondaryText }]}>
+            {selectedEvents.length === 0
+              ? ''
+              : `${selectedEvents.length} event${selectedEvents.length === 1 ? '' : 's'}`}
+          </Text>
         </View>
 
         {selectedEvents.length === 0 ? (
@@ -289,12 +272,20 @@ export default function MonthView({
                 ? `${formatTime12(start)} – ${formatTime12(end)}`
                 : formatTime12(start);
             const accent = colorForEvent(event) ?? colors.accent;
+            const icon =
+              event.provider === 'laker_connect'
+                ? 'calendar'
+                : event.provider === 'personal'
+                  ? 'person'
+                  : 'book.closed';
             return (
               <Pressable
                 key={event.id}
                 onPress={() => onSelectEvent(event)}
+                onLongPress={() => onEventLongPress?.(event)}
+                delayLongPress={850}
                 style={({ pressed }) => [
-                  styles.agendaRow,
+                  styles.eventCard,
                   {
                     borderLeftColor: accent,
                     backgroundColor: colors.glassStrong,
@@ -303,20 +294,43 @@ export default function MonthView({
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={`${event.title}, ${timeText}`}>
-                <View style={styles.agendaInfo}>
+                <View
+                  style={[
+                    styles.eventIcon,
+                    { backgroundColor: withAlpha(accent, scheme === 'dark' ? 0.3 : 0.18) },
+                  ]}>
+                  <SymbolView name={icon} tintColor={accent} size={22} />
+                </View>
+                <View style={styles.eventCardBody}>
                   <Text
                     style={[
-                      styles.agendaEventTitle,
+                      styles.eventTitle,
                       { color: event.isCompleted ? colors.mutedText : colors.text },
                       event.isCompleted && { textDecorationLine: 'line-through' },
                     ]}
-                    numberOfLines={1}>
+                    numberOfLines={2}>
                     {event.title}
                   </Text>
-                  <Text style={[styles.agendaMeta, { color: colors.secondaryText }]}>
-                    {timeText}
-                    {event.location ? ` · ${event.location}` : ''}
-                  </Text>
+                  <View style={styles.eventMetaRow}>
+                    <SymbolView name="clock" tintColor={colors.mutedText} size={13} />
+                    <Text style={[styles.eventMeta, { color: colors.secondaryText }]}>
+                      {timeText}
+                    </Text>
+                  </View>
+                  {event.location ? (
+                    <View style={styles.eventMetaRow}>
+                      <SymbolView
+                        name="mappin.and.ellipse"
+                        tintColor={colors.mutedText}
+                        size={13}
+                      />
+                      <Text
+                        style={[styles.eventMeta, { color: colors.secondaryText }]}
+                        numberOfLines={2}>
+                        {event.location}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <SymbolView name="chevron.right" tintColor={colors.mutedText} size={14} />
               </Pressable>
@@ -325,12 +339,16 @@ export default function MonthView({
         )}
        </View>
       </GlassPanel>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  agendaScroll: {
     flex: 1,
   },
   scrollContent: {
@@ -445,29 +463,51 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   agendaTitle: {
-    ...typography.label,
-    fontSize: 14,
+    ...typography.heading,
+    fontSize: 18,
     fontWeight: '700',
   },
-  agendaRow: {
+  agendaCount: {
+    ...typography.caption,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  eventCard: {
     flexDirection: 'row',
     alignItems: 'center',
     borderLeftWidth: 4,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md,
     marginBottom: spacing.sm,
+    gap: spacing.md,
   },
-  agendaInfo: {
+  eventIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventCardBody: {
     flex: 1,
+    gap: 4,
   },
-  agendaEventTitle: {
+  eventTitle: {
     ...typography.body,
-    fontSize: 15,
+    fontSize: 16,
+    fontWeight: '600',
   },
-  agendaMeta: {
+  eventMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  eventMeta: {
     ...typography.caption,
-    marginTop: 2,
+    fontSize: 13,
+    flex: 1,
   },
   emptyText: {
     ...typography.bodyRegular,

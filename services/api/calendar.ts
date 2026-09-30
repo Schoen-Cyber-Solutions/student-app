@@ -39,6 +39,24 @@ export interface MyCalendarEvent {
   /** Official university faculty profile URL (e.g. roosevelt.edu/profile/<id>),
    *  captured from the source listing and validated server-side. */
   instructorProfileUrl?: string | null;
+  /** For recurring personal events: the series master row id. Occurrence
+   *  ids look like `${seriesId}~<startAt ISO>`; edit/delete apply to the
+   *  whole series (the backend resolves the master). */
+  seriesId?: string | null;
+  /** Recurrence descriptor present on personal series masters and their
+   *  expanded occurrences. */
+  recurrence?: PersonalEventRecurrence | null;
+  /** provider='laker_connect' saved campus events: the public event page
+   *  and RSVP link on the source site. Null for other providers. */
+  sourceUrl?: string | null;
+  rsvpUrl?: string | null;
+}
+
+export interface PersonalEventRecurrence {
+  freq: 'daily' | 'weekly' | 'monthly' | string;
+  interval: number;
+  until: string | null;
+  count: number | null;
 }
 
 interface MyCalendarResponse {
@@ -74,7 +92,12 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
     (v.instructor === undefined || v.instructor === null || typeof v.instructor === 'string') &&
     (v.instructorProfileUrl === undefined ||
       v.instructorProfileUrl === null ||
-      typeof v.instructorProfileUrl === 'string')
+      typeof v.instructorProfileUrl === 'string') &&
+    (v.seriesId === undefined || v.seriesId === null || typeof v.seriesId === 'string') &&
+    (v.recurrence === undefined || v.recurrence === null ||
+      (typeof v.recurrence === 'object' && typeof (v.recurrence as Record<string, unknown>).freq === 'string')) &&
+    (v.sourceUrl === undefined || v.sourceUrl === null || typeof v.sourceUrl === 'string') &&
+    (v.rsvpUrl === undefined || v.rsvpUrl === null || typeof v.rsvpUrl === 'string')
   );
 }
 
@@ -86,11 +109,12 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
  */
 /**
  * Providers the visual Calendar (Day/Week/Month) is allowed to show:
- * official course meetings and personal events. LMS-imported events
- * ('blackboard', 'canvas' — assignments, due dates, etc.) stay in the API
- * for consumers that need them, like Home's Due list.
+ * official course meetings, personal events, and campus events the user
+ * explicitly saved from Laker Connect ('laker_connect'). LMS-imported
+ * events ('blackboard', 'canvas' — assignments, due dates, etc.) stay in
+ * the API for consumers that need them, like Home's Due list.
  */
-export const CALENDAR_VIEW_PROVIDERS = ['course_schedule', 'personal'] as const;
+export const CALENDAR_VIEW_PROVIDERS = ['course_schedule', 'personal', 'laker_connect'] as const;
 
 export async function getMyCalendar(
   sessionToken: string,
@@ -130,7 +154,22 @@ export async function getMyCalendar(
     isCompleted: event.isCompleted ?? false,
     instructor: event.instructor ?? null,
     instructorProfileUrl: event.instructorProfileUrl ?? null,
+    seriesId: event.seriesId ?? null,
+    recurrence: event.recurrence ?? null,
+    sourceUrl: event.sourceUrl ?? null,
+    rsvpUrl: event.rsvpUrl ?? null,
   }));
+}
+
+export interface PersonalEventRecurrenceInput {
+  freq: 'daily' | 'weekly' | 'monthly';
+  interval?: number;
+  /** ISO instant — inclusive bound on the last occurrence. */
+  until?: string;
+  /** Total occurrences including the first. */
+  count?: number;
+  /** IANA zone; occurrences keep wall-clock time across DST. */
+  timezone?: string;
 }
 
 export interface PersonalEventInput {
@@ -141,6 +180,7 @@ export interface PersonalEventInput {
   endAt?: string;
   allDay?: boolean;
   color?: string;
+  recurrence?: PersonalEventRecurrenceInput | null;
 }
 
 export interface PersonalCalendarEvent {
@@ -153,6 +193,7 @@ export interface PersonalCalendarEvent {
   endAt: string | null;
   allDay: boolean;
   color: string | null;
+  recurrence?: PersonalEventRecurrence | null;
 }
 
 function token(): string | undefined {
@@ -170,7 +211,8 @@ export async function createPersonalEvent(input: PersonalEventInput): Promise<Pe
 }
 
 export async function updatePersonalEvent(id: string, input: PersonalEventInput): Promise<PersonalCalendarEvent> {
-  const data = await apiRequest<{ event: PersonalCalendarEvent }>(`/api/me/calendar/events/${id}`, {
+  // Occurrence ids (master~<ISO>) contain ':' — encode for the URL path.
+  const data = await apiRequest<{ event: PersonalCalendarEvent }>(`/api/me/calendar/events/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     sessionToken: token(),
     body: input,
@@ -179,8 +221,21 @@ export async function updatePersonalEvent(id: string, input: PersonalEventInput)
   return data.event;
 }
 
-export async function deletePersonalEvent(id: string): Promise<void> {
-  await apiRequest<{ status: string }>(`/api/me/calendar/events/${id}`, {
+/**
+ * Delete a user-owned calendar event — personal events and saved Laker
+ * Connect copies (provider 'laker_connect'). For recurring series,
+ * `scope='this'` removes
+ * only the tapped occurrence (the id's `~startAt` suffix is recorded as
+ * an exclusion — every other occurrence remains); 'all' deletes the
+ * whole series. ('following' — truncate from the tapped occurrence
+ * onward — remains supported server-side but is no longer offered in UI.)
+ */
+export async function deletePersonalEvent(
+  id: string,
+  scope: 'all' | 'following' | 'this' = 'all',
+): Promise<void> {
+  const query = scope === 'all' ? '' : `?scope=${scope}`;
+  await apiRequest<{ status: string }>(`/api/me/calendar/events/${encodeURIComponent(id)}${query}`, {
     method: 'DELETE',
     sessionToken: token(),
   });

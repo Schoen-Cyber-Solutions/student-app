@@ -50,7 +50,19 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerTitleAlign: 'left' }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Back', headerBackTitle: 'Back' }} />
+        {/* (tabs) sits above the pushed setup-flow screens — disable the
+            iOS edge-swipe pop on it so a horizontal swipe inside Home /
+            Calendar / Chat can never pop the whole tab container back to
+            setup. Edge-swipe back on pushed screens is unaffected. */}
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+            title: 'Back',
+            headerBackTitle: 'Back',
+            gestureEnabled: false,
+          }}
+        />
         <Stack.Screen name="onboarding" options={{ title: 'Get Started', headerShown: false }} />
         <Stack.Screen name="setup" options={{ title: 'Create Profile', headerShown: false }} />
         <Stack.Screen name="academic-setup" options={{ title: 'Academic Setup', headerShown: false }} />

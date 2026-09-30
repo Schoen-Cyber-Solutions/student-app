@@ -100,6 +100,12 @@ export interface Course {
   /** Calendar-only: rendered in muted gray — the user's personal completion
    *  flag on an imported LMS due event. */
   completed?: boolean;
+  /** Calendar-only: provider === 'personal' — user-created event (timetable
+   *  blocks render its start/end times stacked on separate lines). */
+  isPersonal?: boolean;
+  /** Calendar-only: provider === 'laker_connect' — campus event the user
+   *  saved from Laker Connect; gets the same stacked-time treatment. */
+  isCampusEvent?: boolean;
 }
 
 export interface CalendarEvent {

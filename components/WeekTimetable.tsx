@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  FlatList,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   StyleSheet,
   View,
   Pressable,
@@ -13,28 +16,35 @@ import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
 import GlassPanel from './GlassPanel';
-import PagerStrip from './PagerStrip';
 import TimetableCourseBlock from './TimetableCourseBlock';
 import {
+  getMondayOfWeek,
+  getWeekDayDates,
   getCoursesForDay,
   getHourRange,
-  toMinutes,
+  eventBlockSpan,
+  MIN_EVENT_MINUTES,
   detectOverlaps,
   isSameCalendarDay,
   formatWeekdayShort,
   formatDayOfMonth,
   formatWeekLabel,
   isoWeekNumber,
+  weekStartAtPage,
+  weekPageIndex,
+  WEEK_PAGE_COUNT,
 } from '@/utils/time';
 
 interface WeekTimetableProps {
   courses: Course[];
-  weekDates: Date[];
-  weekOffset: number;
+  /** The authoritative visible week — a Monday. Header, pager position and
+   *  event data all derive from this single value. */
+  weekStart: Date;
+  /** Fired when a swipe settles on a different week page. */
+  onWeekChange?: (weekStart: Date) => void;
   onSelectCourse?: (course: Course) => void;
+  onCourseLongPress?: (course: Course) => void;
   onSelectDay?: (date: Date) => void;
-  onSwipeLeft?: () => void;
-  onSwipeRight?: () => void;
   onGoToToday?: () => void;
 }
 
@@ -43,20 +53,17 @@ const GUTTER_WIDTH = 44;
 const START_HOUR = 7;
 const END_HOUR = 24;
 const RANGE_MINUTES = (END_HOUR - START_HOUR) * 60;
-// Point-in-time and very short events still get a readable block.
-const MIN_EVENT_MINUTES = 40;
+
 // Weekends carry far fewer classes — give them less width than Mon–Fri.
 const WEEKEND_WEIGHT = 0.62;
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function WeekTimetable({
   courses,
-  weekDates,
-  weekOffset,
+  weekStart,
+  onWeekChange,
   onSelectCourse,
+  onCourseLongPress,
   onSelectDay,
-  onSwipeLeft,
-  onSwipeRight,
   onGoToToday,
 }: WeekTimetableProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
@@ -64,18 +71,45 @@ export default function WeekTimetable({
   const today = new Date();
   const hours = getHourRange(START_HOUR, END_HOUR);
 
-  // ── Pager pages ────────────────────────────────────────────────────────
-  // Three week pages: previous | current | next. PagerStrip owns the
-  // measured width, finger-following transform, and commit/snap-back; the
-  // re-center on weekOffset change is invisible because the settled page's
-  // content is already the center page.
-  const pageDates = useMemo(
-    () => [
-      weekDates.map((d) => new Date(d.getTime() - WEEK_MS)),
-      weekDates,
-      weekDates.map((d) => new Date(d.getTime() + WEEK_MS)),
-    ],
-    [weekDates]
+  // ── Week pager ─────────────────────────────────────────────────────────
+  // A finite paged list of real weeks around today — one page per actual
+  // week Monday, keyed by its own ISO date. A page's identity never changes
+  // underneath it: after a swipe the visible page IS the destination week,
+  // and there is no post-settle recenter to race against. The header and
+  // every page derive from the same authoritative `weekStart`.
+  const anchorMonday = useMemo(() => getMondayOfWeek(new Date()), []);
+  const headerDates = useMemo(() => getWeekDayDates(weekStart), [weekStart]);
+  const initialIndex = useMemo(
+    () => Math.max(0, weekPageIndex(weekStart, anchorMonday)),
+    // Initial mount position only — later moves go through scroll effects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+  const listRef = useRef<FlatList<number>>(null);
+  const visibleIndex = useRef(initialIndex);
+  const [pageWidth, setPageWidth] = useState(0);
+
+  // Programmatic week changes (Today button, month-date select, view
+  // switch, day-pager week crossing) scroll the list directly to that
+  // week's own page — never a buffer swap.
+  useEffect(() => {
+    const target = weekPageIndex(weekStart, anchorMonday);
+    if (pageWidth <= 0 || target < 0 || target === visibleIndex.current) return;
+    visibleIndex.current = target;
+    listRef.current?.scrollToIndex({ index: target, animated: true });
+  }, [weekStart, anchorMonday, pageWidth]);
+
+  // A settled swipe lands on exactly one week page — report that page's
+  // own Monday so the parent cursor follows the visible page.
+  const handleMomentumEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const idx = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+      const clamped = Math.max(0, Math.min(WEEK_PAGE_COUNT - 1, idx));
+      if (clamped === visibleIndex.current) return;
+      visibleIndex.current = clamped;
+      onWeekChange?.(weekStartAtPage(clamped, anchorMonday));
+    },
+    [pageWidth, anchorMonday, onWeekChange]
   );
 
   // Measured height of the grid region — events and hour lines scale to fit.
@@ -86,64 +120,17 @@ export default function WeekTimetable({
     today.getHours() * 60 + today.getMinutes()
   );
 
-  // Cluster simultaneous point-in-time due events so the Week view stays
-  // readable. Built per page — shared memo so the strip never recomputes
-  // during a drag.
+  // Per-page day→courses index. Events without an end time are real
+  // personal events — they render as default-duration blocks, never as
+  // "Due (N)" point clusters (LMS due items never reach this view).
   const buildDayCourses = useCallback(
     (dates: Date[]) =>
-      dates.map((date) => {
-        const dayName = formatWeekdayShort(date) as Course['days'][number];
-        // Exact-date match (Course.startAt) — the pager fetches ±1 week of
-        // events, so weekday-name matching alone would repeat each meeting
-        // on the same weekday of the neighboring pages.
-        const dayCourses = getCoursesForDay(courses, dayName, date);
-        const pointEvents = dayCourses.filter((c) => !c.endTime);
-        const timedEvents = dayCourses.filter((c) => c.endTime);
-
-        const byStart = new Map<string, Course[]>();
-        for (const c of pointEvents) {
-          const list = byStart.get(c.startTime) ?? [];
-          list.push(c);
-          byStart.set(c.startTime, list);
-        }
-
-        const clustered: Course[] = [];
-        for (const [startTime, group] of byStart.entries()) {
-          if (group.length === 1) {
-            clustered.push(group[0]);
-          } else {
-            clustered.push({
-              id: `cluster-${date.toISOString()}-${startTime}`,
-              name: `Due (${group.length})`,
-              code: '',
-              instructor: '',
-              instructorEmail: '',
-              location: '',
-              startTime,
-              endTime: '',
-              days: [dayName],
-              color: colors.urgent,
-              isCluster: true,
-              clusterCount: group.length,
-              date: date.toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              }),
-            });
-          }
-        }
-
-        return [...timedEvents, ...clustered].sort(
-          (a, b) => toMinutes(a.startTime) - toMinutes(b.startTime)
-        );
-      }),
-    [courses, colors.urgent]
-  );
-
-  const pageCourses = useMemo(
-    () => pageDates.map(buildDayCourses),
-    [pageDates, buildDayCourses]
+      dates.map((date) =>
+        // Exact-date match (Course.startAt) — weekday-name matching alone
+        // would repeat each meeting on the same weekday of adjacent pages.
+        getCoursesForDay(courses, formatWeekdayShort(date) as Course['days'][number], date)
+      ),
+    [courses]
   );
 
   // Current-time ticker
@@ -168,11 +155,12 @@ export default function WeekTimetable({
   const colWeight = (date: Date) =>
     date.getDay() === 0 || date.getDay() === 6 ? WEEKEND_WEIGHT : 1;
 
-  /** One page of the week pager — day headers (with the page's own ISO week
-   *  number over the time gutter) plus the timetable grid. `slot` is the
-   *  stable pager slot (-1/0/1), not the date — pages keyed by slot never
-   *  remount when the buffer rotates. */
-  const renderPage = (dates: Date[], coursesByDay: Course[][], slot: number) => {
+  /** One week page — day headers (with the page's own ISO week number over
+   *  the time gutter) plus the timetable grid. Everything derives from the
+   *  page's own Monday: dates, week number, today column, and events. */
+  const renderPage = (monday: Date) => {
+    const dates = getWeekDayDates(monday);
+    const coursesByDay = buildDayCourses(dates);
     const weekNumber = isoWeekNumber(dates[0]);
     const todayColIndex = dates.findIndex((d) => isSameCalendarDay(d, today));
     const pageHasToday = todayColIndex >= 0;
@@ -225,11 +213,11 @@ export default function WeekTimetable({
           })}
         </View>
 
-        {/* Grid region — measured once via onLayout on the center page;
+        {/* Grid region — measured via onLayout (identical on every page);
             everything inside scales to fit the full 07:00–24:00 window. */}
         <View
           style={styles.gridArea}
-          onLayout={slot === 0 ? handleGridLayout : undefined}>
+          onLayout={handleGridLayout}>
           <View style={styles.gridRow}>
             {/* Time gutter — inside the page so the axis slides with the week. */}
             <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
@@ -253,7 +241,7 @@ export default function WeekTimetable({
             <View style={styles.dayColumns}>
               {dates.map((date, colIndex) => {
                 const dayCourses = coursesByDay[colIndex];
-                const overlapSlots = detectOverlaps(dayCourses);
+                const overlapSlots = detectOverlaps(dayCourses, MIN_EVENT_MINUTES);
                 const isToday = isSameCalendarDay(date, today);
 
                 return (
@@ -285,29 +273,18 @@ export default function WeekTimetable({
 
                     {/* Course blocks — clamped into the 07:00–24:00 window so
                         out-of-range events surface as edge slivers instead of
-                        breaking the layout. */}
+                        breaking the layout. Position and height derive from
+                        the event's real start/end times; events without an
+                        end time get the documented default duration. */}
                     {gridHeight > 0 &&
                       dayCourses.map((course) => {
-                        const rawStart = toMinutes(course.startTime);
-                        const rawEnd = course.endTime
-                          ? toMinutes(course.endTime)
-                          : rawStart + MIN_EVENT_MINUTES;
-                        if (
-                          isNaN(rawStart) ||
-                          rawEnd <= START_HOUR * 60 ||
-                          rawStart >= END_HOUR * 60
-                        ) {
-                          return null;
-                        }
-                        const start = Math.max(rawStart, START_HOUR * 60);
-                        const duration = Math.max(
-                          isNaN(rawEnd) ? MIN_EVENT_MINUTES : rawEnd - start,
-                          MIN_EVENT_MINUTES
+                        const span = eventBlockSpan(
+                          course.startTime,
+                          course.endTime,
+                          START_HOUR,
+                          END_HOUR
                         );
-                        const clampedEnd = Math.min(
-                          start + duration,
-                          END_HOUR * 60
-                        );
+                        if (!span) return null;
 
                         const slot = overlapSlots.find(
                           (s) => s.courseId === course.id
@@ -320,16 +297,17 @@ export default function WeekTimetable({
                           <TimetableCourseBlock
                             key={course.id}
                             course={course}
-                            top={(start - START_HOUR * 60) * pxPerMinute}
-                            height={(clampedEnd - start) * pxPerMinute}
+                            top={span.startMin * pxPerMinute}
+                            height={span.durationMin * pxPerMinute}
                             widthPercent={widthPercent}
                             leftPercent={leftPercent}
                             compact
-                            onPress={(c) =>
-                              c.isCluster
-                                ? onSelectDay?.(date)
-                                : onSelectCourse?.(c)
-                            }
+                            // Week-only label when a saved campus event's
+                            // title can't render — the stored title is
+                            // untouched (Day/Month/detail keep it).
+                            fallbackTitle={course.isCampusEvent ? 'Laker Event' : undefined}
+                            onPress={(c) => onSelectCourse?.(c)}
+                            onLongPress={(c) => onCourseLongPress?.(c)}
                           />
                         );
                       })}
@@ -373,10 +351,10 @@ export default function WeekTimetable({
           numberOfLines={1}
           adjustsFontSizeToFit
           minimumFontScale={0.85}>
-          {formatWeekLabel(weekDates)}
+          {formatWeekLabel(headerDates)}
         </Text>
         <View style={styles.sideSpacer}>
-          {weekOffset !== 0 && (
+          {!isSameCalendarDay(weekStart, anchorMonday) && (
             <Pressable
               onPress={onGoToToday}
               style={({ pressed }) => [
@@ -396,25 +374,70 @@ export default function WeekTimetable({
       </View>
       </GlassPanel>
 
-      {/* Calendar viewport: three pre-rendered week pages in a horizontal
-          strip — drags move the strip 1:1, release settles to the adjacent
-          page or springs back, and the parent swaps weekOffset only after
-          the snap completes. The full 07:00–24:00 day fits — no scroll. */}
-      <View style={styles.viewport}>
+      {/* Calendar viewport: a native paged list where every page is a real
+          week — snapToInterval + disableIntervalMomentum gives 1:1 finger
+          following that always settles on exactly one week, and
+          onMomentumScrollEnd reports the page actually left visible.
+          No post-swipe recenter: the visible page keeps its own identity.
+          The full 07:00–24:00 day fits — no vertical scroll. */}
+      <View
+        style={styles.viewport}
+        onLayout={(e) => {
+          const w = e.nativeEvent.layout.width;
+          setPageWidth((prev) => (Math.abs(prev - w) > 0.5 ? w : prev));
+        }}>
         <GlassPanel style={styles.gridPanel} intensity={25} variant="faint">
-          <PagerStrip
-            position={weekOffset}
-            renderPage={(slot) =>
-              renderPage(pageDates[slot + 1], pageCourses[slot + 1], slot)
-            }
-            onSwipeLeft={onSwipeLeft}
-            onSwipeRight={onSwipeRight}
-          />
+          {pageWidth > 0 ? (
+            <FlatList
+              ref={listRef}
+              data={PAGE_INDICES}
+              horizontal
+              // Exactly one page per gesture — a fast flick can never skip
+              // a week.
+              snapToInterval={pageWidth}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
+              showsHorizontalScrollIndicator={false}
+              // Each page's key is its own week — React never recycles a
+              // visible page into a different week.
+              keyExtractor={(i) => weekStartAtPage(i, anchorMonday).toISOString()}
+              getItemLayout={(_, i) => ({
+                length: pageWidth,
+                offset: pageWidth * i,
+                index: i,
+              })}
+              initialScrollIndex={initialIndex}
+              onMomentumScrollEnd={handleMomentumEnd}
+              onScrollToIndexFailed={({ index }) =>
+                listRef.current?.scrollToOffset({
+                  offset: index * pageWidth,
+                  animated: true,
+                })
+              }
+              // Only the visible page plus immediate neighbors mount —
+              // swipe lands on already-rendered weeks, no loading state.
+              windowSize={3}
+              initialNumToRender={3}
+              maxToRenderPerBatch={3}
+              renderItem={({ index }) => (
+                <View style={{ width: pageWidth }}>
+                  {renderPage(weekStartAtPage(index, anchorMonday))}
+                </View>
+              )}
+            />
+          ) : (
+            // First layout pass hasn't measured yet — render the current
+            // week alone so there's no empty flash.
+            <View style={styles.page}>{renderPage(weekStart)}</View>
+          )}
         </GlassPanel>
       </View>
     </View>
   );
 }
+
+const PAGE_INDICES: number[] = Array.from({ length: WEEK_PAGE_COUNT }, (_, i) => i);
 
 function formatHourLabel(hour24: number): string {
   const period = hour24 >= 12 ? 'PM' : 'AM';

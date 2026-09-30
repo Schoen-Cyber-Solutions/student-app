@@ -4,21 +4,23 @@ import { SymbolView } from 'expo-symbols';
 import { Course } from '@/types';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors, readableAccent, withAlpha } from '@/constants/Glass';
+import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
 import EmptyState from './EmptyState';
 import GlassPanel from './GlassPanel';
 import PagerStrip from './PagerStrip';
-import { HOUR_HEIGHT } from './TimetableCourseBlock';
+import TimetableCourseBlock, { HOUR_HEIGHT } from './TimetableCourseBlock';
 import {
   formatWeekdayShort,
   formatDayOfMonth,
   getMondayOfWeek,
   getWeekDayDates,
   getCoursesForDay,
-  toMinutes,
+  detectOverlaps,
+  eventBlockSpan,
+  MIN_EVENT_MINUTES,
   isSameCalendarDay,
 } from '@/utils/time';
 
@@ -26,6 +28,7 @@ interface DayViewProps {
   selectedDate: Date;
   courses: Course[];
   onSelectCourse: (course: Course) => void;
+  onCourseLongPress?: (course: Course) => void;
   onPreviousDay: () => void;
   onNextDay: () => void;
   onGoToToday?: () => void;
@@ -33,6 +36,7 @@ interface DayViewProps {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function formatHourLabel(hour24: number): string {
   const period = hour24 >= 12 ? 'PM' : 'AM';
@@ -40,71 +44,11 @@ function formatHourLabel(hour24: number): string {
   return `${h} ${period}`;
 }
 
-function DayEventCard({
-  course,
-  onPress,
-}: {
-  course: Course;
-  onPress: (course: Course) => void;
-}) {
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const colors = glassColors(scheme, useCalendarAccent(), useTextMode());
-
-  const timeText = course.endTime
-    ? `${course.startTime} – ${course.endTime}`
-    : course.startTime;
-
-  const accent = course.color ?? colors.accent;
-  const cardColor = course.completed
-    ? colors.glassStrong
-    : withAlpha(accent, 0.22);
-
-  return (
-    <Pressable
-      onPress={() => onPress(course)}
-      style={({ pressed }) => [
-        styles.card,
-        {
-          backgroundColor: cardColor,
-          borderColor: colors.glassBorder,
-          borderLeftColor: accent,
-        },
-        pressed && { opacity: 0.8 },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={`${course.name}, ${timeText}${
-        course.location ? `, ${course.location}` : ''
-      }`}>
-      {course.code ? (
-        <Text style={[styles.cardCode, { color: colors.secondaryText }]}>
-          {course.code}
-        </Text>
-      ) : null}
-      <Text
-        style={[
-          styles.cardName,
-          { color: course.completed ? colors.mutedText : colors.text },
-          course.completed && { textDecorationLine: 'line-through' },
-        ]}
-        numberOfLines={2}>
-        {course.name}
-      </Text>
-      <Text style={[styles.cardMeta, { color: colors.secondaryText }]}>
-        {timeText}
-      </Text>
-      {course.location ? (
-        <Text style={[styles.cardMeta, { color: colors.secondaryText }]}>
-          {course.location}
-        </Text>
-      ) : null}
-    </Pressable>
-  );
-}
-
 export default function DayView({
   selectedDate,
   courses,
   onSelectCourse,
+  onCourseLongPress,
   onPreviousDay,
   onNextDay,
   onGoToToday,
@@ -124,19 +68,17 @@ export default function DayView({
     });
   }, []);
 
-  /** Paging content for one day — just the hour timeline (or its empty
-   *  state). The header and week strip are fixed chrome above the pager. */
+  /** Paging content for one day — a continuous 24h timeline where every
+   *  event block is positioned by its real start time and sized by its
+   *  real duration (same geometry as Week). The header and week strip are
+   *  fixed chrome above the pager. */
   const renderDayContent = (date: Date) => {
     const dayName = formatWeekdayShort(date) as Course['days'][number];
     // Exact-date match — `courses` may hold events from adjacent weeks;
     // weekday-only matching would ghost them into this day.
     const dayCourses = getCoursesForDay(courses, dayName, date);
-    const hours = Array.from({ length: 24 }, (_, i) => ({
-      hour: i,
-      events: dayCourses.filter(
-        (c) => Math.floor(toMinutes(c.startTime) / 60) === i
-      ),
-    }));
+    const pxPerMinute = HOUR_HEIGHT / 60;
+    const overlapSlots = detectOverlaps(dayCourses, MIN_EVENT_MINUTES);
 
     return dayCourses.length === 0 ? (
       <GlassPanel style={styles.gridPanel} intensity={25}>
@@ -152,25 +94,50 @@ export default function DayView({
         ref={scrollToMorning}
         style={styles.scroll}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {hours.map(({ hour, events }) => (
-            <View key={hour} style={styles.hourRow}>
-              <View style={styles.gutter}>
+        <View style={styles.timeline}>
+          {/* Time gutter — labels beside their hour lines. */}
+          <View style={styles.gutter}>
+            {HOURS.map((hour) => (
+              <View key={hour} style={[styles.gutterCell, { height: HOUR_HEIGHT }]}>
                 <Text style={[styles.hourLabel, { color: colors.secondaryText }]}>
                   {formatHourLabel(hour)}
                 </Text>
               </View>
-              <View style={styles.eventsColumn}>
-                {events.map((course) => (
-                  <DayEventCard
-                    key={course.id}
-                    course={course}
-                    onPress={onSelectCourse}
-                  />
-                ))}
-              </View>
-            </View>
-          ))}
+            ))}
+          </View>
+
+          {/* Day column — hour grid lines plus duration-positioned blocks. */}
+          <View style={[styles.dayColumn, { borderLeftColor: colors.glassBorder }]}>
+            {HOURS.map((hour) => (
+              <View
+                key={hour}
+                style={[
+                  styles.hourLine,
+                  { height: HOUR_HEIGHT, borderBottomColor: colors.glassBorder },
+                ]}
+              />
+            ))}
+            {dayCourses.map((course) => {
+              const span = eventBlockSpan(course.startTime, course.endTime, 0, 24);
+              if (!span) return null;
+              const slot = overlapSlots.find((s) => s.courseId === course.id);
+              const totalCols = slot?.totalColumns ?? 1;
+              const widthPercent = 100 / totalCols;
+              const leftPercent = (slot?.columnIndex ?? 0) * widthPercent;
+              return (
+                <TimetableCourseBlock
+                  key={course.id}
+                  course={course}
+                  top={span.startMin * pxPerMinute}
+                  height={span.durationMin * pxPerMinute}
+                  widthPercent={widthPercent}
+                  leftPercent={leftPercent}
+                  onPress={onSelectCourse}
+                  onLongPress={onCourseLongPress}
+                />
+              );
+            })}
+          </View>
         </View>
       </ScrollView>
       </GlassPanel>
@@ -393,17 +360,15 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  content: {
-    paddingBottom: 96, // room for the floating add button
-  },
-  hourRow: {
+  timeline: {
     flexDirection: 'row',
-    minHeight: HOUR_HEIGHT,
-    paddingVertical: 3,
+    paddingBottom: 96, // room for the floating add button
   },
   gutter: {
     width: 46,
     paddingRight: spacing.sm,
+  },
+  gutterCell: {
     justifyContent: 'flex-start',
     paddingTop: 2,
   },
@@ -413,32 +378,13 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
-  eventsColumn: {
+  dayColumn: {
     flex: 1,
-    paddingRight: spacing.lg,
+    position: 'relative',
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    marginRight: spacing.sm,
   },
-  card: {
-    borderLeftWidth: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    marginBottom: spacing.sm,
-    overflow: 'hidden',
-  },
-  cardCode: {
-    ...typography.overline,
-    marginBottom: 2,
-  },
-  cardName: {
-    ...typography.body,
-    fontSize: 15,
-    lineHeight: 20,
-    marginBottom: 3,
-  },
-  cardMeta: {
-    ...typography.caption,
-    fontWeight: '500',
-    marginTop: 1,
+  hourLine: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

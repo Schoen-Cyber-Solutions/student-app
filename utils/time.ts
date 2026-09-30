@@ -25,6 +25,33 @@ export function getWeekDayDates(monday: Date): Date[] {
   return dates;
 }
 
+// ── Week pager window ──
+// The week pager is a finite paged list of real weeks around today — one
+// page per actual week Monday, keyed by its own date. No virtual slot is
+// ever recycled while visible.
+/** Pages on each side of today's week — ±3 years. */
+export const WEEK_PAGE_RADIUS = 156;
+export const WEEK_PAGE_COUNT = WEEK_PAGE_RADIUS * 2 + 1;
+
+/** Monday of the week page at `index` (index 0 = anchorMonday − RADIUS
+ *  weeks, index RADIUS = anchorMonday itself). Calendar-aware via setDate,
+ *  so DST transitions can't drift the result off a real Monday. */
+export function weekStartAtPage(index: number, anchorMonday: Date): Date {
+  const d = new Date(anchorMonday);
+  d.setDate(anchorMonday.getDate() + (index - WEEK_PAGE_RADIUS) * 7);
+  return d;
+}
+
+/** Page index of a week Monday inside the window, or -1 when out of range.
+ *  The ms→weeks delta is rounded — DST shifts it by ±1 hour at most. */
+export function weekPageIndex(weekStart: Date, anchorMonday: Date): number {
+  const weeks = Math.round(
+    (weekStart.getTime() - anchorMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)
+  );
+  const idx = weeks + WEEK_PAGE_RADIUS;
+  return idx >= 0 && idx < WEEK_PAGE_COUNT ? idx : -1;
+}
+
 /** Format a week label like "September 7 – 11, 2026" from Mon–Fri dates. */
 export function formatWeekLabel(dates: Date[]): string {
   if (dates.length === 0) return '';
@@ -65,6 +92,17 @@ export function isSameCalendarDay(a: Date, b: Date): boolean {
   );
 }
 
+/** Does a calendar event intersect a calendar day? Used by Month dots and
+ *  any day-level event lookup — spans count on every day they touch. */
+export function eventOccursOnDay(
+  event: { startAt: string; endAt?: string | null },
+  day: Date,
+): boolean {
+  const start = new Date(event.startAt);
+  const end = event.endAt ? new Date(event.endAt) : start;
+  return start <= endOfDay(day) && end >= startOfDay(day);
+}
+
 /** "Mon", "Tue", etc. */
 export function formatWeekdayShort(date: Date): string {
   return date.toLocaleDateString('en-US', { weekday: 'short' });
@@ -81,6 +119,43 @@ export function toMinutes(time: string): number {
   const [h, m] = clock.split(':').map(Number);
   const hours = (h % 12) + (period === 'PM' ? 12 : 0);
   return hours * 60 + m;
+}
+
+/** Documented default visual duration for events without an end time, and
+ *  the minimum rendered block duration — a 15-minute event stays tappable
+ *  and readable without distorting long events. */
+export const MIN_EVENT_MINUTES = 40;
+
+/**
+ * Timeline span for one event inside a [startHour, endHour) window, in
+ * window-relative minutes: `{ startMin, durationMin }`. Events without an
+ * end time render for MIN_EVENT_MINUTES; shorter real durations floor at
+ * the minimum. Returns null when the event can't intersect the window —
+ * the shared geometry Day and Week both use, so a 5 PM–9 PM event spans
+ * the same four hours everywhere.
+ */
+export function eventBlockSpan(
+  startTime: string,
+  endTime: string,
+  startHour: number,
+  endHour: number,
+): { startMin: number; durationMin: number } | null {
+  const rawStart = toMinutes(startTime);
+  const rawEnd = endTime ? toMinutes(endTime) : rawStart + MIN_EVENT_MINUTES;
+  if (
+    isNaN(rawStart) ||
+    rawEnd <= startHour * 60 ||
+    rawStart >= endHour * 60
+  ) {
+    return null;
+  }
+  const start = Math.max(rawStart, startHour * 60);
+  const duration = Math.max(
+    isNaN(rawEnd) ? MIN_EVENT_MINUTES : rawEnd - start,
+    MIN_EVENT_MINUTES
+  );
+  const clampedEnd = Math.min(start + duration, endHour * 60);
+  return { startMin: start - startHour * 60, durationMin: clampedEnd - start };
 }
 
 /** Duration in minutes between two 12-hour time strings. */
@@ -191,9 +266,13 @@ interface OverlapSlot {
 /**
  * Detect overlapping courses within a single day and assign each course
  * a column index. Returns the total number of columns needed and each
- * course's position.
+ * course's position. Events without an end time overlap for
+ * `defaultDurationMinutes` (the same visual span they render with).
  */
-export function detectOverlaps(courses: Course[]): OverlapSlot[] {
+export function detectOverlaps(
+  courses: Course[],
+  defaultDurationMinutes = 0,
+): OverlapSlot[] {
   if (courses.length === 0) return [];
 
   const sorted = [...courses].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
@@ -202,7 +281,9 @@ export function detectOverlaps(courses: Course[]): OverlapSlot[] {
 
   for (const course of sorted) {
     const start = toMinutes(course.startTime);
-    const end = toMinutes(course.endTime);
+    const end = course.endTime
+      ? toMinutes(course.endTime)
+      : start + defaultDurationMinutes;
 
     let laneIndex = -1;
     for (let i = 0; i < lanes.length; i++) {

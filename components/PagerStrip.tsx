@@ -62,11 +62,22 @@ export default function PagerStrip({
   const [pageWidth, setPageWidth] = useState(0);
   const translateX = useRef(new Animated.Value(0)).current;
   const isAnimating = useRef(false);
+  // Exactly one page commit per granted gesture — a stopped/interrupted
+  // settle animation must never fire a second commit.
+  const committed = useRef(false);
 
   // useLayoutEffect so the re-center lands before paint — the just-settled
   // neighbor page is already the center page's content, so nothing moves.
+  // The reset goes through a zero-duration native animation (same queue as
+  // the settle/drag animations) rather than a bare setValue: a setValue can
+  // lose ordering against a completed native animation's tail write.
   useLayoutEffect(() => {
-    translateX.setValue(0);
+    translateX.stopAnimation();
+    Animated.timing(translateX, {
+      toValue: 0,
+      duration: 0,
+      useNativeDriver: true,
+    }).start();
     isAnimating.current = false;
   }, [position, translateX]);
 
@@ -76,24 +87,74 @@ export default function PagerStrip({
   const widthRef = useRef(pageWidth);
   widthRef.current = pageWidth;
 
+  const settleTo = (dest: number, commit: 'left' | 'right' | null) => {
+    isAnimating.current = true;
+    const cb = commit === 'left' ? cbs.current.onSwipeLeft : commit === 'right' ? cbs.current.onSwipeRight : null;
+    // A commit without a handler would slide the strip off-screen and
+    // leave it stuck — snap back instead.
+    if (commit === null || !cb) {
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 6,
+        speed: 16,
+      }).start(() => {
+        isAnimating.current = false;
+      });
+      return;
+    }
+    Animated.timing(translateX, {
+      toValue: dest,
+      duration: SETTLE_DURATION,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      // finished:false = animation was interrupted (new gesture, reset,
+      // unmount). Only a completed settle may move the logical cursor —
+      // without this guard an interrupted settle commits a phantom page.
+      if (!finished) return;
+      cb?.();
+    });
+  };
+
+  const horizontalIntent = (gs: {
+    dx: number;
+    dy: number;
+  }): boolean => {
+    if (isAnimating.current) return false;
+    return (
+      Math.abs(gs.dx) > Math.abs(gs.dy) * SWIPE_RATIO &&
+      Math.abs(gs.dx) > SWIPE_START_THRESHOLD
+    );
+  };
+
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, gs) => {
-        if (isAnimating.current) return false;
-        const { dx, dy } = gs;
-        return (
-          Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO &&
-          Math.abs(dx) > SWIPE_START_THRESHOLD
-        );
+      // Both capture (top-down, before nested scrollable ancestors claim
+      // the move) and bubble-phase (fallback when capture wasn't reached)
+      // use the same horizontal-intent predicate.
+      onMoveShouldSetPanResponderCapture: (_, gs) => horizontalIntent(gs),
+      onMoveShouldSetPanResponder: (_, gs) => horizontalIntent(gs),
+      onPanResponderGrant: () => {
+        // Take ownership: kill any in-flight animation and arm the
+        // one-commit latch for this gesture.
+        translateX.stopAnimation();
+        committed.current = false;
       },
       onPanResponderTerminationRequest: () => true,
       onShouldBlockNativeResponder: () => false,
       // 1:1 finger-follow — no damping, no cap; slow drags track the finger
       // exactly and neighbor pages are already rendered beside this one.
       onPanResponderMove: (_, gs) => {
+        // Once the gesture committed, trailing move events of the same
+        // touch must not stomp the post-commit re-center — a stray +dx
+        // write here is what left the strip parked on the previous slot.
+        if (committed.current) return;
         translateX.setValue(gs.dx);
       },
       onPanResponderRelease: (_, gs) => {
+        if (committed.current) {
+          return;
+        }
         const w = widthRef.current;
         const { dx, vx } = gs;
         const goingLeft =
@@ -104,41 +165,18 @@ export default function PagerStrip({
           (dx > VELOCITY_MIN_DX && vx > VELOCITY_THRESHOLD);
 
         if (goingLeft) {
-          isAnimating.current = true;
-          Animated.timing(translateX, {
-            toValue: -w,
-            duration: SETTLE_DURATION,
-            useNativeDriver: true,
-          }).start(() => cbs.current.onSwipeLeft?.());
+          committed.current = true;
+          settleTo(-w, 'left');
         } else if (goingRight) {
-          isAnimating.current = true;
-          Animated.timing(translateX, {
-            toValue: w,
-            duration: SETTLE_DURATION,
-            useNativeDriver: true,
-          }).start(() => cbs.current.onSwipeRight?.());
+          committed.current = true;
+          settleTo(w, 'right');
         } else {
-          isAnimating.current = true;
-          Animated.spring(translateX, {
-            toValue: 0,
-            useNativeDriver: true,
-            bounciness: 6,
-            speed: 16,
-          }).start(() => {
-            isAnimating.current = false;
-          });
+          settleTo(0, null);
         }
       },
       onPanResponderTerminate: () => {
-        isAnimating.current = true;
-        Animated.spring(translateX, {
-          toValue: 0,
-          useNativeDriver: true,
-          bounciness: 6,
-          speed: 16,
-        }).start(() => {
-          isAnimating.current = false;
-        });
+        committed.current = true;
+        settleTo(0, null);
       },
     })
   ).current;

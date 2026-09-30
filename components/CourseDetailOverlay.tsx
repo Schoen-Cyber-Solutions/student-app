@@ -26,6 +26,7 @@ import { resolveExternalLinks, ExternalLinkSpec } from '@/utils/externalLinks';
 import { getMyUniversity } from '@/services/api/me';
 import {
   assignEventCourse,
+  deletePersonalEvent,
   isAssignableEvent,
   isCompletableEvent,
   setEventCompletion,
@@ -189,6 +190,10 @@ export default function CourseDetailOverlay({
 
   const assignable = event != null && isAssignableEvent(event);
   const completable = event != null && isCompletableEvent(event);
+  // Saved Laker Connect copy — shows source/RSVP links + Remove instead of
+  // personal-event editing; source metadata is never mutated here.
+  const isCampusEvent = event?.provider === 'laker_connect';
+  const campusLink = event?.rsvpUrl ?? event?.sourceUrl ?? null;
   const completed = event?.isCompleted ?? false;
   const [recurringPrompt, setRecurringPrompt] = useState<{
     eventId: string;
@@ -221,6 +226,29 @@ export default function CourseDetailOverlay({
       })
       .catch(() => Alert.alert('Could not assign', 'Please try again.'))
       .finally(() => setSaving(false));
+  };
+
+  const handleRemoveSavedEvent = () => {
+    if (!event || saving) return;
+    Alert.alert('Remove from Calendar?', 'The event stays in Laker Connect.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          setSaving(true);
+          // deletePersonalEvent hits the generic user-event DELETE route —
+          // saved campus copies are removable; the source event is not.
+          deletePersonalEvent(event.id)
+            .then(() => {
+              onEventChanged?.();
+              onClose();
+            })
+            .catch(() => Alert.alert('Could not remove', 'Please try again.'))
+            .finally(() => setSaving(false));
+        },
+      },
+    ]);
   };
 
   const handleToggleComplete = () => {
@@ -410,6 +438,59 @@ export default function CourseDetailOverlay({
                     {course.description}
                   </Text>
                 </View>
+              ) : null}
+
+              {isCampusEvent ? (
+                <View style={styles.row}>
+                  <SymbolView name="building.columns" tintColor={inkSecondary} size={16} />
+                  <View style={styles.professorText}>
+                    <Text style={[styles.courseCaption, { color: inkSecondary }]}>Source</Text>
+                    <Text style={[styles.rowText, { color: ink }]}>Laker Connect</Text>
+                  </View>
+                </View>
+              ) : null}
+
+              {isCampusEvent && campusLink ? (
+                <Pressable
+                  onPress={() => handleOpenLink(campusLink)}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.courseRow,
+                    { backgroundColor: rowFill },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="View Event and RSVP on Laker Connect">
+                  <SymbolView name="safari" tintColor={colors.accent} size={16} />
+                  <Text style={[styles.rowText, { color: colors.accent }]}>
+                    View Event / RSVP on Laker Connect
+                  </Text>
+                  <SymbolView
+                    name="arrow.up.right"
+                    tintColor={colors.mutedText}
+                    size={14}
+                    style={styles.chevron}
+                  />
+                </Pressable>
+              ) : null}
+
+              {isCampusEvent ? (
+                <Pressable
+                  onPress={handleRemoveSavedEvent}
+                  disabled={saving}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.courseRow,
+                    { backgroundColor: rowFill },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove from Calendar">
+                  <SymbolView name="calendar.badge.minus" tintColor={colors.urgent} size={16} />
+                  <Text style={[styles.rowText, { color: colors.urgent }]}>
+                    Remove from Calendar
+                  </Text>
+                </Pressable>
               ) : null}
 
               {instructor ? (

@@ -3,6 +3,7 @@ import { Course } from '@/types';
 import { radius, spacing } from '@/constants/Theme';
 import { COMPLETED_EVENT_TEXT, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
 import { contrastText, withAlpha } from '@/constants/Glass';
+import { computeBlockLabels } from '@/utils/timetableLabel';
 
 const HOUR_HEIGHT = 52;
 
@@ -15,34 +16,11 @@ interface TimetableCourseBlockProps {
   /** Compact mode (fit-to-screen Week view): tighter padding and lower
    *  height thresholds so short events still show their code/name. */
   compact?: boolean;
+  /** Week-only label used when a saved campus event's title can't be
+   *  rendered (e.g. 'Laker Event'). Never mutates the stored title. */
+  fallbackTitle?: string;
   onPress?: (course: Course) => void;
-}
-
-// Recognizable course code patterns such as CSIA301, CST301, CS 425.
-const COURSE_CODE_RE = /\b[A-Z]{2,}(?:\s*[-.]?\s*)?\d{3,}[A-Z]?\b/g;
-
-function extractRecognizableCode(name: string, knownCode: string): string {
-  if (knownCode && knownCode.replace(/\s/g, '').length >= 3) {
-    return knownCode.trim();
-  }
-  const matches = name.match(COURSE_CODE_RE);
-  if (!matches || matches.length === 0) return '';
-  // First match is the most reliable recognisable code.
-  return matches[0].replace(/\s/g, '');
-}
-
-function cleanShortName(name: string, code: string): string {
-  // Remove the recognised code and any other code-like substrings.
-  let withoutCode = name
-    .replace(new RegExp(code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
-    .replace(COURSE_CODE_RE, '');
-  // Strip noisy prefixes like "G5.202710:" or standalone numbers/punctuation.
-  withoutCode = withoutCode.replace(/[A-Za-z]?\d+(?:\.\d+)+[:\s]*/g, ' ');
-  withoutCode = withoutCode.replace(/[^A-Za-z\s&-]/g, ' ');
-  withoutCode = withoutCode.replace(/\s+/g, ' ').trim();
-  const letters = withoutCode.replace(/[^A-Za-z]/g, '');
-  // Only return a short name if it has a meaningful word left.
-  return letters.length >= 4 ? withoutCode : '';
+  onLongPress?: (course: Course) => void;
 }
 
 export default function TimetableCourseBlock({
@@ -52,18 +30,16 @@ export default function TimetableCourseBlock({
   widthPercent,
   leftPercent,
   compact = false,
+  fallbackTitle,
   onPress,
+  onLongPress,
 }: TimetableCourseBlockProps) {
   const isPointInTime = !course.endTime && !course.isCluster;
-  const knownCode = course.code && course.code.trim().length >= 2 ? course.code.trim() : '';
-  const displayCode = extractRecognizableCode(course.name, knownCode);
-  const shortName = displayCode ? cleanShortName(course.name, displayCode) : course.name;
-
-  // Compact blocks show their identifier earlier and fit name+time on
-  // shorter events; the course code is the priority label.
-  const canShowCode = height >= (compact ? 22 : 30) && displayCode.length > 0;
-  const canShowName = height >= (compact ? 34 : 36) && shortName.length > 0;
-  const canShowTime = height >= (compact ? 46 : 52);
+  // Personal and saved Laker Connect events stack start/end on separate
+  // lines — the merged "5:00 PM – 9:00 PM" string doesn't fit narrow Week
+  // columns. Priority when space is tight: title → start → end.
+  const stackedTimes = !!(course.isPersonal || course.isCampusEvent);
+  const labels = computeBlockLabels(course, height, compact, fallbackTitle);
 
   const timeText = isPointInTime
     ? course.startTime
@@ -96,32 +72,53 @@ export default function TimetableCourseBlock({
         },
       ]}
       onPress={() => onPress?.(course)}
+      onLongPress={() => onLongPress?.(course)}
+      delayLongPress={850}
       accessibilityLabel={`${course.name}, ${course.startTime}${
         course.endTime ? ` to ${course.endTime}` : ''
       }${course.location ? `, ${course.location}` : ''}`}
       accessibilityRole="button">
       {isPointInTime && <View style={[styles.pointMarker, { backgroundColor: fgSoft }]} />}
-      {canShowCode ? (
+      {labels.code ? (
         <RNText
           style={[styles.codeText, { color: fg }]}
-          numberOfLines={1}
+          // Week fallback ("Laker\nEvent") needs two lines; course codes
+          // stay single-line.
+          numberOfLines={labels.codeIsFallback ? 2 : 1}
           ellipsizeMode="tail">
-          {displayCode}
+          {labels.code}
         </RNText>
       ) : null}
-      {canShowName ? (
+      {labels.name ? (
         <RNText
           style={[
             styles.nameText,
             { color: fg },
             course.completed && styles.completedNameText,
           ]}
-          numberOfLines={canShowTime ? 1 : 2}
+          numberOfLines={labels.nameIsFallback ? 2 : labels.showTime ? 1 : 2}
           ellipsizeMode="tail">
-          {shortName}
+          {labels.name}
         </RNText>
       ) : null}
-      {canShowTime ? (
+      {labels.showTime && stackedTimes ? (
+        <>
+          <RNText
+            style={[styles.timeText, { color: fgSoft }]}
+            numberOfLines={1}
+            ellipsizeMode="tail">
+            {course.startTime}
+          </RNText>
+          {labels.showEndLine && course.endTime ? (
+            <RNText
+              style={[styles.timeText, { color: fgSoft }]}
+              numberOfLines={1}
+              ellipsizeMode="tail">
+              {course.endTime}
+            </RNText>
+          ) : null}
+        </>
+      ) : labels.showTime ? (
         <RNText
           style={[styles.timeText, { color: fgSoft }]}
           numberOfLines={1}

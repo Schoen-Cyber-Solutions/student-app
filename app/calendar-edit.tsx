@@ -71,12 +71,24 @@ export default function CalendarEditScreen() {
   }, [events]);
 
   const personalEvents = useMemo(
-    () => events.filter((e) => e.provider === 'personal').sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt)),
+    () =>
+      events
+        .filter((e) => e.provider === 'personal')
+        .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
+        // One row per recurring series — occurrences share seriesId.
+        .filter((e, i, all) =>
+          e.seriesId ? all.findIndex((x) => x.seriesId === e.seriesId) === i : true,
+        ),
     [events]
   );
 
-  const handleDeletePersonalEvent = (id: string, title: string) => {
-    Alert.alert('Delete event', `Remove "${title}"?`, [
+  const handleDeletePersonalEvent = (id: string, title: string, repeats: boolean) => {
+    Alert.alert(
+      'Delete event',
+      repeats
+        ? `"${title}" repeats — deleting removes the whole series.`
+        : `Remove "${title}"?`,
+      [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -207,7 +219,9 @@ export default function CalendarEditScreen() {
               style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
               <Text style={{ color: colors.tint, fontSize: 14, marginRight: spacing.md }}>Edit</Text>
             </Pressable>
-            <Pressable onPress={() => handleDeletePersonalEvent(event.id, event.title)} hitSlop={8}>
+            <Pressable
+              onPress={() => handleDeletePersonalEvent(event.id, event.title, !!event.seriesId)}
+              hitSlop={8}>
               <Text style={{ color: colors.urgent, fontSize: 14 }}>Delete</Text>
             </Pressable>
           </View>

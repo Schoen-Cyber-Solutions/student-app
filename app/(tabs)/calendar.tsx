@@ -19,7 +19,7 @@ import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceSto
 import { glassColors } from '@/constants/Glass';
 import { Course } from '@/types';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
-import { CALENDAR_VIEW_PROVIDERS, MyCalendarEvent } from '@/services/api/calendar';
+import { CALENDAR_VIEW_PROVIDERS, MyCalendarEvent, deletePersonalEvent } from '@/services/api/calendar';
 import { getCalendarStatus, getPreferences } from '@/services/api/me';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import {
@@ -30,64 +30,21 @@ import {
   formatWeekdayShort,
   formatTime12,
 } from '@/utils/time';
-import { colorForKey, getCourseColor, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
+import { eventColor, toTimetableCourse } from '@/utils/timetableCourse';
+import {
+  applyDayChange,
+  applyMonthSelect,
+  applyMonthShift,
+  applyToday,
+  applyWeekChange,
+  initialCursors,
+} from '@/utils/calendarCursors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { TabTextModeProvider, useTextMode, useThemedColors } from '@/components/TabTextMode';
 
 // Standard iOS tab-bar content height (the glass bar floats over the scene,
 // so the FAB must clear it plus the home-indicator inset).
 const TAB_BAR_HEIGHT = 49;
-
-function eventColor(
-  event: MyCalendarEvent,
-  courseColors: Record<string, string>,
-  colorMap?: Record<string, string>,
-): string | undefined {
-  // Completed LMS items render neutral gray everywhere — display override only,
-  // the saved course color is never modified.
-  if (event.isCompleted) return COMPLETED_EVENT_COLOR;
-  if (event.provider === 'personal') return event.color ?? colorForKey(event.title);
-  return getCourseColor(
-    {
-      courseSectionId: event.courseSectionId,
-      courseCode: event.courseCode,
-      courseName: event.courseName ?? event.title,
-    },
-    courseColors,
-    colorMap,
-  );
-}
-
-function toTimetableCourse(
-  event: MyCalendarEvent,
-  courseColors: Record<string, string>,
-  colorMap?: Record<string, string>,
-): Course {
-  const start = new Date(event.startAt);
-  const end = event.endAt ? new Date(event.endAt) : null;
-  const isZeroDuration = !end || end.getTime() <= start.getTime();
-
-  return {
-    id: event.id,
-    name: event.title,
-    code: event.courseCode ?? event.courseName ?? '',
-    location: event.location ?? '',
-    startTime: formatTime12(start),
-    endTime: isZeroDuration ? '' : formatTime12(end),
-    days: [formatWeekdayShort(start) as Course['days'][number]],
-    instructor: '',
-    instructorEmail: '',
-    color: eventColor(event, courseColors, colorMap),
-    date: start.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-    }),
-    startAt: event.startAt,
-    description: event.description ?? undefined,
-    completed: event.isCompleted ?? false,
-  };
-}
 
 export default function CalendarScreen() {
   return (
@@ -103,9 +60,11 @@ function CalendarScreenContent() {
   const [view, setView] = useState<CalendarView | null>(null);
   const suppressResetRef = useRef(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [selectedDay, setSelectedDay] = useState(new Date());
-  const [monthCursor, setMonthCursor] = useState(new Date());
+  // Independent per-view cursors — Day, Week, and Month each remember
+  // their own navigation position. Browsing one view never moves another
+  // view's cursor (see utils/calendarCursors.ts for the transition rules).
+  const [cursors, setCursors] = useState(() => initialCursors(new Date()));
+  const { currentDay, currentWeekStart, currentMonth, monthSelectedDate } = cursors;
   const [calendarStatus, setCalendarStatus] = useState<{ connected: boolean } | null>(null);
   const appearance = useTabAppearance('calendar');
   const scheme = useColorScheme();
@@ -154,17 +113,14 @@ function CalendarScreenContent() {
     }, [])
   );
 
-  const todayMonday = useMemo(() => getMondayOfWeek(new Date()), []);
-  const baseMonday = new Date(todayMonday);
-  baseMonday.setDate(todayMonday.getDate() + weekOffset * 7);
-  const weekDates = getWeekDayDates(baseMonday);
+  const weekDates = getWeekDayDates(currentWeekStart);
 
   /** ISO range covering the Mon–Sun grid of the month `delta` steps from
    *  monthCursor. */
   const monthGridRange = useCallback(
     (delta: number) => {
-      const firstOfMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + delta, 1);
-      const lastOfMonth = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + delta + 1, 0);
+      const firstOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
+      const lastOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + delta + 1, 0);
       const gridStart = getMondayOfWeek(firstOfMonth);
       const gridEndMonday = getMondayOfWeek(lastOfMonth);
       const gridEnd = new Date(gridEndMonday);
@@ -174,7 +130,7 @@ function CalendarScreenContent() {
         to: endOfDay(gridEnd).toISOString(),
       };
     },
-    [monthCursor]
+    [currentMonth]
   );
 
   const range = useMemo(() => {
@@ -184,6 +140,18 @@ function CalendarScreenContent() {
       const prev = monthGridRange(-1);
       const next = monthGridRange(1);
       return { from: prev.from, to: next.to };
+    }
+    if (view === 'day') {
+      // Day cursor is independent of the week cursor — fetch the week
+      // surrounding currentDay so day swipes land on loaded data.
+      const dayStart = new Date(currentDay);
+      dayStart.setDate(dayStart.getDate() - 7);
+      const dayEnd = new Date(currentDay);
+      dayEnd.setDate(dayEnd.getDate() + 7);
+      return {
+        from: startOfDay(dayStart).toISOString(),
+        to: endOfDay(dayEnd).toISOString(),
+      };
     }
     // Week view fetches the surrounding weeks too — the timetable pager
     // pre-renders previous/next pages so a swipe lands on loaded events.
@@ -195,7 +163,7 @@ function CalendarScreenContent() {
       from: startOfDay(rangeStart).toISOString(),
       to: endOfDay(rangeEnd).toISOString(),
     };
-  }, [view, monthCursor, weekDates, monthGridRange]);
+  }, [view, currentMonth, currentDay, weekDates, monthGridRange]);
 
   // Ranges to warm after each load — the windows a pager swipe would land on
   // next. Week/day ranges slide by exactly 7 days; month pages slide one
@@ -235,34 +203,16 @@ function CalendarScreenContent() {
     [selectedEvent, courseColors, colorMap]
   );
 
-  const goToNextWeek = () => setWeekOffset((o) => o + 1);
-  const goToPrevWeek = () => setWeekOffset((o) => o - 1);
+  // Today resets ONLY the active view's cursor — never all three together.
   const goToToday = () => {
-    setWeekOffset(0);
-    setSelectedDay(new Date());
-    setMonthCursor(new Date());
+    if (view) setCursors((c) => applyToday(c, view, new Date()));
   };
 
-  const shiftMonth = (delta: number) => {
-    const next = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + delta, 1);
-    setMonthCursor(next);
-    // Keep the selected day in sync with the displayed month.
-    const daysInNext = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
-    setSelectedDay(new Date(next.getFullYear(), next.getMonth(), Math.min(selectedDay.getDate(), daysInNext)));
-  };
+  // Month browsing moves only the month cursor — Day/Week/selection stay put.
+  const shiftMonth = (delta: number) => setCursors((c) => applyMonthShift(c, delta));
 
-  const selectMonthDate = (date: Date) => {
-    setSelectedDay(date);
-    // Keep the week view in sync if the user switches back.
-    setWeekOffset(
-      Math.round(
-        (getMondayOfWeek(date).getTime() - todayMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)
-      )
-    );
-    if (date.getMonth() !== monthCursor.getMonth() || date.getFullYear() !== monthCursor.getFullYear()) {
-      setMonthCursor(new Date(date.getFullYear(), date.getMonth(), 1));
-    }
-  };
+  // Explicit date tap in Month: Month-internal selection only.
+  const selectMonthDate = (date: Date) => setCursors((c) => applyMonthSelect(c, date));
 
   const handleSelectEvent = (event: MyCalendarEvent) => {
     if (event.provider === 'personal') {
@@ -276,40 +226,135 @@ function CalendarScreenContent() {
     }
   };
 
-  const handleViewChange = (v: CalendarView) => {
-    if (v === 'month') {
-      setMonthCursor(new Date(selectedDay.getFullYear(), selectedDay.getMonth(), 1));
-    } else {
-      setWeekOffset(
-        Math.round(
-          (getMondayOfWeek(selectedDay).getTime() - todayMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)
-        )
-      );
+  /** Long-press action menu on a personal event (Week/Day blocks, Month
+   *  agenda). Short taps keep their existing behavior — this only fires on
+   *  an explicit ~850ms hold. Recurring events get scoped delete options;
+   *  edits always apply to the whole series (per-occurrence overrides
+   *  aren't stored — documented limitation). */
+  const handleEventLongPress = (event: MyCalendarEvent) => {
+    // Saved Laker Connect copies are removable (the discovery event is
+    // untouched) but never editable — no personal-event options.
+    if (event.provider === 'laker_connect') {
+      const remove = () =>
+        Alert.alert('Remove from Calendar?', 'The event stays in Laker Connect.', [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: () => {
+              deletePersonalEvent(event.id).catch(() => {
+                Alert.alert('Could not remove event', 'Please try again.');
+              });
+            },
+          },
+        ]);
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          { options: ['Remove from Calendar', 'Cancel'], cancelButtonIndex: 1, destructiveButtonIndex: 0, title: event.title },
+          (index) => { if (index === 0) remove(); },
+        );
+      } else {
+        remove();
+      }
+      return;
     }
+    if (event.provider !== 'personal') return;
+    const isSeries = !!event.recurrence || !!event.seriesId;
+
+    const openEditor = () => {
+      suppressResetRef.current = true;
+      router.push({
+        pathname: '/calendar-event',
+        params: { id: event.id, date: event.startAt },
+      });
+    };
+
+    const confirmDelete = (scope: 'all' | 'this') => {
+      Alert.alert(
+        isSeries && scope === 'all' ? 'Delete this series?' : 'Delete this event?',
+        isSeries && scope === 'all'
+          ? `"${event.title}" repeats — deleting removes the whole series.`
+          : undefined,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              deletePersonalEvent(event.id, scope).catch(() => {
+                Alert.alert('Delete failed', 'Could not delete the event. Please try again.');
+              });
+            },
+          },
+        ],
+      );
+    };
+
+    // Recurring series: occurrence-scoped delete + whole-series delete.
+    // One-time events get a plain delete — no series options.
+    const options = isSeries
+      ? ['Edit', 'Delete This Event', 'Delete Series', 'Cancel']
+      : ['Edit', 'Delete', 'Cancel'];
+    const cancelIndex = options.length - 1;
+
+    const onPick = (index: number) => {
+      if (index === 0) openEditor();
+      else if (isSeries) {
+        if (index === 1) confirmDelete('this');
+        else if (index === 2) confirmDelete('all');
+      } else if (index === 1) confirmDelete('all');
+    };
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: cancelIndex,
+          destructiveButtonIndex: isSeries ? [1, 2] : 1,
+          title: event.title,
+        },
+        onPick,
+      );
+    } else {
+      Alert.alert(event.title, undefined, [
+        { text: 'Edit', onPress: openEditor },
+        ...(isSeries
+          ? [{ text: 'Delete This Event', style: 'destructive' as const, onPress: () => confirmDelete('this') }]
+          : []),
+        { text: isSeries ? 'Delete Series' : 'Delete', style: 'destructive' as const, onPress: () => confirmDelete('all') },
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+    }
+  };
+
+  const handleCourseLongPress = (course: Course) => {
+    const event = events.find((e) => e.id === course.id);
+    if (event) handleEventLongPress(event);
+  };
+
+  // Switching views restores each view's own last position — cursors are
+  // never derived from the source view.
+  const handleViewChange = (v: CalendarView) => {
     setView(v);
   };
 
+  // Explicit date navigation: tapping a weekday header in Week opens Day
+  // for that date (the only intentional cross-view cursor write).
   const openDay = (date: Date) => {
-    setSelectedDay(date);
+    setCursors((c) => applyDayChange(c, date));
     setView('day');
   };
 
   const goToNextDay = () => {
-    const d = new Date(selectedDay);
+    const d = new Date(currentDay);
     d.setDate(d.getDate() + 1);
-    setSelectedDay(d);
-    setWeekOffset(
-      Math.floor((d.getTime() - todayMonday.getTime()) / (7 * 24 * 60 * 60 * 1000))
-    );
+    setCursors((c) => applyDayChange(c, d));
   };
 
   const goToPrevDay = () => {
-    const d = new Date(selectedDay);
+    const d = new Date(currentDay);
     d.setDate(d.getDate() - 1);
-    setSelectedDay(d);
-    setWeekOffset(
-      Math.floor((d.getTime() - todayMonday.getTime()) / (7 * 24 * 60 * 60 * 1000))
-    );
+    setCursors((c) => applyDayChange(c, d));
   };
 
   const openAddSheet = () => {
@@ -385,12 +430,11 @@ function CalendarScreenContent() {
               <View style={styles.calendarBody}>
                 <WeekTimetable
                   courses={courses}
-                  weekDates={weekDates}
-                  weekOffset={weekOffset}
+                  weekStart={currentWeekStart}
+                  onWeekChange={(ws) => setCursors((c) => applyWeekChange(c, ws))}
                   onSelectCourse={(c) => setSelectedEventId(c.id)}
+                  onCourseLongPress={handleCourseLongPress}
                   onSelectDay={openDay}
-                  onSwipeLeft={goToNextWeek}
-                  onSwipeRight={goToPrevWeek}
                   onGoToToday={goToToday}
                 />
                 {status === 'empty' && (
@@ -436,13 +480,14 @@ function CalendarScreenContent() {
             {(status === 'success' || status === 'empty') && (
               <View style={styles.calendarBody}>
                 <DayView
-                  selectedDate={selectedDay}
+                  selectedDate={currentDay}
                   courses={courses}
                   onSelectCourse={(c) => setSelectedEventId(c.id)}
+                  onCourseLongPress={handleCourseLongPress}
                   onPreviousDay={goToPrevDay}
                   onNextDay={goToNextDay}
                   onGoToToday={goToToday}
-                  onSelectDay={setSelectedDay}
+                  onSelectDay={(d) => setCursors((c) => applyDayChange(c, d))}
                 />
               </View>
             )}
@@ -471,8 +516,8 @@ function CalendarScreenContent() {
           <>
             {(status === 'success' || status === 'empty' || status === 'loading') && (
               <MonthView
-                monthCursor={monthCursor}
-                selectedDate={selectedDay}
+                monthCursor={currentMonth}
+                selectedDate={monthSelectedDate}
                 events={events}
                 colorForEvent={(e) => eventColor(e, courseColors, colorMap)}
                 onSelectDate={selectMonthDate}
@@ -480,6 +525,7 @@ function CalendarScreenContent() {
                 onNextMonth={() => shiftMonth(1)}
                 onGoToToday={goToToday}
                 onSelectEvent={handleSelectEvent}
+                onEventLongPress={handleEventLongPress}
               />
             )}
 
