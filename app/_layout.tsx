@@ -2,6 +2,7 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
@@ -48,6 +49,10 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
+    // SafeAreaProvider is required by react-native-safe-area-context v5 —
+    // without it useSafeAreaInsets reports zeroed insets and screens that
+    // pad for the status bar / home indicator silently lose that padding.
+    <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack screenOptions={{ headerTitleAlign: 'left' }}>
         {/* (tabs) sits above the pushed setup-flow screens — disable the
@@ -84,5 +89,6 @@ function RootLayoutNav() {
 
       </Stack>
     </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

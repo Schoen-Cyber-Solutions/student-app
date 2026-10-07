@@ -10,6 +10,7 @@ import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getCampusEvents, CampusEvent, CampusEventsResponse } from '@/services/api/events';
 import { formatTime12 } from '@/utils/time';
+import { isSafeExternalUrl } from '@/utils/externalLinks';
 
 /** Map raw source categories onto the app's fixed filter buckets. */
 function categoryBucket(category: string | null): string {
@@ -119,7 +120,8 @@ export default function CampusEventsScreen() {
   }, [data, bucket]);
 
   const openDirectory = () => {
-    if (data?.source?.directoryUrl) Linking.openURL(data.source.directoryUrl);
+    const url = data?.source?.directoryUrl;
+    if (url && isSafeExternalUrl(url)) void Linking.openURL(url);
   };
 
   return (

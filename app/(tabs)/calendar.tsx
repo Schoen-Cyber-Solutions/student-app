@@ -518,6 +518,7 @@ function CalendarScreenContent() {
               <MonthView
                 monthCursor={currentMonth}
                 selectedDate={monthSelectedDate}
+                bottomTabClearance={TAB_BAR_HEIGHT}
                 events={events}
                 colorForEvent={(e) => eventColor(e, courseColors, colorMap)}
                 onSelectDate={selectMonthDate}

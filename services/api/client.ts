@@ -7,6 +7,7 @@ import { API_BASE_URL, API_TIMEOUT_MS, isApiConfigured } from '@/constants/Api';
 export type ApiErrorKind =
   | 'not_configured' // EXPO_PUBLIC_API_BASE_URL missing
   | 'unauthorized' // 401 — missing/invalid/expired session
+  | 'forbidden' // 403 — authenticated but not permitted (e.g. suspended)
   | 'not_found' // 404
   | 'client' // other 4xx
   | 'server' // 5xx
@@ -38,6 +39,7 @@ export interface RequestOptions {
 
 function kindForStatus(status: number): ApiErrorKind {
   if (status === 401) return 'unauthorized';
+  if (status === 403) return 'forbidden';
   if (status === 404) return 'not_found';
   if (status >= 500) return 'server';
   return 'client';

@@ -54,6 +54,11 @@ export async function getMyCourses(sessionToken: string): Promise<MyCourse[]> {
 
 let lastFetchedCourses: MyCourse[] | null = null;
 
+/** Drop the in-memory course cache — used on logout/account deletion. */
+export function clearCourseCache(): void {
+  lastFetchedCourses = null;
+}
+
 /**
  * Resolve one of the user's courses by internal id. Uses the cached list from
  * the most recent getMyCourses() call, fetching if the cache is cold or the id

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useThemedColors } from './TabTextMode';
@@ -15,9 +16,11 @@ interface ThreadPostProps {
   onPressImage?: (attachment: MessageAttachment) => void;
   /** Shown only when the current user authored the thread. */
   onDelete?: () => void;
+  /** Shown on another user's thread — opens the moderation menu. */
+  onOptions?: () => void;
 }
 
-export default function ThreadPost({ title, authorUsername, createdAt, body, attachment, onPressImage, onDelete }: ThreadPostProps) {
+export default function ThreadPost({ title, authorUsername, createdAt, body, attachment, onPressImage, onDelete, onOptions }: ThreadPostProps) {
   const colors = useThemedColors();
 
   return (
@@ -35,6 +38,22 @@ export default function ThreadPost({ title, authorUsername, createdAt, body, att
             accessibilityLabel="Delete thread">
             {({ pressed }) => (
               <Text style={[styles.delete, pressed && { opacity: 0.5 }]}>Delete</Text>
+            )}
+          </Pressable>
+        )}
+        {onOptions && (
+          <Pressable
+            onPress={onOptions}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="More options">
+            {({ pressed }) => (
+              <SymbolView
+                name="ellipsis"
+                tintColor={colors.mutedText}
+                size={16}
+                style={pressed && { opacity: 0.5 }}
+              />
             )}
           </Pressable>
         )}

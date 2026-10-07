@@ -12,6 +12,8 @@ export interface UserProfile {
   introCompleted: boolean;
   program: string | null;
   academicYear: string | null;
+  /** "user" | "moderator" | "admin" — the caller's own role only. */
+  role?: string;
 }
 
 export interface UsernamePolicy {
@@ -71,6 +73,18 @@ function token(): string | undefined {
 
 export async function getMe(): Promise<MeResponse> {
   return apiRequest<MeResponse>('/api/me', { sessionToken: token() });
+}
+
+/**
+ * Permanently delete the authenticated user's account. Server-side this
+ * wipes personal data, anonymizes retained community content, and revokes
+ * every session — the caller must still clear local session state.
+ */
+export async function deleteAccount(): Promise<{ status: 'deleted' | 'already_deleted' }> {
+  return apiRequest<{ status: 'deleted' | 'already_deleted' }>('/api/me/account', {
+    method: 'DELETE',
+    sessionToken: token(),
+  });
 }
 
 export async function getMyUniversity(): Promise<{ name: string; domain: string }> {

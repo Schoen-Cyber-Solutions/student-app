@@ -141,10 +141,6 @@ export function useMyCalendar(
         // Nothing on screen — this is a real first-load, show the spinner.
         setStatus('loading');
       }
-      if (__DEV__) {
-        console.debug(`[useMyCalendar] fetch seq=${seq} reason=${opts.reason} range=${range.from.slice(0, 10)}..${range.to.slice(0, 10)} cache=${cached ? 'hit' : 'miss'}`);
-      }
-
       const token = getSessionToken();
       if (!token) {
         eventsRef.current = [];
@@ -155,7 +151,6 @@ export function useMyCalendar(
 
       try {
         const list = await fetchRange(token, range.from, range.to, options?.providers);
-        if (__DEV__) console.debug(`[useMyCalendar] seq=${seq} -> ${list.length} events`);
         if (!mountedRef.current || seq !== seqRef.current) return;
         eventsRef.current = list;
         setEvents(list);

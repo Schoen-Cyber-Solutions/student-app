@@ -16,7 +16,13 @@ import { monthGridRows } from '@/utils/monthGrid';
 interface MonthViewProps {
   /** Any date inside the currently displayed month. */
   monthCursor: Date;
-  selectedDate: Date;
+  /** The tapped grid date — null until the user picks one in the
+   *  displayed month (agenda then shows a neutral "select a day" state). */
+  selectedDate: Date | null;
+  /** Height of the floating tab bar — the agenda viewport stops above it
+   *  so the bar never covers content (home-indicator inset is already
+   *  handled by the parent SafeAreaView). */
+  bottomTabClearance: number;
   events: MyCalendarEvent[];
   colorForEvent: (event: MyCalendarEvent) => string | undefined;
   onSelectDate: (date: Date) => void;
@@ -38,6 +44,7 @@ const MAX_DOTS = 3;
 export default function MonthView({
   monthCursor,
   selectedDate,
+  bottomTabClearance,
   events,
   colorForEvent,
   onSelectDate,
@@ -83,8 +90,19 @@ export default function MonthView({
     return map;
   }, [pageWeeks, events]);
 
-  const selectedEvents = eventsByDay.get(selectedDate.toDateString()) ?? [];
-  const selectedIsToday = isSameCalendarDay(selectedDate, today);
+  // Defensive: a selection outside the displayed month is meaningless —
+  // render the neutral state even if a stray update slips through.
+  const selectionInMonth =
+    selectedDate !== null &&
+    selectedDate.getMonth() === monthCursor.getMonth() &&
+    selectedDate.getFullYear() === monthCursor.getFullYear();
+
+  const selectedEvents =
+    selectedDate && selectionInMonth
+      ? (eventsByDay.get(selectedDate.toDateString()) ?? [])
+      : [];
+  const selectedIsToday =
+    selectedDate !== null && isSameCalendarDay(selectedDate, today);
 
   const isCurrentMonth =
     monthCursor.getFullYear() === today.getFullYear() &&
@@ -111,7 +129,8 @@ export default function MonthView({
               {week.map((day) => {
                 const inMonth = day.getMonth() === pageMonth;
                 const isToday = isSameCalendarDay(day, today);
-                const isSelected = isSameCalendarDay(day, selectedDate);
+                const isSelected =
+                  selectedDate !== null && isSameCalendarDay(day, selectedDate);
                 const dayEvents = eventsByDay.get(day.toDateString()) ?? [];
                 const dots = dayEvents.slice(0, MAX_DOTS);
                 const extra = dayEvents.length - dots.length;
@@ -238,20 +257,24 @@ export default function MonthView({
         onSwipeRight={onPrevMonth}
       />
 
-      {/* Selected-day agenda — own ScrollView preserves vertical scrolling. */}
+      {/* Selected-day agenda — own ScrollView preserves vertical scrolling.
+          The viewport ends above the floating tab bar (marginBottom); the
+          inner paddingBottom lets the last card scroll clear of the FAB. */}
       <ScrollView
-        style={styles.agendaScroll}
+        style={[styles.agendaScroll, { marginBottom: bottomTabClearance }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
       <GlassPanel style={styles.agendaPanel} intensity={40}>
        <View style={styles.agendaInner}>
         <View style={styles.agendaHeader}>
           <Text style={[styles.agendaTitle, { color: colors.text }]}>
-            {selectedDate.toLocaleDateString('en-US', {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {selectionInMonth && selectedDate
+              ? selectedDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })
+              : 'Select a day'}
           </Text>
           <Text style={[styles.agendaCount, { color: colors.secondaryText }]}>
             {selectedEvents.length === 0
@@ -260,7 +283,11 @@ export default function MonthView({
           </Text>
         </View>
 
-        {selectedEvents.length === 0 ? (
+        {!selectionInMonth || !selectedDate ? (
+          <Text style={[styles.emptyText, { color: colors.mutedText }]}>
+            Tap a date to see its events.
+          </Text>
+        ) : selectedEvents.length === 0 ? (
           <Text style={[styles.emptyText, { color: colors.mutedText }]}>No events</Text>
         ) : (
           selectedEvents.map((event) => {
@@ -352,7 +379,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 96, // room for the floating add button
+    // FAB (56pt circle floating ~14pt above the tab bar) plus breathing
+    // room — the agenda viewport itself stops at the bar via marginBottom.
+    paddingBottom: 88,
   },
   headerPanel: {
     marginHorizontal: spacing.sm,

@@ -30,6 +30,8 @@ export interface CommunityThread {
   id: string;
   title: string;
   createdAt: string;
+  /** Author's user id — needed for report/block actions on their content. */
+  authorId: string;
   authorUsername: string;
   messageCount: number;
   isAuthor: boolean;
@@ -40,6 +42,7 @@ export interface ThreadDetail {
   communityId: string;
   title: string;
   createdAt: string;
+  authorId: string;
   authorUsername: string;
   isAuthor: boolean;
 }
@@ -57,6 +60,7 @@ export interface ThreadMessage {
   id: string;
   body: string;
   createdAt: string;
+  authorId: string;
   authorUsername: string;
   isAuthor: boolean;
   attachment?: MessageAttachment | null;
@@ -100,6 +104,11 @@ function token(): string | undefined {
 // Lets detail screens resolve a community by id without a second request when
 // the list was just loaded. Memory only; nothing is persisted.
 let lastFetchedCommunities: Community[] | null = null;
+
+/** Drop the in-memory community cache — used on logout/account deletion. */
+export function clearCommunityCache(): void {
+  lastFetchedCommunities = null;
+}
 
 export async function getMyCommunities(): Promise<Community[]> {
   const data = await apiRequest<{ communities: Community[] }>('/api/me/communities', {

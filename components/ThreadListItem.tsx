@@ -10,9 +10,11 @@ import { relativeTime } from '@/utils/time';
 interface ThreadListItemProps {
   thread: CommunityThread;
   onPress: () => void;
+  /** Long-press menu — delete for own threads, moderation for others'. */
+  onLongPress?: () => void;
 }
 
-export default function ThreadListItem({ thread, onPress }: ThreadListItemProps) {
+export default function ThreadListItem({ thread, onPress, onLongPress }: ThreadListItemProps) {
   const scheme = useColorScheme();
   const colors = useThemedColors();
   const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', undefined, useTextMode());
@@ -20,6 +22,8 @@ export default function ThreadListItem({ thread, onPress }: ThreadListItemProps)
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={400}
       style={({ pressed }) => [
         styles.card,
         {

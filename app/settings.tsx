@@ -8,7 +8,9 @@ import CalendarViewSwitcher, { CalendarView } from '@/components/CalendarViewSwi
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
-import { getCalendarStatus, getPreferences, updatePreferences } from '@/services/api/me';
+import { getCalendarStatus, getMe, getPreferences, updatePreferences } from '@/services/api/me';
+import { clearCommunityCache } from '@/services/api/communities';
+import { clearCourseCache } from '@/services/api/courses';
 import { clearSessionToken } from '@/services/auth/devSession';
 
 interface CalendarStatus {
@@ -77,9 +79,13 @@ export default function SettingsScreen() {
   const colors = Colors[useColorScheme()];
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
   const [calStatus, setCalStatus] = useState<CalendarStatus | null>(null);
+  const [isStaff, setIsStaff] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
+      getMe()
+        .then(({ user }) => setIsStaff(user.role === 'moderator' || user.role === 'admin'))
+        .catch(() => setIsStaff(false));
       getPreferences()
         .then(({ preferences }) => setCalendarView(preferences.defaultCalendarView))
         .catch(() => {});
@@ -110,6 +116,8 @@ export default function SettingsScreen() {
         style: 'destructive',
         onPress: async () => {
           await clearSessionToken();
+          clearCommunityCache();
+          clearCourseCache();
           router.dismissAll();
           router.replace('/onboarding');
         },
@@ -163,6 +171,17 @@ export default function SettingsScreen() {
 
         <SectionTitle title="Privacy & Data" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Row
+            icon="person.crop.circle.badge.xmark"
+            label="Blocked Users"
+            onPress={() => router.push('/blocked-users')}
+          />
+          <Row
+            icon="trash"
+            label="Delete Account"
+            destructive
+            onPress={() => router.push('/delete-account')}
+          />
           <View style={styles.privacyBlock}>
             <Text style={[styles.privacyText, { color: colors.secondaryText }]}>
               This app stores your username, profile details, verified university,
@@ -177,6 +196,19 @@ export default function SettingsScreen() {
             </Text>
           </View>
         </View>
+
+        {isStaff && (
+          <>
+            <SectionTitle title="Staff" />
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <Row
+                icon="checkmark.shield"
+                label="Moderation"
+                onPress={() => router.push('/admin/moderation')}
+              />
+            </View>
+          </>
+        )}
 
         <SectionTitle title="Session" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>

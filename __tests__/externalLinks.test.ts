@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveExternalLinks } from '@/utils/externalLinks';
+import { resolveExternalLinks, isSafeExternalUrl } from '@/utils/externalLinks';
 
 const DOMAIN = 'roosevelt.edu';
 
@@ -57,5 +57,19 @@ describe('resolveExternalLinks', () => {
       resolveExternalLinks({ domain: 'other.edu', instructorProfileUrl: url }),
     ).toHaveLength(0);
     expect(resolveExternalLinks({ domain: null, instructorProfileUrl: url })).toHaveLength(0);
+  });
+});
+
+describe('isSafeExternalUrl', () => {
+  it('allows only https URLs for Linking.openURL', () => {
+    expect(isSafeExternalUrl('https://roosevelt.campuslabs.com/engage/event/123')).toBe(true);
+    expect(isSafeExternalUrl('  https://example.com/x  ')).toBe(true);
+    expect(isSafeExternalUrl('http://example.com/x')).toBe(false);
+    expect(isSafeExternalUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafeExternalUrl('data:text/html,<script>alert(1)</script>')).toBe(false);
+    expect(isSafeExternalUrl('file:///etc/passwd')).toBe(false);
+    expect(isSafeExternalUrl('studentappdevelopment://oauth')).toBe(false);
+    expect(isSafeExternalUrl('not a url')).toBe(false);
+    expect(isSafeExternalUrl('')).toBe(false);
   });
 });

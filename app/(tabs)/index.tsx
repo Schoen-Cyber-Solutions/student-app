@@ -421,16 +421,6 @@ function HomeScreenContent() {
 
   const todayGrouped = useMemo(() => groupDueItems(todayDueItems), [groupDueItems, todayDueItems]);
 
-  // Dev-only trace: group label -> member event ids, so an assignment change
-  // can be followed through the grouping in logs. Ids only, no titles.
-  useEffect(() => {
-    if (!__DEV__) return;
-    const fmt = (gs: DueGroup[]) =>
-      gs.map((g) => `${g.label}[${g.items.map((i) => i.id.slice(0, 8)).join('|')}]`).join(' ');
-    console.debug(
-      `[home/due-dates] today: ${fmt(todayGrouped) || '(none)'} | upcoming: ${upcomingBuckets.map((b) => `${b.label}: ${b.items.map((i) => i.event.id.slice(0, 8)).join('|') || '(none)'}`).join(' | ') || '(none)'}`
-    );
-  }, [todayGrouped, upcomingBuckets]);
 
   // Start every group expanded by default.
   useEffect(() => {

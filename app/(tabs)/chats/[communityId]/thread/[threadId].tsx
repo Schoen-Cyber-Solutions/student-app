@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -39,6 +38,8 @@ import {
 } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
 import ImageViewerModal from '@/components/ImageViewerModal';
+import { useModeration } from '@/hooks/useModeration';
+import { filterOutAuthor } from '@/utils/moderationMenu';
 
 type LoadStatus = 'loading' | 'success' | 'unavailable' | 'error';
 
@@ -57,8 +58,12 @@ export default function ThreadDetailScreen() {
   const [messages, setMessages] = useState<ThreadMessage[]>([]);
   const [status, setStatus] = useState<LoadStatus>('loading');
   const [sending, setSending] = useState(false);
-  const [viewingImage, setViewingImage] = useState<MessageAttachment | null>(null);
+  const [viewingImage, setViewingImage] = useState<{
+    attachment: MessageAttachment;
+    isAuthor: boolean;
+  } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const moderation = useModeration();
 
   const loadData = useCallback(async () => {
     if (!threadId) return;
@@ -85,31 +90,13 @@ export default function ThreadDetailScreen() {
     }, [loadData])
   );
 
-  // Dev-only loop diagnostics: a healthy screen renders once per data change,
-  // not per keystroke. Watch Metro logs while typing on-device — repeated
-  // render lines or rapid keyboard-frame churn pinpoints the loop.
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  if (__DEV__) {
-    console.log(`[thread] render #${renderCount.current} status=${status}`);
-  }
-  useEffect(() => {
-    if (!__DEV__) return;
-    const sub = Keyboard.addListener('keyboardDidChangeFrame', (e) => {
-      console.log(`[thread] keyboard frame h=${Math.round(e.endCoordinates.height)}`);
-    });
-    return () => sub.remove();
-  }, []);
-
   // Returns success so the composer only clears its draft on a real send —
   // a failed upload keeps the typed text and picked image.
   const handleReply = async (text: string, image: ChatImageDraft | null): Promise<boolean> => {
     if (!threadId || sending) return false;
-    if (__DEV__) console.log(`[thread] reply submit len=${text.length} image=${!!image} threadId=${threadId}`);
     setSending(true);
     try {
       const message = await postThreadMessage(threadId, text, image);
-      if (__DEV__) console.log(`[thread] reply ok id=${message.id}`);
       setMessages((prev) => [...prev, message]);
       requestAnimationFrame(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
@@ -120,7 +107,9 @@ export default function ThreadDetailScreen() {
       const apiErr = toApiError(err);
       Alert.alert(
         'Could not send reply',
-        apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
+        apiErr.kind === 'forbidden'
+          ? 'Your account is currently restricted from posting.'
+          : apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
           ? 'You no longer have access to this discussion.'
           : apiErr.kind === 'client'
             ? 'Your reply was rejected. Check the image and text length.'
@@ -173,6 +162,19 @@ export default function ThreadDetailScreen() {
     ]);
   };
 
+  // Blocking takes effect immediately: drop the author's loaded messages
+  // locally, and leave the thread entirely when its author was blocked.
+  const handleAuthorBlocked = useCallback(
+    (authorId: string) => {
+      if (thread?.authorId === authorId) {
+        router.back();
+        return;
+      }
+      setMessages((prev) => filterOutAuthor(prev, authorId));
+    },
+    [thread?.authorId],
+  );
+
   // The first message is the thread's opening post.
   const openingPost = messages[0];
   const replies = messages.slice(1);
@@ -220,8 +222,24 @@ export default function ThreadDetailScreen() {
                 createdAt={thread.createdAt}
                 body={openingPost?.body ?? ''}
                 attachment={openingPost?.attachment}
-                onPressImage={setViewingImage}
+                onPressImage={(attachment) =>
+                  setViewingImage({ attachment, isAuthor: thread.isAuthor })
+                }
                 onDelete={thread.isAuthor ? handleDeleteThread : undefined}
+                onOptions={
+                  thread.isAuthor
+                    ? undefined
+                    : () =>
+                        moderation.openContentMenu({
+                          kind: 'thread',
+                          isAuthor: false,
+                          authorId: thread.authorId,
+                          authorUsername: thread.authorUsername,
+                          attachmentId: openingPost?.attachment?.id,
+                          contentId: thread.id,
+                          onBlocked: handleAuthorBlocked,
+                        })
+                }
               />
               <View style={[styles.divider, { borderColor: glass.glassBorder }]}>
                 <Text style={[styles.replyCount, { color: colors.secondaryText }]}>
@@ -235,9 +253,22 @@ export default function ThreadDetailScreen() {
                   key={reply.id}
                   reply={reply}
                   accent={accent}
-                  onPressImage={setViewingImage}
-                  onLongPress={
-                    reply.isAuthor ? () => handleDeleteMessage(reply) : undefined
+                  onPressImage={(attachment) =>
+                    setViewingImage({ attachment, isAuthor: reply.isAuthor })
+                  }
+                  onLongPress={() =>
+                    moderation.openContentMenu({
+                      kind: 'reply',
+                      isAuthor: reply.isAuthor,
+                      authorId: reply.authorId,
+                      authorUsername: reply.authorUsername,
+                      attachmentId: reply.attachment?.id,
+                      contentId: reply.id,
+                      onDelete: reply.isAuthor
+                        ? () => handleDeleteMessage(reply)
+                        : undefined,
+                      onBlocked: handleAuthorBlocked,
+                    })
                   }
                 />
               ))}
@@ -293,9 +324,19 @@ export default function ThreadDetailScreen() {
           )}
         </KeyboardAvoidingView>
         <ImageViewerModal
-          source={viewingImage ? chatAttachmentSource(viewingImage) : null}
+          source={viewingImage ? chatAttachmentSource(viewingImage.attachment) : null}
           onClose={() => setViewingImage(null)}
+          onReport={
+            viewingImage && !viewingImage.isAuthor
+              ? () => {
+                  const id = viewingImage.attachment.id;
+                  setViewingImage(null);
+                  moderation.openReport('attachment', id);
+                }
+              : undefined
+          }
         />
+        {moderation.sheet}
     </View>
   );
 }

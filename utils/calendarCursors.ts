@@ -18,8 +18,10 @@ export interface CalendarCursors {
   /** Month view — first of the currently displayed month. */
   currentMonth: Date;
   /** Month view's own selected day (cell highlight + agenda). Distinct
-   *  from currentDay so Month browsing/selection can't drag Day along. */
-  monthSelectedDate: Date;
+   *  from currentDay so Month browsing/selection can't drag Day along.
+   *  Null when nothing is selected — the agenda shows a neutral
+   *  "select a day" state rather than a date from another month. */
+  monthSelectedDate: Date | null;
 }
 
 const firstOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
@@ -43,12 +45,21 @@ export function applyWeekChange(c: CalendarCursors, weekStart: Date): CalendarCu
   return { ...c, currentWeekStart: weekStart };
 }
 
-/** Month browsing (prev/next swipe) — month cursor only; selection and
- *  the other views' cursors are untouched. */
+/** Month browsing (prev/next swipe) — month cursor only; the other views'
+ *  cursors are untouched. If the selection isn't inside the newly
+ *  displayed month it is cleared: showing the old month's agenda under a
+ *  different month's grid is a state mismatch, never a feature. */
 export function applyMonthShift(c: CalendarCursors, delta: number): CalendarCursors {
+  const next = new Date(c.currentMonth.getFullYear(), c.currentMonth.getMonth() + delta, 1);
+  const sel = c.monthSelectedDate;
+  const selectionStillVisible =
+    sel !== null &&
+    sel.getMonth() === next.getMonth() &&
+    sel.getFullYear() === next.getFullYear();
   return {
     ...c,
-    currentMonth: new Date(c.currentMonth.getFullYear(), c.currentMonth.getMonth() + delta, 1),
+    currentMonth: next,
+    monthSelectedDate: selectionStillVisible ? sel : null,
   };
 }
 

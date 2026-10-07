@@ -14,6 +14,7 @@ import {
   CampusEvent,
 } from '@/services/api/events';
 import { formatTime12 } from '@/utils/time';
+import { isSafeExternalUrl } from '@/utils/externalLinks';
 
 export default function CampusEventDetailScreen() {
   const colors = Colors[useColorScheme()];
@@ -128,7 +129,9 @@ export default function CampusEventDetailScreen() {
 
               {link ? (
                 <Pressable
-                  onPress={() => Linking.openURL(link)}
+                  onPress={() => {
+                    if (isSafeExternalUrl(link)) void Linking.openURL(link);
+                  }}
                   style={({ pressed }) => [
                     styles.rsvpButton,
                     { backgroundColor: colors.tint },

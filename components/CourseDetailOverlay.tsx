@@ -22,7 +22,7 @@ import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextColors, useTextMode } from './TabTextMode';
 import CourseSectionPicker from './CourseSectionPicker';
-import { resolveExternalLinks, ExternalLinkSpec } from '@/utils/externalLinks';
+import { isSafeExternalUrl, resolveExternalLinks, ExternalLinkSpec } from '@/utils/externalLinks';
 import { getMyUniversity } from '@/services/api/me';
 import {
   assignEventCourse,
@@ -114,14 +114,6 @@ export default function CourseDetailOverlay({
           instructorProfileUrl: event?.instructorProfileUrl ?? null,
           provider: event?.provider ?? null,
         });
-        if (__DEV__) {
-          // Safe diagnostics only — instructor name + whether a URL resolved.
-          console.log(
-            `[course-detail] instructor=${event?.instructor ?? 'none'} | ` +
-              `apiUrl=${event?.instructorProfileUrl ? 'yes' : 'no'} | ` +
-              `domain=${university?.domain ?? 'none'} | links=${resolved.length}`,
-          );
-        }
         setLinks(resolved);
       })
       .catch(() => {});
@@ -262,6 +254,7 @@ export default function CourseDetailOverlay({
   };
 
   const handleOpenLink = (url: string) => {
+    if (!isSafeExternalUrl(url)) return;
     Linking.canOpenURL(url)
       .then((supported) => {
         if (supported) return Linking.openURL(url);

@@ -1,9 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -68,7 +67,9 @@ export default function NewThreadScreen() {
         console.warn('[new-thread] create failed:', { kind: apiErr.kind, status: apiErr.status, body: apiErr.body });
       }
       const text =
-        apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
+        apiErr.kind === 'forbidden'
+          ? 'Your account is currently restricted from posting.'
+          : apiErr.kind === 'unauthorized' || apiErr.kind === 'not_found'
           ? 'You no longer have access to this community.'
           : apiErr.kind === 'client'
             ? 'Your post was rejected. Please shorten it and try again.'
@@ -79,23 +80,6 @@ export default function NewThreadScreen() {
     // Draft state (title/message/image) is untouched on failure — retry safe.
   }, [canSubmit, communityId, title, message, image]);
 
-  // Dev-only loop diagnostics — same convention as the thread screen.
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  if (__DEV__) {
-    console.log(`[new-thread] render #${renderCount.current}`);
-  }
-  useEffect(() => {
-    if (!__DEV__) return;
-    console.log('[new-thread] MOUNT');
-    const sub = Keyboard.addListener('keyboardDidChangeFrame', (e) => {
-      console.log(`[new-thread] keyboard frame h=${Math.round(e.endCoordinates.height)}`);
-    });
-    return () => {
-      console.log('[new-thread] UNMOUNT');
-      sub.remove();
-    };
-  }, []);
 
   // headerShown:false is declared statically in app/(tabs)/chats/_layout.tsx —
   // setting it via <Stack.Screen> inside a modal caused an infinite remount

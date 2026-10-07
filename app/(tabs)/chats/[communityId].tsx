@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import AppHeader from '@/components/AppHeader';
@@ -17,8 +17,10 @@ import { useMyCommunity } from '@/hooks/useMyCommunities';
 import { useChatSearch } from '@/hooks/useChatSearch';
 import ChatSearchBar from '@/components/ChatSearchBar';
 import ChatSearchResults from '@/components/ChatSearchResults';
-import { CommunityThread, communityDisplayName, getCommunityThreads } from '@/services/api/communities';
+import { CommunityThread, communityDisplayName, deleteThread, getCommunityThreads } from '@/services/api/communities';
 import { toApiError } from '@/services/api/client';
+import { useModeration } from '@/hooks/useModeration';
+import { filterOutAuthor } from '@/utils/moderationMenu';
 import { useTabAccent } from '@/utils/tabAccent';
 import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
 
@@ -35,6 +37,36 @@ export default function CommunityScreen() {
   const [status, setStatus] = useState<ThreadsStatus>('loading');
   // Scoped search within this community only.
   const search = useChatSearch({ communityId });
+  const moderation = useModeration();
+
+  // A blocked author's threads vanish from this list right away; other
+  // screens refetch on focus and get the same server-side filtering.
+  const handleAuthorBlocked = useCallback((authorId: string) => {
+    setThreads((prev) => filterOutAuthor(prev, authorId));
+  }, []);
+
+  const confirmDeleteThread = useCallback(
+    (thread: CommunityThread) => {
+      Alert.alert('Delete thread?', 'This will remove the thread and all of its messages.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteThread(thread.id);
+                setThreads((prev) => prev.filter((t) => t.id !== thread.id));
+              } catch {
+                Alert.alert('Could not delete', 'Check your connection and try again.');
+              }
+            })();
+          },
+        },
+      ]);
+    },
+    [],
+  );
 
   const loadThreads = useCallback(async () => {
     if (!communityId) return;
@@ -97,6 +129,17 @@ export default function CommunityScreen() {
                   key={thread.id}
                   thread={thread}
                   onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
+                  onLongPress={() =>
+                    moderation.openContentMenu({
+                      kind: 'thread',
+                      isAuthor: thread.isAuthor,
+                      authorId: thread.authorId,
+                      authorUsername: thread.authorUsername,
+                      contentId: thread.id,
+                      onDelete: thread.isAuthor ? () => confirmDeleteThread(thread) : undefined,
+                      onBlocked: handleAuthorBlocked,
+                    })
+                  }
                 />
               ))}
             </View>
@@ -132,6 +175,7 @@ export default function CommunityScreen() {
             />
           </View>
 
+          {moderation.sheet}
           {search.query.trim().length > 0 ? (
             <View style={styles.searchResults}>
               <ChatSearchResults

@@ -6,10 +6,12 @@ interface ImageViewerModalProps {
   /** Authenticated image source (uri + headers), or null when closed. */
   source: { uri: string; headers?: Record<string, string> } | null;
   onClose: () => void;
+  /** When provided (another user's image), shows a report flag button. */
+  onReport?: () => void;
 }
 
 /** Simple full-screen image viewer: tap backdrop or the X to dismiss. */
-export default function ImageViewerModal({ source, onClose }: ImageViewerModalProps) {
+export default function ImageViewerModal({ source, onClose, onReport }: ImageViewerModalProps) {
   const insets = useSafeAreaInsets();
   return (
     <Modal
@@ -23,6 +25,15 @@ export default function ImageViewerModal({ source, onClose }: ImageViewerModalPr
           <Image source={source} style={styles.image} resizeMode="contain" />
         )}
         <View style={[styles.close, { top: insets.top + 12 }]}>
+          {onReport && (
+            <Pressable
+              onPress={onReport}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Report image">
+              <SymbolView name="flag" tintColor="#FFFFFF" size={24} />
+            </Pressable>
+          )}
           <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
             <SymbolView name="xmark.circle.fill" tintColor="#FFFFFF" size={30} />
           </Pressable>
@@ -45,5 +56,8 @@ const styles = StyleSheet.create({
   close: {
     position: 'absolute',
     right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
   },
 });

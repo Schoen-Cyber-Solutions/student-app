@@ -36,11 +36,7 @@ export default function UniEmailScreen() {
     setConnecting(true);
     try {
       const url = await getMicrosoftConnectUrl(token);
-      // eslint-disable-next-line no-console
-      console.log('[uni-email] opening Microsoft auth session');
       const result = await WebBrowser.openAuthSessionAsync(url, REDIRECT_URL);
-      // eslint-disable-next-line no-console
-      console.log('[uni-email] WebBrowser result type:', result.type);
       if (result.type === 'success') {
         retry();
       }

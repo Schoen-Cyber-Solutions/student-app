@@ -86,6 +86,21 @@ function lmsLinks(_ctx: ExternalLinkContext): ExternalLinkSpec[] {
   return [];
 }
 
+/**
+ * Last-line-of-defense check before Linking.openURL on a server-supplied
+ * URL (event RSVP/source links, directory links). Only https is ever
+ * opened — javascript:/data:/file: and every other scheme is dropped even
+ * though the backend already allowlists these fields.
+ */
+export function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function resolveExternalLinks(ctx: ExternalLinkContext): ExternalLinkSpec[] {
   const links: ExternalLinkSpec[] = [];
   if (ctx.domain && ctx.instructorProfileUrl) {

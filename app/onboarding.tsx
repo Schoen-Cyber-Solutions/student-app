@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
@@ -15,6 +16,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 
 export default function OnboardingScreen() {
   const colors = Colors[useColorScheme()];
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -180,7 +182,7 @@ export default function OnboardingScreen() {
   return (
     <KeyboardAwareScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.scroll}>
+      contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.card}>
           {step === 'email' ? (
             <>
