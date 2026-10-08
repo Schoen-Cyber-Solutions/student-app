@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { MessageAttachment, ThreadMessage } from '@/services/api/communities';
 import { Text } from './Themed';
 import { glassColors, readableAccent } from '@/constants/Glass';
@@ -10,14 +11,17 @@ import AttachedImage from './AttachedImage';
 
 interface ThreadReplyItemProps {
   reply: ThreadMessage;
-  /** Long-press affordance, used for author-only delete. */
+  /** Long-press affordance — delete for own replies, moderation for others'. */
   onLongPress?: () => void;
+  /** Visible ⋯ affordance opening the same menu as long-press — without it
+   *  the moderation actions are undiscoverable on device. */
+  onOptions?: () => void;
   /** Tab accent — own messages get an accent-tinted bubble. */
   accent?: string;
   onPressImage?: (attachment: MessageAttachment) => void;
 }
 
-export default function ThreadReplyItem({ reply, onLongPress, accent, onPressImage }: ThreadReplyItemProps) {
+export default function ThreadReplyItem({ reply, onLongPress, onOptions, accent, onPressImage }: ThreadReplyItemProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = useThemedColors();
   const glass = glassColors(scheme, accent ?? colors.tint, useTextMode());
@@ -44,9 +48,27 @@ export default function ThreadReplyItem({ reply, onLongPress, accent, onPressIma
           ]}>
           {reply.authorUsername}
         </Text>
-        <Text style={[styles.meta, { color: colors.mutedText }]}>
-          {relativeTime(reply.createdAt)}
-        </Text>
+        <View style={styles.metaRight}>
+          <Text style={[styles.meta, { color: colors.mutedText }]}>
+            {relativeTime(reply.createdAt)}
+          </Text>
+          {onOptions && (
+            <Pressable
+              onPress={onOptions}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Reply options">
+              {({ pressed }) => (
+                <SymbolView
+                  name="ellipsis"
+                  tintColor={colors.mutedText}
+                  size={14}
+                  style={pressed && { opacity: 0.5 }}
+                />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
       {reply.body.length > 0 && (
         <Text style={[styles.body, { color: colors.text }]}>{reply.body}</Text>
@@ -78,6 +100,12 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '600',
     flexShrink: 1,
+  },
+  metaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
   },
   body: {
     ...typography.bodyRegular,

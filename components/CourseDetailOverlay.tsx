@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
-  Linking,
   Modal,
   PanResponder,
   Pressable,
@@ -22,7 +21,9 @@ import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextColors, useTextMode } from './TabTextMode';
 import CourseSectionPicker from './CourseSectionPicker';
-import { isSafeExternalUrl, resolveExternalLinks, ExternalLinkSpec } from '@/utils/externalLinks';
+import { openExternalUrl, resolveExternalLinks, ExternalLinkSpec } from '@/utils/externalLinks';
+import { isMappableLocation, openLocationInMaps } from '@/utils/mapsLink';
+import { campusSourceHosts, campusSourceLabel, isCampusEventProvider } from '@/utils/campusSource';
 import { getMyUniversity } from '@/services/api/me';
 import {
   assignEventCourse,
@@ -98,6 +99,7 @@ export default function CourseDetailOverlay({
   // the same host allowlist client-side before rendering the link.
   const instructor = event?.instructor ?? null;
   const [links, setLinks] = useState<ExternalLinkSpec[]>([]);
+  const [universityName, setUniversityName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!visible) {
@@ -108,6 +110,7 @@ export default function CourseDetailOverlay({
     getMyUniversity()
       .then((university) => {
         if (cancelled) return;
+        setUniversityName(university?.name ?? null);
         const resolved = resolveExternalLinks({
           domain: university?.domain ?? null,
           instructor: event?.instructor ?? null,
@@ -182,9 +185,11 @@ export default function CourseDetailOverlay({
 
   const assignable = event != null && isAssignableEvent(event);
   const completable = event != null && isCompletableEvent(event);
-  // Saved Laker Connect copy — shows source/RSVP links + Remove instead of
-  // personal-event editing; source metadata is never mutated here.
-  const isCampusEvent = event?.provider === 'laker_connect';
+  // Saved campus-event copy ('laker_connect'/'campus_*') — shows
+  // source/RSVP links + Remove instead of personal-event editing; source
+  // metadata is never mutated here.
+  const isCampusEvent = isCampusEventProvider(event?.provider);
+  const campusLabel = campusSourceLabel(event?.provider);
   const campusLink = event?.rsvpUrl ?? event?.sourceUrl ?? null;
   const completed = event?.isCompleted ?? false;
   const [recurringPrompt, setRecurringPrompt] = useState<{
@@ -222,7 +227,7 @@ export default function CourseDetailOverlay({
 
   const handleRemoveSavedEvent = () => {
     if (!event || saving) return;
-    Alert.alert('Remove from Calendar?', 'The event stays in Laker Connect.', [
+    Alert.alert('Remove from Calendar?', `The event stays in ${campusLabel}.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -254,14 +259,7 @@ export default function CourseDetailOverlay({
   };
 
   const handleOpenLink = (url: string) => {
-    if (!isSafeExternalUrl(url)) return;
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) return Linking.openURL(url);
-        Alert.alert('Cannot open link', 'This link could not be opened on this device.');
-        return null;
-      })
-      .catch(() => Alert.alert('Cannot open link', 'Please try again later.'));
+    openExternalUrl(url, campusSourceHosts(event?.provider) ?? undefined);
   };
 
   const handleEmailProfessor = () => {
@@ -345,6 +343,17 @@ export default function CourseDetailOverlay({
                 <Text style={[styles.name, { color: ink }]} numberOfLines={0}>
                   {course.name}
                 </Text>
+                {/* Official course title under the bold code — skipped when
+                    absent or when it would duplicate the event title. */}
+                {course.courseTitle &&
+                course.courseTitle !== course.name &&
+                course.courseTitle !== course.code ? (
+                  <Text
+                    style={[styles.courseTitle, { color: inkSecondary }]}
+                    numberOfLines={2}>
+                    {course.courseTitle}
+                  </Text>
+                ) : null}
               </View>
 
               {course.date ? (
@@ -363,10 +372,32 @@ export default function CourseDetailOverlay({
               </View>
 
               {course.location ? (
-                <View style={styles.row}>
-                  <SymbolView name="mappin.and.ellipse" tintColor={inkSecondary} size={16} />
-                  <Text style={[styles.rowText, { color: ink }]}>{course.location}</Text>
-                </View>
+                isMappableLocation(course.location) ? (
+                  <Pressable
+                    onPress={() => openLocationInMaps(course.location!, universityName)}
+                    style={({ pressed }) => [
+                      styles.row,
+                      styles.courseRow,
+                      { backgroundColor: rowFill },
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${course.location} in Maps`}>
+                    <SymbolView name="mappin.and.ellipse" tintColor={colors.accent} size={16} />
+                    <Text style={[styles.rowText, { color: ink }]}>{course.location}</Text>
+                    <SymbolView
+                      name="arrow.up.right"
+                      tintColor={colors.mutedText}
+                      size={14}
+                      style={styles.chevron}
+                    />
+                  </Pressable>
+                ) : (
+                  <View style={styles.row}>
+                    <SymbolView name="mappin.and.ellipse" tintColor={inkSecondary} size={16} />
+                    <Text style={[styles.rowText, { color: ink }]}>{course.location}</Text>
+                  </View>
+                )
               ) : null}
 
               {assignable ? (
@@ -438,7 +469,7 @@ export default function CourseDetailOverlay({
                   <SymbolView name="building.columns" tintColor={inkSecondary} size={16} />
                   <View style={styles.professorText}>
                     <Text style={[styles.courseCaption, { color: inkSecondary }]}>Source</Text>
-                    <Text style={[styles.rowText, { color: ink }]}>Laker Connect</Text>
+                    <Text style={[styles.rowText, { color: ink }]}>{campusLabel}</Text>
                   </View>
                 </View>
               ) : null}
@@ -453,10 +484,10 @@ export default function CourseDetailOverlay({
                     pressed && { opacity: 0.7 },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="View Event and RSVP on Laker Connect">
+                  accessibilityLabel={`View Event and RSVP on ${campusLabel}`}>
                   <SymbolView name="safari" tintColor={colors.accent} size={16} />
                   <Text style={[styles.rowText, { color: colors.accent }]}>
-                    View Event / RSVP on Laker Connect
+                    {`View Event / RSVP on ${campusLabel}`}
                   </Text>
                   <SymbolView
                     name="arrow.up.right"
@@ -631,6 +662,12 @@ const styles = StyleSheet.create({
   name: {
     ...typography.heading,
     fontSize: 22,
+  },
+  courseTitle: {
+    ...typography.bodyRegular,
+    fontSize: 15,
+    marginTop: 4,
+    flexWrap: 'wrap',
   },
   row: {
     flexDirection: 'row',

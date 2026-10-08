@@ -12,6 +12,7 @@ import EmptyState from './EmptyState';
 import GlassPanel from './GlassPanel';
 import PagerStrip from './PagerStrip';
 import TimetableCourseBlock, { HOUR_HEIGHT } from './TimetableCourseBlock';
+import { timelineHourTicks } from '@/utils/calendarRange';
 import {
   formatWeekdayShort,
   formatDayOfMonth,
@@ -33,10 +34,12 @@ interface DayViewProps {
   onNextDay: () => void;
   onGoToToday?: () => void;
   onSelectDay?: (date: Date) => void;
+  /** User-configured visible window, minutes after midnight. */
+  startMin: number;
+  endMin: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function formatHourLabel(hour24: number): string {
   const period = hour24 >= 12 ? 'PM' : 'AM';
@@ -53,20 +56,31 @@ export default function DayView({
   onNextDay,
   onGoToToday,
   onSelectDay,
+  startMin,
+  endMin,
 }: DayViewProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = glassColors(scheme, useCalendarAccent(), useTextMode());
   const today = new Date();
+  const rangeMin = endMin - startMin;
+  const pxPerMinute = HOUR_HEIGHT / 60;
+  const timelineHeight = rangeMin * pxPerMinute;
+  // Hour labels + grid lines at each whole-hour boundary inside the window,
+  // plus the closing line at the bottom edge (endMin).
+  const hourTicks = timelineHourTicks(startMin, endMin);
 
   // Each page's ScrollView opens around 9 AM. Slot-keyed pages keep their
   // own scroll position across rotations like a real pager; the callback is
   // stable so it only fires when a ScrollView actually mounts.
-  const scrollToMorning = useCallback((sv: ScrollView | null) => {
-    if (!sv) return;
-    requestAnimationFrame(() => {
-      sv.scrollTo({ y: 9 * HOUR_HEIGHT, animated: false });
-    });
-  }, []);
+  const scrollToMorning = useCallback(
+    (sv: ScrollView | null) => {
+      if (!sv) return;
+      requestAnimationFrame(() => {
+        sv.scrollTo({ y: Math.max(0, (9 * 60 - startMin) * pxPerMinute), animated: false });
+      });
+    },
+    [startMin, pxPerMinute],
+  );
 
   /** Paging content for one day — a continuous 24h timeline where every
    *  event block is positioned by its real start time and sized by its
@@ -77,7 +91,6 @@ export default function DayView({
     // Exact-date match — `courses` may hold events from adjacent weeks;
     // weekday-only matching would ghost them into this day.
     const dayCourses = getCoursesForDay(courses, dayName, date);
-    const pxPerMinute = HOUR_HEIGHT / 60;
     const overlapSlots = detectOverlaps(dayCourses, MIN_EVENT_MINUTES);
 
     return dayCourses.length === 0 ? (
@@ -95,30 +108,41 @@ export default function DayView({
         style={styles.scroll}
         showsVerticalScrollIndicator={false}>
         <View style={styles.timeline}>
-          {/* Time gutter — labels beside their hour lines. */}
-          <View style={styles.gutter}>
-            {HOURS.map((hour) => (
-              <View key={hour} style={[styles.gutterCell, { height: HOUR_HEIGHT }]}>
-                <Text style={[styles.hourLabel, { color: colors.secondaryText }]}>
-                  {formatHourLabel(hour)}
-                </Text>
-              </View>
+          {/* Time gutter — labels sit just under their hour boundary line. */}
+          <View style={[styles.gutter, { height: timelineHeight }]}>
+            {hourTicks.map((hour) => (
+              <Text
+                key={hour}
+                style={[
+                  styles.hourLabel,
+                  styles.gutterLabel,
+                  { color: colors.secondaryText, top: (hour * 60 - startMin) * pxPerMinute },
+                ]}>
+                {formatHourLabel(hour)}
+              </Text>
             ))}
           </View>
 
           {/* Day column — hour grid lines plus duration-positioned blocks. */}
-          <View style={[styles.dayColumn, { borderLeftColor: colors.glassBorder }]}>
-            {HOURS.map((hour) => (
+          <View
+            style={[
+              styles.dayColumn,
+              { borderLeftColor: colors.glassBorder, height: timelineHeight },
+            ]}>
+            {[...hourTicks.map((h) => h * 60), endMin].map((boundary) => (
               <View
-                key={hour}
+                key={boundary}
                 style={[
                   styles.hourLine,
-                  { height: HOUR_HEIGHT, borderBottomColor: colors.glassBorder },
+                  {
+                    top: (boundary - startMin) * pxPerMinute,
+                    borderBottomColor: colors.glassBorder,
+                  },
                 ]}
               />
             ))}
             {dayCourses.map((course) => {
-              const span = eventBlockSpan(course.startTime, course.endTime, 0, 24);
+              const span = eventBlockSpan(course.startTime, course.endTime, startMin / 60, endMin / 60);
               if (!span) return null;
               const slot = overlapSlots.find((s) => s.courseId === course.id);
               const totalCols = slot?.totalColumns ?? 1;
@@ -367,10 +391,12 @@ const styles = StyleSheet.create({
   gutter: {
     width: 46,
     paddingRight: spacing.sm,
+    position: 'relative',
   },
-  gutterCell: {
-    justifyContent: 'flex-start',
-    paddingTop: 2,
+  gutterLabel: {
+    position: 'absolute',
+    right: spacing.sm,
+    marginTop: 2,
   },
   hourLabel: {
     ...typography.caption,
@@ -385,6 +411,9 @@ const styles = StyleSheet.create({
     marginRight: spacing.sm,
   },
   hourLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

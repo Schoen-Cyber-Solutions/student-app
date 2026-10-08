@@ -72,6 +72,7 @@ function toCourseCard(
     instructorEmail: '',
     color: eventColor(event, courseColors, colorMap),
     completed: event.isCompleted ?? false,
+    courseTitle: event.courseName ?? undefined,
   };
 }
 

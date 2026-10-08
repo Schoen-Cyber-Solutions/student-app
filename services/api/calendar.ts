@@ -114,7 +114,13 @@ function isMyCalendarEvent(value: unknown): value is MyCalendarEvent {
  * events ('blackboard', 'canvas' — assignments, due dates, etc.) stay in
  * the API for consumers that need them, like Home's Due list.
  */
-export const CALENDAR_VIEW_PROVIDERS = ['course_schedule', 'personal', 'laker_connect'] as const;
+export const CALENDAR_VIEW_PROVIDERS = [
+  'course_schedule',
+  'personal',
+  'laker_connect',
+  'campus_iit_elevate',
+  'campus_iit_events',
+] as const;
 
 export async function getMyCalendar(
   sessionToken: string,

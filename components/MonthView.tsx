@@ -10,8 +10,9 @@ import { useTextMode } from './TabTextMode';
 import GlassPanel from './GlassPanel';
 import PagerStrip from './PagerStrip';
 import { MyCalendarEvent } from '@/services/api/calendar';
-import { isSameCalendarDay, formatTime12, eventOccursOnDay } from '@/utils/time';
-import { monthGridRows } from '@/utils/monthGrid';
+import { isSameCalendarDay, formatTime12 } from '@/utils/time';
+import { monthGridRows, monthAgendaSelection, dayAgendaEvents } from '@/utils/monthGrid';
+import { isCampusEventProvider } from '@/utils/campusSource';
 
 interface MonthViewProps {
   /** Any date inside the currently displayed month. */
@@ -78,12 +79,7 @@ export default function MonthView({
         for (const day of row) {
           const key = day.toDateString();
           if (map.has(key)) continue; // grid edges overlap between months
-          map.set(
-            key,
-            events
-              .filter((e) => eventOccursOnDay(e, day))
-              .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt))
-          );
+          map.set(key, dayAgendaEvents(events, day));
         }
       }
     }
@@ -92,17 +88,12 @@ export default function MonthView({
 
   // Defensive: a selection outside the displayed month is meaningless —
   // render the neutral state even if a stray update slips through.
-  const selectionInMonth =
-    selectedDate !== null &&
-    selectedDate.getMonth() === monthCursor.getMonth() &&
-    selectedDate.getFullYear() === monthCursor.getFullYear();
+  const agendaDate = monthAgendaSelection(selectedDate, monthCursor);
 
-  const selectedEvents =
-    selectedDate && selectionInMonth
-      ? (eventsByDay.get(selectedDate.toDateString()) ?? [])
-      : [];
-  const selectedIsToday =
-    selectedDate !== null && isSameCalendarDay(selectedDate, today);
+  const selectedEvents = agendaDate
+    ? (eventsByDay.get(agendaDate.toDateString()) ?? [])
+    : [];
+  const selectedIsToday = agendaDate !== null && isSameCalendarDay(agendaDate, today);
 
   const isCurrentMonth =
     monthCursor.getFullYear() === today.getFullYear() &&
@@ -268,8 +259,8 @@ export default function MonthView({
        <View style={styles.agendaInner}>
         <View style={styles.agendaHeader}>
           <Text style={[styles.agendaTitle, { color: colors.text }]}>
-            {selectionInMonth && selectedDate
-              ? selectedDate.toLocaleDateString('en-US', {
+            {agendaDate
+              ? agendaDate.toLocaleDateString('en-US', {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric',
@@ -283,7 +274,7 @@ export default function MonthView({
           </Text>
         </View>
 
-        {!selectionInMonth || !selectedDate ? (
+        {!agendaDate ? (
           <Text style={[styles.emptyText, { color: colors.mutedText }]}>
             Tap a date to see its events.
           </Text>
@@ -300,7 +291,7 @@ export default function MonthView({
                 : formatTime12(start);
             const accent = colorForEvent(event) ?? colors.accent;
             const icon =
-              event.provider === 'laker_connect'
+              isCampusEventProvider(event.provider)
                 ? 'calendar'
                 : event.provider === 'personal'
                   ? 'person'
@@ -441,7 +432,9 @@ const styles = StyleSheet.create({
   },
   cell: {
     flex: 1,
-    aspectRatio: 0.72,
+    // Roughly square cells — tall enough to read the day number + dot row,
+    // compact enough that the selected-day agenda gets real vertical room.
+    aspectRatio: 1.02,
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: 'transparent',

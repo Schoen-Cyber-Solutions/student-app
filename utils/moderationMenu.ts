@@ -50,6 +50,41 @@ export function contentMenuActions(opts: ContentMenuOptions): ModerationAction[]
   return actions;
 }
 
+export interface ReportTargetSpec {
+  /** Same literal values as services/api/moderation ReportTargetType —
+   *  redeclared here so this util stays UI-layer-clean. */
+  targetType: 'thread' | 'reply' | 'attachment' | 'user';
+  targetId: string;
+}
+
+/**
+ * Map a menu action to the report target it submits. Pure so the
+ * targetType/targetId wiring is unit-testable. Returns null for non-report
+ * actions and for report_image when the content has no attachment.
+ */
+export function reportTargetForAction(
+  actionId: ModerationActionId,
+  req: {
+    kind: 'thread' | 'reply';
+    contentId: string;
+    attachmentId?: string | null;
+    authorId: string;
+  },
+): ReportTargetSpec | null {
+  switch (actionId) {
+    case 'report_content':
+      return { targetType: req.kind, targetId: req.contentId };
+    case 'report_image':
+      return req.attachmentId
+        ? { targetType: 'attachment', targetId: req.attachmentId }
+        : null;
+    case 'report_user':
+      return { targetType: 'user', targetId: req.authorId };
+    default:
+      return null;
+  }
+}
+
 /**
  * Removes every item authored by `authorId` — used to make a block take
  * effect instantly on screens already holding loaded data.

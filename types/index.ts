@@ -103,9 +103,19 @@ export interface Course {
   /** Calendar-only: provider === 'personal' — user-created event (timetable
    *  blocks render its start/end times stacked on separate lines). */
   isPersonal?: boolean;
-  /** Calendar-only: provider === 'laker_connect' — campus event the user
-   *  saved from Laker Connect; gets the same stacked-time treatment. */
+  /** Calendar-only: provider is a saved campus-event copy ('laker_connect'
+   *  or 'campus_<source>') — campus event the user saved from the
+   *  university's official events source; gets the same stacked-time
+   *  treatment. */
   isCampusEvent?: boolean;
+  /** Calendar-only: the saved copy's provider string (e.g.
+   *  'laker_connect', 'campus_iit_elevate') — used to pick the correct
+   *  source label for display. */
+  campusSource?: string;
+  /** Official course title (e.g. "Applied Cryptography") from the enrolled
+   *  CourseSection's Course — shown under the code in the detail overlay.
+   *  Undefined for personal/Laker events and unassigned items. */
+  courseTitle?: string;
 }
 
 export interface CalendarEvent {

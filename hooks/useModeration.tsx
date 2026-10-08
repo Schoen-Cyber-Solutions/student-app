@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import ReportSheet, { ReportTarget } from '@/components/ReportSheet';
-import { contentMenuActions } from '@/utils/moderationMenu';
+import { contentMenuActions, reportTargetForAction } from '@/utils/moderationMenu';
 import { blockUser } from '@/services/api/moderation';
 
 export interface ContentMenuRequest {
@@ -64,23 +64,13 @@ export function useModeration() {
           text: a.label,
           style: (a.destructive ? 'destructive' : 'default') as 'destructive' | 'default',
           onPress: () => {
-            switch (a.id) {
-              case 'delete':
-                req.onDelete?.();
-                break;
-              case 'report_content':
-                openReport(req.kind, req.contentId);
-                break;
-              case 'report_image':
-                if (req.attachmentId) openReport('attachment', req.attachmentId);
-                break;
-              case 'report_user':
-                openReport('user', req.authorId);
-                break;
-              case 'block_user':
-                confirmBlock(req.authorId, req.onBlocked);
-                break;
+            const target = reportTargetForAction(a.id, req);
+            if (target) {
+              openReport(target.targetType, target.targetId);
+              return;
             }
+            if (a.id === 'delete') req.onDelete?.();
+            else if (a.id === 'block_user') confirmBlock(req.authorId, req.onBlocked);
           },
         })),
         { text: 'Cancel', style: 'cancel' as const },

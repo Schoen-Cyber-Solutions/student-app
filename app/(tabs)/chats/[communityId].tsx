@@ -68,6 +68,21 @@ export default function CommunityScreen() {
     [],
   );
 
+  // Shared between long-press and the visible ⋯ button.
+  const openThreadMenu = useCallback(
+    (thread: CommunityThread) =>
+      moderation.openContentMenu({
+        kind: 'thread',
+        isAuthor: thread.isAuthor,
+        authorId: thread.authorId,
+        authorUsername: thread.authorUsername,
+        contentId: thread.id,
+        onDelete: thread.isAuthor ? () => confirmDeleteThread(thread) : undefined,
+        onBlocked: handleAuthorBlocked,
+      }),
+    [moderation, confirmDeleteThread, handleAuthorBlocked],
+  );
+
   const loadThreads = useCallback(async () => {
     if (!communityId) return;
     try {
@@ -129,17 +144,8 @@ export default function CommunityScreen() {
                   key={thread.id}
                   thread={thread}
                   onPress={() => router.push(`/chats/${encodeURIComponent(communityId ?? '')}/thread/${thread.id}`)}
-                  onLongPress={() =>
-                    moderation.openContentMenu({
-                      kind: 'thread',
-                      isAuthor: thread.isAuthor,
-                      authorId: thread.authorId,
-                      authorUsername: thread.authorUsername,
-                      contentId: thread.id,
-                      onDelete: thread.isAuthor ? () => confirmDeleteThread(thread) : undefined,
-                      onBlocked: handleAuthorBlocked,
-                    })
-                  }
+                  onLongPress={() => openThreadMenu(thread)}
+                  onOptions={() => openThreadMenu(thread)}
                 />
               ))}
             </View>

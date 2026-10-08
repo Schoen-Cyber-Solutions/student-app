@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Linking, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
@@ -10,7 +10,8 @@ import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getCampusEvents, CampusEvent, CampusEventsResponse } from '@/services/api/events';
 import { formatTime12 } from '@/utils/time';
-import { isSafeExternalUrl } from '@/utils/externalLinks';
+import { openExternalUrl } from '@/utils/externalLinks';
+import { campusSourceHosts } from '@/utils/campusSource';
 
 /** Map raw source categories onto the app's fixed filter buckets. */
 function categoryBucket(category: string | null): string {
@@ -95,10 +96,24 @@ export default function CampusEventsScreen() {
   const [query, setQuery] = useState('');
   const [bucket, setBucket] = useState('All');
   const [reloadTick, setReloadTick] = useState(0);
+  // Multi-source universities (e.g. Illinois Tech) pick a source before
+  // browsing; single-source universities skip the selection screen.
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+
+  const sources = useMemo(() => {
+    const list = data?.sources ?? [];
+    return list.length > 0 ? list : data?.source ? [data.source] : [];
+  }, [data]);
+  const multiSource = sources.length > 1;
+  const activeSource =
+    sources.find((s) => s.id === selectedSource) ?? (!multiSource ? sources[0] : null);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      getCampusEvents({ q: query.trim() || undefined })
+      getCampusEvents({
+        q: query.trim() || undefined,
+        source: multiSource ? (selectedSource ?? undefined) : undefined,
+      })
         .then((d) => {
           setData(d);
           setError(null);
@@ -106,7 +121,7 @@ export default function CampusEventsScreen() {
         .catch(() => setError('Could not load events. Please try again.'));
     }, 250);
     return () => clearTimeout(t);
-  }, [query, reloadTick]);
+  }, [query, reloadTick, selectedSource, multiSource]);
 
   // Category chips only for buckets that actually appear in the data.
   const buckets = useMemo(() => {
@@ -120,27 +135,103 @@ export default function CampusEventsScreen() {
   }, [data, bucket]);
 
   const openDirectory = () => {
-    const url = data?.source?.directoryUrl;
-    if (url && isSafeExternalUrl(url)) void Linking.openURL(url);
+    const url = activeSource?.directoryUrl ?? data?.source?.directoryUrl;
+    const sourceId = activeSource?.id ?? data?.source?.id;
+    if (url) openExternalUrl(url, campusSourceHosts(sourceId) ?? undefined);
   };
+
+  // Source-selection screen — shown before browsing when the university
+  // offers more than one official events source.
+  if (multiSource && !selectedSource) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'Campus Events', headerTitleAlign: 'left' }} />
+        <ScreenWrapper>
+          <View style={styles.header}>
+            <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
+              {data?.university.name ?? 'Your university'}
+            </Text>
+          </View>
+          {error ? (
+            <EmptyState
+              title="Couldn't load events"
+              message={error}
+              icon="exclamationmark.triangle"
+              actionLabel="Retry"
+              onAction={() => setReloadTick((n) => n + 1)}
+            />
+          ) : !data ? (
+            <EmptyState
+              title="Loading events"
+              message="Fetching your university's event sources…"
+              icon="calendar"
+            />
+          ) : (
+            <View style={styles.list}>
+              {sources.map((s) => (
+                <Pressable
+                  key={s.id}
+                  onPress={() => setSelectedSource(s.id)}
+                  style={({ pressed }) => [
+                    styles.card,
+                    { backgroundColor: colors.card, borderColor: colors.cardBorder },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Browse ${s.providerName}`}>
+                  <View style={styles.cardBody}>
+                    <View style={styles.cardTopRow}>
+                      <Text style={[styles.sourceTitle, { color: colors.text }]}>
+                        {s.providerName}
+                      </Text>
+                      {s.degraded ? (
+                        <Text style={[styles.cancelled, { color: colors.urgent }]}>
+                          Temporarily unavailable
+                        </Text>
+                      ) : (
+                        <SymbolView name="chevron.right" tintColor={colors.mutedText} size={14} />
+                      )}
+                    </View>
+                    {s.blurb ? (
+                      <Text style={[styles.sourceBlurb, { color: colors.secondaryText }]}>
+                        {s.blurb}
+                      </Text>
+                    ) : null}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </ScreenWrapper>
+      </>
+    );
+  }
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Campus Events', headerTitleAlign: 'left' }} />
+      <Stack.Screen
+        options={{ title: activeSource?.providerName ?? 'Campus Events', headerTitleAlign: 'left' }}
+      />
       <ScreenWrapper>
         <View style={styles.header}>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
             {data?.university.name ?? 'Your university'}
-            {data?.source ? ` · via ${data.source.providerName}` : ''}
+            {activeSource ? ` · via ${activeSource.providerName}` : ''}
           </Text>
+          {multiSource ? (
+            <Pressable onPress={() => setSelectedSource(null)} accessibilityRole="button">
+              <Text style={[styles.backLink, { color: colors.tint }]}>‹ All sources</Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        {data?.source?.degraded ? (
+        {activeSource?.degraded ? (
           <Pressable
             onPress={openDirectory}
             style={[styles.notice, { backgroundColor: colors.tintSoft, borderColor: colors.tint }]}>
             <Text style={[styles.noticeText, { color: colors.text }]}>
-              Event list may be out of date — browse {data.source.providerName} for the latest.
+              Events are temporarily unavailable — browse {activeSource.providerName} for the
+              latest.
             </Text>
           </Pressable>
         ) : null}
@@ -187,7 +278,7 @@ export default function CampusEventsScreen() {
           />
         ) : !data ? (
           <EmptyState title="Loading events" message="Fetching your university's events…" icon="calendar" />
-        ) : !data.source ? (
+        ) : !activeSource ? (
           <EmptyState
             title="Events not connected"
             message={`${data.university.name} doesn't have an events source configured yet.`}
@@ -195,14 +286,22 @@ export default function CampusEventsScreen() {
           />
         ) : visible.length === 0 ? (
           <EmptyState
-            title={query || bucket !== 'All' ? 'No matching events' : 'No upcoming events'}
+            title={
+              activeSource.degraded
+                ? 'Events are temporarily unavailable.'
+                : query || bucket !== 'All'
+                  ? 'No matching events'
+                  : 'No upcoming events'
+            }
             message={
-              query || bucket !== 'All'
-                ? 'Try a different search or filter.'
-                : 'Check back later — or browse the full directory.'
+              activeSource.degraded
+                ? `Check ${activeSource.providerName} directly, or try again later.`
+                : query || bucket !== 'All'
+                  ? 'Try a different search or filter.'
+                  : 'Check back later — or browse the full directory.'
             }
             icon="calendar"
-            actionLabel={data.source.directoryUrl ? 'Open Laker Connect' : undefined}
+            actionLabel={activeSource.directoryUrl ? 'View Original Events' : undefined}
             onAction={openDirectory}
           />
         ) : (
@@ -226,6 +325,24 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.body,
     fontSize: 14,
+  },
+  backLink: {
+    ...typography.caption,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  sourceTitle: {
+    ...typography.body,
+    fontSize: 16,
+    fontWeight: '700',
+    flex: 1,
+  },
+  sourceBlurb: {
+    ...typography.caption,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 4,
   },
   notice: {
     marginHorizontal: spacing.lg,

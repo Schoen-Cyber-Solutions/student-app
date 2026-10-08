@@ -1,4 +1,5 @@
-import { getMondayOfWeek } from './time';
+import { getMondayOfWeek, eventOccursOnDay } from './time';
+import type { MyCalendarEvent } from '@/services/api/calendar';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,4 +23,31 @@ export function monthGridRows(d: Date): Date[][] {
     rows.push(cells.slice(i, i + 7));
   }
   return rows;
+}
+
+/**
+ * The selection the agenda is allowed to show: the tapped date only while
+ * it lives inside the displayed month. Returns null otherwise — the UI
+ * renders "Select a day" rather than a date from a different month.
+ */
+export function monthAgendaSelection(
+  selectedDate: Date | null,
+  monthCursor: Date,
+): Date | null {
+  if (
+    selectedDate !== null &&
+    selectedDate.getMonth() === monthCursor.getMonth() &&
+    selectedDate.getFullYear() === monthCursor.getFullYear()
+  ) {
+    return selectedDate;
+  }
+  return null;
+}
+
+/** Events for one day, sorted by actual start time (chronological, never
+ *  alphabetical). Shared by the grid dot index and the selected-day agenda. */
+export function dayAgendaEvents(events: MyCalendarEvent[], day: Date): MyCalendarEvent[] {
+  return events
+    .filter((e) => eventOccursOnDay(e, day))
+    .sort((a, b) => +new Date(a.startAt) - +new Date(b.startAt));
 }

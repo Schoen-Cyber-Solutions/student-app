@@ -173,6 +173,11 @@ export default function AcademicSetupScreen() {
 
         <Text style={[styles.label, { color: colors.secondaryText }]}>Term</Text>
         <View style={styles.chipRow}>
+          {terms.length === 0 && (
+            <Text style={[styles.helperText, { color: colors.mutedText }]}>
+              No terms are available for your university yet. Please try again later.
+            </Text>
+          )}
           {terms.map((t) => (
             <Pressable
               key={t.id}

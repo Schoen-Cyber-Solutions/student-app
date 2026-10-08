@@ -40,11 +40,13 @@ import {
   initialCursors,
 } from '@/utils/calendarCursors';
 import { useColorScheme } from '@/components/useColorScheme';
+import { tabBarContentOverlay, tabBarTotalHeight } from '@/utils/tabBarGeometry';
+import { useCalendarRange } from '@/utils/calendarRangeStore';
 import { TabTextModeProvider, useTextMode, useThemedColors } from '@/components/TabTextMode';
 
-// Standard iOS tab-bar content height (the glass bar floats over the scene,
-// so the FAB must clear it plus the home-indicator inset).
-const TAB_BAR_HEIGHT = 49;
+// The glass tab bar floats over the scene — FAB and the Month agenda clear
+// it using the shared geometry in utils/tabBarGeometry (which must stay in
+// sync with the bar's actual height in (tabs)/_layout.tsx).
 
 export default function CalendarScreen() {
   return (
@@ -74,6 +76,8 @@ function CalendarScreenContent() {
   const accent = useCalendarAccent();
   const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', accent, textMode);
   const { colors: courseColors, colorMap } = useCourseColors();
+  // User-configured visible window for the Day/Week timelines (Month ignores it).
+  const calendarRange = useCalendarRange();
 
   const loadCalendarStatus = useCallback(async () => {
     try {
@@ -431,6 +435,8 @@ function CalendarScreenContent() {
                 <WeekTimetable
                   courses={courses}
                   weekStart={currentWeekStart}
+                  startMin={calendarRange.startMin}
+                  endMin={calendarRange.endMin}
                   onWeekChange={(ws) => setCursors((c) => applyWeekChange(c, ws))}
                   onSelectCourse={(c) => setSelectedEventId(c.id)}
                   onCourseLongPress={handleCourseLongPress}
@@ -482,6 +488,8 @@ function CalendarScreenContent() {
                 <DayView
                   selectedDate={currentDay}
                   courses={courses}
+                  startMin={calendarRange.startMin}
+                  endMin={calendarRange.endMin}
                   onSelectCourse={(c) => setSelectedEventId(c.id)}
                   onCourseLongPress={handleCourseLongPress}
                   onPreviousDay={goToPrevDay}
@@ -518,7 +526,7 @@ function CalendarScreenContent() {
               <MonthView
                 monthCursor={currentMonth}
                 selectedDate={monthSelectedDate}
-                bottomTabClearance={TAB_BAR_HEIGHT}
+                bottomTabClearance={tabBarContentOverlay(insets.bottom)}
                 events={events}
                 colorForEvent={(e) => eventColor(e, courseColors, colorMap)}
                 onSelectDate={selectMonthDate}
@@ -562,9 +570,9 @@ function CalendarScreenContent() {
       {/* Floating add button — draggable, persists its position. */}
       <DraggableFab
         colors={[glass.accent, glass.accentDark]}
-        bottomBase={insets.bottom + TAB_BAR_HEIGHT + 14}
+        bottomBase={tabBarTotalHeight(insets.bottom) + 14}
         topInset={insets.top}
-        bottomKeepout={insets.bottom + TAB_BAR_HEIGHT}
+        bottomKeepout={tabBarTotalHeight(insets.bottom)}
         shadowColor={accent}
         onPress={openAddSheet}
       />

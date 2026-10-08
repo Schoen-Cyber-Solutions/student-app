@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { contentMenuActions, filterOutAuthor } from '@/utils/moderationMenu';
+import {
+  contentMenuActions,
+  filterOutAuthor,
+  reportTargetForAction,
+} from '@/utils/moderationMenu';
 import { REPORT_REASONS, REPORT_REASON_LABELS } from '@/services/api/moderation';
 
 describe('contentMenuActions', () => {
@@ -37,6 +41,50 @@ describe('contentMenuActions', () => {
       (a) => a.id === 'block_user',
     );
     expect(block?.destructive).toBe(true);
+  });
+});
+
+describe('reportTargetForAction — correct targetType/targetId submitted', () => {
+  const req = {
+    kind: 'reply' as const,
+    contentId: 'msg-42',
+    attachmentId: 'att-7',
+    authorId: 'u-author',
+  };
+
+  it('report_content submits the reply/thread id under its own type', () => {
+    expect(reportTargetForAction('report_content', req)).toEqual({
+      targetType: 'reply',
+      targetId: 'msg-42',
+    });
+    expect(reportTargetForAction('report_content', { ...req, kind: 'thread' })).toEqual({
+      targetType: 'thread',
+      targetId: 'msg-42',
+    });
+  });
+
+  it('report_image submits the attachment id, never the message id', () => {
+    expect(reportTargetForAction('report_image', req)).toEqual({
+      targetType: 'attachment',
+      targetId: 'att-7',
+    });
+  });
+
+  it('report_image is a no-op without an attachment', () => {
+    expect(reportTargetForAction('report_image', { ...req, attachmentId: null })).toBeNull();
+    expect(reportTargetForAction('report_image', { ...req, attachmentId: undefined })).toBeNull();
+  });
+
+  it('report_user submits the author id, not the content id', () => {
+    expect(reportTargetForAction('report_user', req)).toEqual({
+      targetType: 'user',
+      targetId: 'u-author',
+    });
+  });
+
+  it('non-report actions produce no report target', () => {
+    expect(reportTargetForAction('delete', req)).toBeNull();
+    expect(reportTargetForAction('block_user', req)).toBeNull();
   });
 });
 

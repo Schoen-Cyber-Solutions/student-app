@@ -34,6 +34,10 @@ export interface ExternalLinkContext {
  */
 const TRUSTED_HOSTS: Record<string, string[]> = {
   'roosevelt.edu': ['roosevelt.edu'],
+  // IIT email domain is hawk.illinoistech.edu; the official directory lives
+  // on iit.edu.
+  'illinoistech.edu': ['iit.edu'],
+  'iit.edu': ['iit.edu'],
 };
 
 /** Roosevelt: profiles live at /profile/<netid> on roosevelt.edu. */
@@ -41,8 +45,15 @@ function isRooseveltProfilePath(pathname: string): boolean {
   return /^\/profile\/[a-z0-9]{2,32}\/?$/.test(pathname);
 }
 
+/** Illinois Tech: profiles live at /directory/people/<slug> on iit.edu. */
+function isIitProfilePath(pathname: string): boolean {
+  return /^\/directory\/people\/[a-z0-9][a-z0-9-]{0,62}\/?$/.test(pathname);
+}
+
 const PATH_VALIDATORS: Record<string, (pathname: string) => boolean> = {
   'roosevelt.edu': isRooseveltProfilePath,
+  'illinoistech.edu': isIitProfilePath,
+  'iit.edu': isIitProfilePath,
 };
 
 /**
@@ -99,6 +110,35 @@ export function isSafeExternalUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * True when `url` is https AND its hostname is one of `allowedHosts` or a
+ * proper subdomain of it (e.g. 'iit.edu' covers elevate.iit.edu and
+ * www.iit.edu).
+ */
+export function isAllowedHostUrl(url: string, allowedHosts: string[]): boolean {
+  if (!isSafeExternalUrl(url)) return false;
+  const host = new URL(url.trim()).hostname.toLowerCase();
+  return allowedHosts.some((h) => host === h || host.endsWith(`.${h.toLowerCase()}`));
+}
+
+/**
+ * Shared opener for official external links (event source pages, professor
+ * profiles, source directories). Opens the system browser via
+ * Linking.openURL — never an in-app WebView — and alerts gracefully when
+ * iOS can't open the URL. `allowedHosts` additionally restricts the
+ * destination host; omit for https-only validation.
+ */
+export function openExternalUrl(url: string, allowedHosts?: string[]): void {
+  const trimmed = url.trim();
+  const ok = allowedHosts ? isAllowedHostUrl(trimmed, allowedHosts) : isSafeExternalUrl(trimmed);
+  if (!ok) return;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { Alert, Linking } = require('react-native') as typeof import('react-native');
+  Linking.openURL(trimmed).catch(() =>
+    Alert.alert('Unable to open this link.', 'Please try again later.'),
+  );
 }
 
 export function resolveExternalLinks(ctx: ExternalLinkContext): ExternalLinkSpec[] {

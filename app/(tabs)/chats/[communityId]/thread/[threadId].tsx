@@ -175,6 +175,19 @@ export default function ThreadDetailScreen() {
     [thread?.authorId],
   );
 
+  // Shared between long-press and the visible ⋯ button.
+  const openReplyMenu = (reply: ThreadMessage) =>
+    moderation.openContentMenu({
+      kind: 'reply',
+      isAuthor: reply.isAuthor,
+      authorId: reply.authorId,
+      authorUsername: reply.authorUsername,
+      attachmentId: reply.attachment?.id,
+      contentId: reply.id,
+      onDelete: reply.isAuthor ? () => handleDeleteMessage(reply) : undefined,
+      onBlocked: handleAuthorBlocked,
+    });
+
   // The first message is the thread's opening post.
   const openingPost = messages[0];
   const replies = messages.slice(1);
@@ -256,20 +269,8 @@ export default function ThreadDetailScreen() {
                   onPressImage={(attachment) =>
                     setViewingImage({ attachment, isAuthor: reply.isAuthor })
                   }
-                  onLongPress={() =>
-                    moderation.openContentMenu({
-                      kind: 'reply',
-                      isAuthor: reply.isAuthor,
-                      authorId: reply.authorId,
-                      authorUsername: reply.authorUsername,
-                      attachmentId: reply.attachment?.id,
-                      contentId: reply.id,
-                      onDelete: reply.isAuthor
-                        ? () => handleDeleteMessage(reply)
-                        : undefined,
-                      onBlocked: handleAuthorBlocked,
-                    })
-                  }
+                  onLongPress={() => openReplyMenu(reply)}
+                  onOptions={() => openReplyMenu(reply)}
                 />
               ))}
             </GlassPanel>

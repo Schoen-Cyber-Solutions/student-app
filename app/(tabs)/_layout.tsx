@@ -3,8 +3,10 @@ import { StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Tabs, router } from 'expo-router';
 import type { ColorValue } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { glassColors } from '@/constants/Glass';
+import { tabBarBottomInset, TAB_BAR_TOP_PAD, tabBarTotalHeight } from '@/utils/tabBarGeometry';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { getSessionToken, isSessionReady } from '@/services/auth/devSession';
@@ -57,6 +59,7 @@ function GlassTabBarBackground() {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const insets = useSafeAreaInsets();
   const scheme = colorScheme === 'dark' ? 'dark' : 'light';
   const glass = glassColors(scheme);
   // Tab icons are deliberately neutral — solid black on light glass, white on
@@ -88,6 +91,10 @@ export default function TabLayout() {
         tabBarBackground: () => <GlassTabBarBackground />,
         // Floating translucent bar — screens render underneath so the
         // calendar background (and other screens) shows through the glass.
+        // Height/padding: the default `49 + insets.bottom` top-justifies the
+        // icons and leaves a tall dead glass strip below them. We shrink the
+        // bottom inset (shorter bar, anchored lower) and add a small top pad
+        // so Home/Calendar/Chat icons+labels sit lower inside the bar too.
         tabBarStyle: {
           position: 'absolute',
           backgroundColor: 'transparent',
@@ -97,6 +104,9 @@ export default function TabLayout() {
           borderTopRightRadius: 20,
           elevation: 0,
           shadowOpacity: 0,
+          height: tabBarTotalHeight(insets.bottom),
+          paddingTop: TAB_BAR_TOP_PAD,
+          paddingBottom: tabBarBottomInset(insets.bottom),
         },
       }}>
       <Tabs.Screen

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
@@ -14,7 +14,9 @@ import {
   CampusEvent,
 } from '@/services/api/events';
 import { formatTime12 } from '@/utils/time';
-import { isSafeExternalUrl } from '@/utils/externalLinks';
+import { openExternalUrl } from '@/utils/externalLinks';
+import { campusSourceHosts } from '@/utils/campusSource';
+import { isMappableLocation, openLocationInMaps } from '@/utils/mapsLink';
 
 export default function CampusEventDetailScreen() {
   const colors = Colors[useColorScheme()];
@@ -44,9 +46,11 @@ export default function CampusEventDetailScreen() {
       .finally(() => setSaveBusy(false));
   };
 
+  const sourceName = event?.sourceName ?? 'the event source';
+
   const handleRemoveFromCalendar = () => {
     if (!id || saveBusy) return;
-    Alert.alert('Remove from Calendar?', 'The event stays in Laker Connect.', [
+    Alert.alert('Remove from Calendar?', `The event stays in ${sourceName}.`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Remove',
@@ -110,10 +114,24 @@ export default function CampusEventDetailScreen() {
               </View>
 
               {event.location ? (
-                <View style={styles.row}>
-                  <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={16} />
-                  <Text style={[styles.rowText, { color: colors.text }]}>{event.location}</Text>
-                </View>
+                isMappableLocation(event.location) ? (
+                  <Pressable
+                    onPress={() =>
+                      openLocationInMaps(event.location!, event.universityName ?? null)
+                    }
+                    style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${event.location} in Maps`}>
+                    <SymbolView name="mappin.and.ellipse" tintColor={colors.tint} size={16} />
+                    <Text style={[styles.rowText, { color: colors.tint }]}>{event.location}</Text>
+                    <SymbolView name="arrow.up.right" tintColor={colors.mutedText} size={13} />
+                  </Pressable>
+                ) : (
+                  <View style={styles.row}>
+                    <SymbolView name="mappin.and.ellipse" tintColor={colors.mutedText} size={16} />
+                    <Text style={[styles.rowText, { color: colors.text }]}>{event.location}</Text>
+                  </View>
+                )
               ) : null}
 
               {event.organization ? (
@@ -129,23 +147,23 @@ export default function CampusEventDetailScreen() {
 
               {link ? (
                 <Pressable
-                  onPress={() => {
-                    if (isSafeExternalUrl(link)) void Linking.openURL(link);
-                  }}
+                  onPress={() =>
+                    openExternalUrl(link, campusSourceHosts(event.source) ?? undefined)
+                  }
                   style={({ pressed }) => [
                     styles.rsvpButton,
                     { backgroundColor: colors.tint },
                     pressed && { opacity: 0.8 },
                   ]}
                   accessibilityRole="button"
-                  accessibilityLabel="View event and RSVP on Laker Connect">
-                  <Text style={styles.rsvpText}>View Event / RSVP</Text>
+                  accessibilityLabel={`View Original Event on ${sourceName}`}>
+                  <Text style={styles.rsvpText}>View Original Event</Text>
                   <SymbolView name="arrow.up.right" tintColor="#FFFFFF" size={14} />
                 </Pressable>
               ) : null}
               {link ? (
                 <Text style={[styles.rsvpHint, { color: colors.mutedText }]}>
-                  Opens Laker Connect — sign in there to RSVP.
+                  {`Opens ${sourceName}.`}
                 </Text>
               ) : null}
 

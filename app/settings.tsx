@@ -12,6 +12,15 @@ import { getCalendarStatus, getMe, getPreferences, updatePreferences } from '@/s
 import { clearCommunityCache } from '@/services/api/communities';
 import { clearCourseCache } from '@/services/api/courses';
 import { clearSessionToken } from '@/services/auth/devSession';
+import CalendarTimePickerSheet from '@/components/CalendarTimePickerSheet';
+import {
+  formatRangeMinutes,
+  isValidRange,
+  resetCalendarRange,
+  setCalendarRange,
+} from '@/utils/calendarRange';
+import { refreshCalendarRange, useCalendarRange } from '@/utils/calendarRangeStore';
+import { isStaffRole } from '@/utils/staffRole';
 
 interface CalendarStatus {
   connected: boolean;
@@ -80,15 +89,18 @@ export default function SettingsScreen() {
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
   const [calStatus, setCalStatus] = useState<CalendarStatus | null>(null);
   const [isStaff, setIsStaff] = useState(false);
+  const calendarRange = useCalendarRange();
+  const [pickerFor, setPickerFor] = useState<'start' | 'end' | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       getMe()
-        .then(({ user }) => setIsStaff(user.role === 'moderator' || user.role === 'admin'))
+        .then(({ user }) => setIsStaff(isStaffRole(user.role)))
         .catch(() => setIsStaff(false));
       getPreferences()
         .then(({ preferences }) => setCalendarView(preferences.defaultCalendarView))
         .catch(() => {});
+      void refreshCalendarRange();
       getCalendarStatus()
         .then((s) =>
           setCalStatus({
@@ -106,6 +118,29 @@ export default function SettingsScreen() {
     const prev = calendarView;
     setCalendarView(next);
     updatePreferences({ defaultCalendarView: next }).catch(() => setCalendarView(prev));
+  };
+
+  // "12:00 AM" is ambiguous as an endpoint — as an End Time it means
+  // end-of-day (24:00), which the range store accepts as 1440 minutes.
+  const handleRangePick = (minutes: number) => {
+    const end = pickerFor === 'end' && minutes === 0 ? 24 * 60 : minutes;
+    const candidate =
+      pickerFor === 'start'
+        ? { startMin: minutes, endMin: calendarRange.endMin }
+        : { startMin: calendarRange.startMin, endMin: end };
+    setPickerFor(null);
+    if (!isValidRange(candidate.startMin, candidate.endMin)) {
+      Alert.alert(
+        'Invalid time range',
+        'End time must be later than start time. Start can be no earlier than 4:00 AM and end no later than midnight.',
+      );
+      return;
+    }
+    setCalendarRange(candidate).catch(() => {});
+  };
+
+  const handleResetRange = () => {
+    resetCalendarRange().catch(() => {});
   };
 
   const handleLogout = () => {
@@ -158,6 +193,30 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+
+        <SectionTitle title="Calendar" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Row
+            icon="clock"
+            label="Start Time"
+            value={formatRangeMinutes(calendarRange.startMin)}
+            onPress={() => setPickerFor('start')}
+          />
+          <Row
+            icon="clock.fill"
+            label="End Time"
+            value={formatRangeMinutes(calendarRange.endMin)}
+            onPress={() => setPickerFor('end')}
+          />
+          <Row
+            icon="arrow.counterclockwise"
+            label="Reset to Default"
+            onPress={handleResetRange}
+          />
+        </View>
+        <Text style={[styles.helperText, { color: colors.mutedText }]}>
+          Choose which hours are shown in Day and Week views.
+        </Text>
 
         <SectionTitle title="Connections" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -215,6 +274,13 @@ export default function SettingsScreen() {
           <Row icon="rectangle.portrait.and.arrow.right" label="Log Out" destructive onPress={handleLogout} />
         </View>
       </ScreenWrapper>
+      <CalendarTimePickerSheet
+        visible={pickerFor !== null}
+        title={pickerFor === 'end' ? 'End Time' : 'Start Time'}
+        valueMin={pickerFor === 'end' ? calendarRange.endMin : calendarRange.startMin}
+        onDone={handleRangePick}
+        onCancel={() => setPickerFor(null)}
+      />
     </>
   );
 }
@@ -255,6 +321,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontSize: 13,
     maxWidth: 160,
+  },
+  helperText: {
+    ...typography.caption,
+    paddingHorizontal: spacing.lg + spacing.sm,
+    marginTop: spacing.xs,
   },
   privacyBlock: {
     padding: spacing.md,

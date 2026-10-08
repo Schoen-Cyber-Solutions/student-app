@@ -108,10 +108,17 @@ export default function CoursesSetupScreen() {
         const sections = await searchAcademicSections(term.id, trimmed);
         if (seq !== searchSeq.current) return;
         setResults(sections);
-      } catch {
+      } catch (err) {
         if (seq === searchSeq.current) {
           setResults([]);
-          setError('Could not search the schedule. Please try again.');
+          const apiErr = toApiError(err);
+          setError(
+            apiErr.status === 503 || apiErr.kind === 'server'
+              ? 'Course schedule is temporarily unavailable.'
+              : apiErr.kind === 'network'
+                ? 'No connection. Check your network and try again.'
+                : 'Could not search the schedule. Please try again.',
+          );
         }
       } finally {
         if (seq === searchSeq.current) setSearching(false);
@@ -285,7 +292,7 @@ export default function CoursesSetupScreen() {
             {results.map(renderSectionCard)}
             {!searching && query.trim().length >= 2 && results.length === 0 && (
               <Text style={[styles.helperText, { color: colors.mutedText }]}>
-                No sections found. Try a subject code like "CSIA" or "CST".
+                No sections found. Try a subject code like "CS" or "MATH".
               </Text>
             )}
             {query.trim().length < 2 && (

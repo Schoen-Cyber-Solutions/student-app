@@ -2,6 +2,7 @@ import { Course } from '@/types';
 import { MyCalendarEvent } from '@/services/api/calendar';
 import { formatTime12, formatWeekdayShort } from '@/utils/time';
 import { colorForKey, getCourseColor, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
+import { isCampusEventProvider } from '@/utils/campusSource';
 
 /**
  * The single mapping every Calendar view uses: MyCalendarEvent → Course.
@@ -17,7 +18,7 @@ export function eventColor(
   // Completed LMS items render neutral gray everywhere — display override only,
   // the saved course color is never modified.
   if (event.isCompleted) return COMPLETED_EVENT_COLOR;
-  if (event.provider === 'personal' || event.provider === 'laker_connect') {
+  if (event.provider === 'personal' || isCampusEventProvider(event.provider)) {
     return event.color ?? colorForKey(event.title);
   }
   return getCourseColor(
@@ -60,6 +61,8 @@ export function toTimetableCourse(
     description: event.description ?? undefined,
     completed: event.isCompleted ?? false,
     isPersonal: event.provider === 'personal',
-    isCampusEvent: event.provider === 'laker_connect',
+    isCampusEvent: isCampusEventProvider(event.provider),
+    campusSource: isCampusEventProvider(event.provider) ? event.provider : undefined,
+    courseTitle: event.courseName ?? undefined,
   };
 }

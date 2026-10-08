@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
 import { CommunityThread } from '@/services/api/communities';
 import { Text } from './Themed';
 import { glassColors } from '@/constants/Glass';
@@ -12,9 +13,12 @@ interface ThreadListItemProps {
   onPress: () => void;
   /** Long-press menu — delete for own threads, moderation for others'. */
   onLongPress?: () => void;
+  /** Visible ⋯ affordance opening the same menu as long-press — without it
+   *  the moderation actions are undiscoverable on device. */
+  onOptions?: () => void;
 }
 
-export default function ThreadListItem({ thread, onPress, onLongPress }: ThreadListItemProps) {
+export default function ThreadListItem({ thread, onPress, onLongPress, onOptions }: ThreadListItemProps) {
   const scheme = useColorScheme();
   const colors = useThemedColors();
   const glass = glassColors(scheme === 'dark' ? 'dark' : 'light', undefined, useTextMode());
@@ -41,9 +45,27 @@ export default function ThreadListItem({ thread, onPress, onLongPress }: ThreadL
         <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>
           {thread.authorUsername}
         </Text>
-        <Text style={[styles.meta, { color: colors.mutedText }]} numberOfLines={1}>
-          {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'} · {relativeTime(thread.createdAt)}
-        </Text>
+        <View style={styles.metaRight}>
+          <Text style={[styles.meta, { color: colors.mutedText }]} numberOfLines={1}>
+            {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'} · {relativeTime(thread.createdAt)}
+          </Text>
+          {onOptions && (
+            <Pressable
+              onPress={onOptions}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Thread options">
+              {({ pressed }) => (
+                <SymbolView
+                  name="ellipsis"
+                  tintColor={colors.mutedText}
+                  size={14}
+                  style={pressed && { opacity: 0.5 }}
+                />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
     </Pressable>
   );
@@ -75,5 +97,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontWeight: '400',
     flexShrink: 1,
+  },
+  metaRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
   },
 });

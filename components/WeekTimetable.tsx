@@ -17,11 +17,12 @@ import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
 import GlassPanel from './GlassPanel';
 import TimetableCourseBlock from './TimetableCourseBlock';
+import { timelineHourTicks } from '@/utils/calendarRange';
+import { campusSourceFallbackTitle } from '@/utils/campusSource';
 import {
   getMondayOfWeek,
   getWeekDayDates,
   getCoursesForDay,
-  getHourRange,
   eventBlockSpan,
   MIN_EVENT_MINUTES,
   detectOverlaps,
@@ -46,13 +47,13 @@ interface WeekTimetableProps {
   onCourseLongPress?: (course: Course) => void;
   onSelectDay?: (date: Date) => void;
   onGoToToday?: () => void;
+  /** User-configured visible window, minutes after midnight. The whole
+   *  range is scaled to fit the screen; no vertical scroll. */
+  startMin: number;
+  endMin: number;
 }
 
 const GUTTER_WIDTH = 44;
-// Student-day window — the whole range fits the screen; no vertical scroll.
-const START_HOUR = 7;
-const END_HOUR = 24;
-const RANGE_MINUTES = (END_HOUR - START_HOUR) * 60;
 
 // Weekends carry far fewer classes — give them less width than Mon–Fri.
 const WEEKEND_WEIGHT = 0.62;
@@ -65,11 +66,14 @@ export default function WeekTimetable({
   onCourseLongPress,
   onSelectDay,
   onGoToToday,
+  startMin,
+  endMin,
 }: WeekTimetableProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = glassColors(scheme, useCalendarAccent(), useTextMode());
   const today = new Date();
-  const hours = getHourRange(START_HOUR, END_HOUR);
+  const rangeMin = endMin - startMin;
+  const hourTicks = timelineHourTicks(startMin, endMin);
 
   // ── Week pager ─────────────────────────────────────────────────────────
   // A finite paged list of real weeks around today — one page per actual
@@ -114,7 +118,7 @@ export default function WeekTimetable({
 
   // Measured height of the grid region — events and hour lines scale to fit.
   const [gridHeight, setGridHeight] = useState(0);
-  const pxPerMinute = gridHeight > 0 ? gridHeight / RANGE_MINUTES : 0;
+  const pxPerMinute = gridHeight > 0 ? gridHeight / rangeMin : 0;
 
   const [nowMinutes, setNowMinutes] = useState(
     today.getHours() * 60 + today.getMinutes()
@@ -144,8 +148,8 @@ export default function WeekTimetable({
     return () => clearInterval(id);
   }, []);
 
-  const showNow = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60;
-  const nowTop = showNow ? (nowMinutes - START_HOUR * 60) * pxPerMinute : 0;
+  const showNow = nowMinutes >= startMin && nowMinutes <= endMin;
+  const nowTop = showNow ? (nowMinutes - startMin) * pxPerMinute : 0;
 
   const handleGridLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -214,27 +218,30 @@ export default function WeekTimetable({
         </View>
 
         {/* Grid region — measured via onLayout (identical on every page);
-            everything inside scales to fit the full 07:00–24:00 window. */}
+            everything inside scales to fit the configured visible window. */}
         <View
           style={styles.gridArea}
           onLayout={handleGridLayout}>
           <View style={styles.gridRow}>
-            {/* Time gutter — inside the page so the axis slides with the week. */}
+            {/* Time gutter — inside the page so the axis slides with the week.
+                Labels sit just under their hour boundary line. */}
             <View style={[styles.gutter, { width: GUTTER_WIDTH }]}>
-              {hours.map((hour) => (
-                <View
-                  key={hour}
-                  style={[
-                    styles.hourCell,
-                    { flex: 1, borderBottomColor: colors.glassBorder },
-                  ]}>
+              {gridHeight > 0 &&
+                hourTicks.map((hour) => (
                   <Text
-                    style={[styles.hourLabel, { color: colors.secondaryText }]}
+                    key={hour}
+                    style={[
+                      styles.hourLabel,
+                      styles.gutterLabel,
+                      {
+                        color: colors.secondaryText,
+                        top: (hour * 60 - startMin) * pxPerMinute,
+                      },
+                    ]}
                     numberOfLines={1}>
                     {formatHourLabel(hour)}
                   </Text>
-                </View>
-              ))}
+                ))}
             </View>
 
             {/* Day columns — weighted Mon–Fri > Sat–Sun. */}
@@ -257,21 +264,23 @@ export default function WeekTimetable({
                           : undefined,
                       },
                     ]}>
-                    {/* Hour grid lines */}
-                    {hours.map((hour) => (
-                      <View
-                        key={hour}
-                        style={[
-                          styles.hourCell,
-                          {
-                            flex: 1,
-                            borderBottomColor: colors.glassBorder,
-                          },
-                        ]}
-                      />
-                    ))}
+                    {/* Hour grid lines — one per boundary tick plus the
+                        closing line at the bottom edge (endMin). */}
+                    {gridHeight > 0 &&
+                      [...hourTicks.map((h) => h * 60), endMin].map((boundary) => (
+                        <View
+                          key={boundary}
+                          style={[
+                            styles.hourLine,
+                            {
+                              top: (boundary - startMin) * pxPerMinute,
+                              borderBottomColor: colors.glassBorder,
+                            },
+                          ]}
+                        />
+                      ))}
 
-                    {/* Course blocks — clamped into the 07:00–24:00 window so
+                    {/* Course blocks — clamped into the configured window so
                         out-of-range events surface as edge slivers instead of
                         breaking the layout. Position and height derive from
                         the event's real start/end times; events without an
@@ -281,8 +290,8 @@ export default function WeekTimetable({
                         const span = eventBlockSpan(
                           course.startTime,
                           course.endTime,
-                          START_HOUR,
-                          END_HOUR
+                          startMin / 60,
+                          endMin / 60
                         );
                         if (!span) return null;
 
@@ -305,7 +314,11 @@ export default function WeekTimetable({
                             // Week-only label when a saved campus event's
                             // title can't render — the stored title is
                             // untouched (Day/Month/detail keep it).
-                            fallbackTitle={course.isCampusEvent ? 'Laker Event' : undefined}
+                            fallbackTitle={
+                              course.isCampusEvent
+                                ? campusSourceFallbackTitle(course.campusSource)
+                                : undefined
+                            }
                             onPress={(c) => onSelectCourse?.(c)}
                             onLongPress={(c) => onCourseLongPress?.(c)}
                           />
@@ -575,8 +588,16 @@ const styles = StyleSheet.create({
   gridPanel: {
     flex: 1,
   },
-  hourCell: {
-    justifyContent: 'flex-start',
+  hourLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  gutterLabel: {
+    position: 'absolute',
+    right: 6,
+    marginTop: 2,
   },
   hourLabel: {
     ...typography.caption,
