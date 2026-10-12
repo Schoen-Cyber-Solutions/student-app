@@ -13,12 +13,13 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://YOUR-STAGING-API-HOST"
+        "EXPO_PUBLIC_API_BASE_URL": "https://student-backend-production-11111.up.railway.app"
       }
     },
     "production": {
+      "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://YOUR-PRODUCTION-API-HOST"
+        "EXPO_PUBLIC_API_BASE_URL": "https://student-backend-production-11111.up.railway.app"
       }
     }
   }

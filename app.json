@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "student-app-development",
+    "name": "Student App",
     "slug": "student-app-development",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -39,6 +39,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fbe0bfdf-ee91-4515-823d-a56757f84f98"
+      }
+    },
+    "owner": "schoen-cyber-solutions"
   }
 }
