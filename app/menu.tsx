@@ -3,6 +3,8 @@ import { Stack, Link } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text, View } from '@/components/Themed';
 import ScreenWrapper from '@/components/ScreenWrapper';
+import Colors from '@/constants/Colors';
+import { useColorScheme } from '@/components/useColorScheme';
 
 const menuItems = [
   { label: 'Profile', href: '/profile', icon: 'person' },
@@ -13,6 +15,7 @@ const menuItems = [
 ];
 
 export default function MenuScreen() {
+  const colors = Colors[useColorScheme()];
   return (
     <>
       <Stack.Screen options={{ title: 'Menu', headerTitleAlign: 'left' }} />
@@ -20,10 +23,11 @@ export default function MenuScreen() {
         <View style={styles.list}>
           {menuItems.map((item) => (
             <Link key={item.label} href={item.href as any} asChild>
-              <Pressable style={styles.row}>
-                <SymbolView name={item.icon as any} tintColor="#64748B" size={22} />
+              <Pressable
+                style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.cardBorder }])}>
+                <SymbolView name={item.icon as any} tintColor={colors.tint} size={22} />
                 <Text style={styles.label}>{item.label}</Text>
-                <SymbolView name="chevron.right" tintColor="#CBD5E1" size={16} style={styles.chevron} />
+                <SymbolView name="chevron.right" tintColor={colors.mutedText} size={16} style={styles.chevron} />
               </Pressable>
             </Link>
           ))}
@@ -42,8 +46,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: {
     fontSize: 16,

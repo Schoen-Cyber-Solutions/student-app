@@ -10,6 +10,7 @@ import { tabBarBottomInset, TAB_BAR_TOP_PAD, tabBarTotalHeight } from '@/utils/t
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { getSessionToken, isSessionReady } from '@/services/auth/devSession';
+import { hasSeenEmyWelcome } from '@/utils/emyOnboarding';
 
 // expo-blur calls requireNativeViewManager at module eval — guard it so a
 // dev client that predates the package still renders the translucent fill.
@@ -62,16 +63,22 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const scheme = colorScheme === 'dark' ? 'dark' : 'light';
   const glass = glassColors(scheme);
-  // Tab icons are deliberately neutral — solid black on light glass, white on
-  // dark — and never inherit per-tab accent colors. The active tab reads
-  // through icon/label emphasis only; no background pill.
-  const iconActive = scheme === 'dark' ? '#FFFFFF' : '#000000';
-  const iconInactive = scheme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
+  // Emy brand: the active tab glows cyan over the glass bar in dark mode and
+  // sky-600 in light mode; inactive tabs stay subdued slate. No per-tab
+  // accent customization in v1.
+  const iconActive = glass.tabIconSelected;
+  const iconInactive = glass.tabIconDefault;
 
   useEffect(() => {
-    if (isSessionReady() && !getSessionToken()) {
+    if (!isSessionReady()) return;
+    if (!getSessionToken()) {
       router.replace('/onboarding');
+      return;
     }
+    // First-launch Emy intro — local flag, pushed once over the tabs.
+    void hasSeenEmyWelcome().then((seen) => {
+      if (!seen) router.push('/emy-welcome');
+    });
   }, []);
 
   return (

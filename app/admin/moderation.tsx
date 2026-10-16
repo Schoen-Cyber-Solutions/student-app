@@ -7,6 +7,7 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import EmptyState from '@/components/EmptyState';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { relativeTime } from '@/utils/time';
 import { toApiError } from '@/services/api/client';
@@ -95,7 +96,7 @@ export default function ModerationQueueScreen() {
                 <Text
                   style={[
                     styles.tabLabel,
-                    { color: active ? '#FFFFFF' : colors.secondaryText },
+                    { color: active ? contrastText(colors.tint) : colors.secondaryText },
                   ]}>
                   {tab.label}
                 </Text>

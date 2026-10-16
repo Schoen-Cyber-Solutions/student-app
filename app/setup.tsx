@@ -7,6 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { getMe, getMyUniversity, setupProfile, UserProfile } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
@@ -231,9 +232,9 @@ export default function SetupScreen() {
               pressed && { opacity: 0.8 },
             ]}>
             {saving ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={contrastText(colors.tint)} />
             ) : (
-              <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Continue</Text>
+              <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Continue</Text>
             )}
           </Pressable>
 

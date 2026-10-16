@@ -1,4 +1,3 @@
-import { useEffect, useSyncExternalStore } from 'react';
 import {
   DEFAULT_ACCENT,
   TAB_KEYS,
@@ -75,10 +74,8 @@ export function subscribeTabAppearance(cb: () => void): () => void {
 }
 
 export function useTabAppearance(tab: TabKey): TabAppearance {
-  const a = useSyncExternalStore(subscribeTabAppearance, () => cache[tab]);
-  // First mount anywhere triggers the cold-start load from SecureStore.
-  useEffect(() => {
-    void refreshTabAppearance();
-  }, []);
-  return a;
+  // App-theme customization is disabled in v1 — screens always get the Emy
+  // brand defaults regardless of any prefs stored by older builds. The
+  // persisted store below is kept for its tests/future reuse.
+  return { accent: DEFAULT_ACCENT };
 }

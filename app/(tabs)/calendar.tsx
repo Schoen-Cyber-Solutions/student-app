@@ -15,7 +15,7 @@ import EmptyState from '@/components/EmptyState';
 import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
 import { useCalendarAccent } from '@/utils/calendarAccent';
-import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
+import { useTabAppearance } from '@/utils/tabAppearanceStore';
 import { glassColors } from '@/constants/Glass';
 import { Course } from '@/types';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
@@ -110,7 +110,6 @@ function CalendarScreenContent() {
         .catch(() => {
           if (active) setView((v) => v ?? 'week');
         });
-      void refreshTabAppearance();
       return () => {
         active = false;
       };
@@ -388,7 +387,7 @@ function CalendarScreenContent() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={appearance} />
-      <AppHeader safeAreaTop greeting="Calendar" titleLeft accent={accent} />
+      <AppHeader safeAreaTop greeting="Calendar" titleLeft accent={accent} emyScreen="calendar" />
       {/* Transparent container — ScreenWrapper paints an opaque themed
           background that would cover CalendarBackground. */}
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>

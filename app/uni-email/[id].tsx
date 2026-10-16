@@ -61,7 +61,7 @@ export default function EmailDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         {/* Sender header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
           <Text style={[styles.subject, { color: colors.text }]}>
             {email.subject}
           </Text>
@@ -136,7 +136,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1F5F9',
   },
   subject: {
     ...typography.heading,

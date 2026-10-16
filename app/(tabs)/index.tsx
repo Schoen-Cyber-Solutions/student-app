@@ -19,7 +19,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
 import { useTabAccent } from '@/utils/tabAccent';
-import { refreshTabAppearance, useTabAppearance } from '@/utils/tabAppearanceStore';
+import { useTabAppearance } from '@/utils/tabAppearanceStore';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import { assignEventCourse, setEventCompletion, MyCalendarEvent, RecurringPreview } from '@/services/api/calendar';
@@ -98,14 +98,8 @@ function HomeScreenContent() {
   const homeAppearance = useTabAppearance('home');
   const { colors: courseColors, colorMap } = useCourseColors();
 
-  // Refresh the shared appearance store on focus so Settings changes show
-  // without an app restart; live writes already arrive via subscription.
-  useFocusEffect(
-    useCallback(() => {
-      void refreshTabAppearance();
-    }, [])
-  );
-
+  // Per-tab appearance is brand-locked in v1 — the store returns Emy
+  // defaults, so no focus-time refresh is needed.
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [dismissingIntro, setDismissingIntro] = useState(false);
 
@@ -445,7 +439,7 @@ function HomeScreenContent() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={homeAppearance} />
-      <AppHeader safeAreaTop greeting="Home" accent={accent} />
+      <AppHeader safeAreaTop greeting="Home" accent={accent} emyScreen="home" />
       <ScreenWrapper>
         <View style={styles.greeting}>
           <Text style={[styles.date, { color: readableAccent(accent, scheme === 'dark' ? 'dark' : 'light') }]}>
@@ -455,7 +449,7 @@ function HomeScreenContent() {
 
         {showIntro && (
           <View style={[styles.introCard, { backgroundColor: glass.accentSoft, borderColor: accent }]}>
-            <Text style={[styles.introTitle, { color: colors.text }]}>Welcome to Student App</Text>
+            <Text style={[styles.introTitle, { color: colors.text }]}>Welcome to Study with Emy</Text>
             <Text style={[styles.introBody, { color: colors.secondaryText }]}>
               • Home shows today's schedule and upcoming due dates.
               {'\n'}• Calendar has your classes and personal events.
@@ -687,7 +681,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   introButtonText: {
-    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 15,
   },

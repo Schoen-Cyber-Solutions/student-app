@@ -6,8 +6,10 @@ import { Link, router } from 'expo-router';
 import { Text } from './Themed';
 import Colors from '@/constants/Colors';
 import { glassColors, readableAccent } from '@/constants/Glass';
+import { EmyScreenKey } from '@/constants/emyHelp';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
+import EmyHelp from './EmyHelp';
 
 // Same guarded pattern as GlassPanel — expo-blur must not kill screens on
 // a dev client that predates the package.
@@ -33,6 +35,8 @@ interface AppHeaderProps {
   titleLeft?: boolean;
   /** Tab accent color for title + icons (defaults to the theme tint). */
   accent?: string;
+  /** When set, an Emy helper button is shown next to the profile button. */
+  emyScreen?: EmyScreenKey;
 }
 
 export default function AppHeader({
@@ -43,6 +47,7 @@ export default function AppHeader({
   backLabel,
   titleLeft = true,
   accent,
+  emyScreen,
 }: AppHeaderProps) {
   const colorScheme = useColorScheme();
   const scheme = colorScheme === 'dark' ? 'dark' : 'light';
@@ -182,6 +187,11 @@ export default function AppHeader({
         {/* Right — shrink to the button so left-aligned titles get the
             full remaining width; flex:1 is only needed for centered titles. */}
         <View style={[styles.sideRight, titleLeft && styles.sideCompact]}>
+          {emyScreen ? (
+            <View style={styles.emySlot}>
+              <EmyHelp screen={emyScreen} />
+            </View>
+          ) : null}
           {rightControl}
         </View>
       </View>
@@ -233,6 +243,11 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  emySlot: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.xs,
   },
   glassButton: {
     width: 36,

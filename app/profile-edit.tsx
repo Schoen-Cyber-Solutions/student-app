@@ -5,6 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { getMe, updateProfile, UpdateProfileBody, UsernamePolicy } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
@@ -222,7 +223,7 @@ export default function ProfileEditScreen() {
               { backgroundColor: colors.tint, opacity: saving ? 0.5 : 1 },
               pressed && { opacity: 0.8 },
             ]}>
-            {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Save</Text>}
+            {saving ? <ActivityIndicator color={contrastText(colors.tint)} /> : <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Save</Text>}
           </Pressable>
 
           {message ? <Text style={[styles.message, { color: colors.success }]}>{message}</Text> : null}
@@ -305,7 +306,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
-    color: '#FFFFFF',
     fontWeight: '600',
     fontSize: 16,
   },

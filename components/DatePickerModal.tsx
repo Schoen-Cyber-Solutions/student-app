@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
 import { useColorScheme } from './useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { radius, spacing } from '@/constants/Theme';
 import { monthGridRows } from '@/utils/monthGrid';
 import { formatWeekdayShort, isSameCalendarDay } from '@/utils/time';
@@ -87,7 +88,7 @@ export default function DatePickerModal({ visible, value, onSelect, onClose }: D
                       <Text
                         style={[
                           styles.dayText,
-                          { color: !inMonth ? colors.mutedText : selected ? '#FFFFFF' : colors.text },
+                          { color: !inMonth ? colors.mutedText : selected ? contrastText(colors.tint) : colors.text },
                           isToday && !selected && { color: colors.tint },
                         ]}>
                         {day.getDate()}

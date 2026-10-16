@@ -26,7 +26,7 @@ export default function AboutScreen() {
   const colors = Colors[useColorScheme()];
 
   const expoConfig = Constants.expoConfig;
-  const appName = expoConfig?.name ?? 'Student App';
+  const appName = expoConfig?.name ?? 'Study with Emy';
   const version = expoConfig?.version ?? '—';
   const buildNumber =
     Constants.nativeBuildVersion ??

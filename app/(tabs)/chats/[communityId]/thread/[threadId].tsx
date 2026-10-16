@@ -291,6 +291,7 @@ export default function ThreadDetailScreen() {
           greeting={thread?.title ?? (community ? communityDisplayName(community) : 'Thread')}
           backLabel="Back"
           accent={accent}
+          emyScreen="communities"
         />
         <KeyboardAvoidingView
           style={{ flex: 1 }}

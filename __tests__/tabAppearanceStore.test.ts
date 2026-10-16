@@ -97,6 +97,6 @@ describe('tabAppearanceStore', () => {
     await store.refreshTabAppearance();
     await setTabAccent('home', '#EA873D');
     expect(store.getTabAppearanceSnapshot('chat').accent).toBe('#E56B8A');
-    expect(store.getTabAppearanceSnapshot('calendar').accent).toBe('#7161EF');
+    expect(store.getTabAppearanceSnapshot('calendar').accent).toBe('#38BDF8');
   });
 });

@@ -134,14 +134,14 @@ export default function CalendarEditScreen() {
 
         <Pressable
           onPress={() => router.push('/calendar-event')}
-          style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
+          style={({ pressed }) => [styles.row, { borderBottomColor: colors.cardBorder }, pressed && { opacity: 0.7 }]}>
           <Text style={[styles.rowText, { color: colors.text }]}>Add personal event</Text>
           <Text style={{ color: colors.tint }}>›</Text>
         </Pressable>
 
         <Pressable
           onPress={() => router.push('/calendar-connect')}
-          style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
+          style={({ pressed }) => [styles.row, { borderBottomColor: colors.cardBorder }, pressed && { opacity: 0.7 }]}>
           <Text style={[styles.rowText, { color: colors.text }]}>
             {status?.connected ? 'Replace calendar connection' : 'Connect calendar'}
           </Text>
@@ -152,7 +152,7 @@ export default function CalendarEditScreen() {
           <Pressable
             onPress={handleSync}
             disabled={syncing}
-            style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
+            style={({ pressed }) => [styles.row, { borderBottomColor: colors.cardBorder }, pressed && { opacity: 0.7 }]}>
             <Text style={[styles.rowText, { color: colors.text }]}>
               {syncing ? 'Syncing…' : 'Sync calendar now'}
             </Text>
@@ -200,7 +200,7 @@ export default function CalendarEditScreen() {
         )}
 
         {personalEvents.map((event) => (
-          <View key={event.id} style={styles.eventRow}>
+          <View key={event.id} style={[styles.eventRow, { borderBottomColor: colors.cardBorder }]}>
             <View style={[styles.eventDot, { backgroundColor: event.color ?? '#3B82F6' }]} />
             <View style={styles.eventInfo}>
               <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
@@ -255,7 +255,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1F5F9',
   },
   rowText: {
     ...typography.body,
@@ -298,7 +297,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1F5F9',
   },
   eventDot: {
     width: 8,

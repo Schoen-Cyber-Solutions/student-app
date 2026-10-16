@@ -45,12 +45,12 @@ describe('per-tab isolation', () => {
     const all = await getAllTabAppearance();
     expect(all.home).toEqual({
       backgroundColor: '#EDE6DA',
-      accent: '#7161EF',
+      accent: '#38BDF8',
       textMode: 'light',
     });
     expect(all.calendar).toEqual({
       backgroundColor: '#DBEAFE',
-      accent: '#7161EF',
+      accent: '#38BDF8',
       textMode: undefined,
     });
     expect(all.chat).toEqual({
@@ -123,8 +123,8 @@ describe('backgroundColor', () => {
   it('defaults to the scheme-aware solid color for fresh installs', async () => {
     const a = await getTabAppearance('home');
     expect(a.backgroundColor).toBeUndefined();
-    expect(resolveBackgroundColor(a, 'light')).toBe('#F4F2FA');
-    expect(resolveBackgroundColor(a, 'dark')).toBe('#10131C');
+    expect(resolveBackgroundColor(a, 'light')).toBe('#F1F5F9');
+    expect(resolveBackgroundColor(a, 'dark')).toBe('#020617');
   });
 
   it('persists a custom color per tab and rejects invalid values on read', async () => {
@@ -141,7 +141,7 @@ describe('backgroundColor', () => {
     );
     const a = await getTabAppearance('home');
     expect(a.backgroundColor).toBeUndefined();
-    expect(resolveBackgroundColor(a, 'light')).toBe('#F4F2FA'); // safe fallback
+    expect(resolveBackgroundColor(a, 'light')).toBe('#F1F5F9'); // safe fallback
   });
 });
 
@@ -167,7 +167,7 @@ describe('legacy photo data', () => {
       textMode: 'light',
       backgroundColor: undefined,
     });
-    expect(resolveBackgroundColor(a, 'light')).toBe('#F4F2FA');
+    expect(resolveBackgroundColor(a, 'light')).toBe('#F1F5F9');
   });
 
   it('ignores photo fields in the legacy calendar_appearance_v1 store', async () => {

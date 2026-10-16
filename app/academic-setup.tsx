@@ -3,10 +3,12 @@ import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import BackButton from '@/components/BackButton';
+import EmyHelp from '@/components/EmyHelp';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import {
   AcademicProgram,
@@ -109,7 +111,10 @@ export default function AcademicSetupScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
       <View style={styles.card}>
-        <BackButton />
+        <View style={styles.headerRow}>
+          <BackButton />
+          <EmyHelp screen="courses" />
+        </View>
         <Text style={[styles.title, { color: colors.text }]}>Academic setup</Text>
         <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
           Confirmed from your verified university email.
@@ -206,9 +211,9 @@ export default function AcademicSetupScreen() {
             pressed && { opacity: 0.8 },
           ]}>
           {saving ? (
-            <ActivityIndicator color="#FFFFFF" />
+            <ActivityIndicator color={contrastText(colors.tint)} />
           ) : (
-            <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>
+            <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>
               {onboarding === 'needs_academic_setup' ? 'Continue' : 'Save & manage courses'}
             </Text>
           )}
@@ -234,6 +239,12 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 400,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
   },
   title: {
     ...typography.heading,

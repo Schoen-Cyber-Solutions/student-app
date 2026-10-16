@@ -13,7 +13,7 @@ const LEGACY_CALENDAR_KEY = 'calendar_appearance_v1';
 export type TabKey = 'home' | 'calendar' | 'chat';
 export const TAB_KEYS: TabKey[] = ['home', 'calendar', 'chat'];
 
-export const DEFAULT_ACCENT = '#7161EF'; // Lavender
+export const DEFAULT_ACCENT = '#38BDF8'; // Emy cyan
 
 export const ACCENT_PRESETS: { name: string; hex: string }[] = [
   { name: 'Ocean Blue', hex: '#3B82F6' },
@@ -84,10 +84,10 @@ export const SOLID_BACKGROUND_PRESETS: { name: string; hex: string }[] = [
   { name: 'Soft Lavender', hex: '#E9E4FF' },
 ];
 
-/** Default solid fill when none is stored — soft lavender-tinted off-white
- *  in light scheme, deep slate in dark. */
+/** Default solid fill when none is stored — Emy navy in dark, white in
+ *  light. */
 export function defaultBackgroundColor(scheme: 'light' | 'dark'): string {
-  return scheme === 'dark' ? '#10131C' : '#F4F2FA';
+  return scheme === 'dark' ? '#020617' : '#F1F5F9';
 }
 
 /** Stored color or the scheme-aware default. */

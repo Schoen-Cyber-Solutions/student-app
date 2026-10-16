@@ -1,4 +1,5 @@
 import { useFonts } from 'expo-font';
+import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
@@ -54,6 +55,7 @@ function RootLayoutNav() {
     // pad for the status bar / home indicator silently lose that padding.
     <SafeAreaProvider>
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerTitleAlign: 'left' }}>
         {/* (tabs) sits above the pushed setup-flow screens — disable the
             iOS edge-swipe pop on it so a horizontal swipe inside Home /
@@ -78,7 +80,7 @@ function RootLayoutNav() {
         <Stack.Screen name="profile-edit" options={{ title: 'Edit Profile', presentation: 'modal' }} />
         <Stack.Screen name="menu" options={{ title: 'Menu' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-        <Stack.Screen name="appearance" options={{ title: 'Appearance' }} />
+        <Stack.Screen name="emy-welcome" options={{ headerShown: false }} />
         <Stack.Screen name="about" options={{ title: 'About' }} />
         <Stack.Screen name="events/index" options={{ title: 'Campus Events' }} />
         <Stack.Screen name="events/[id]" options={{ title: 'Event' }} />

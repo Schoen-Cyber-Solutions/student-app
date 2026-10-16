@@ -21,6 +21,7 @@ export default function EmailListItem({ email, onPress }: EmailListItemProps) {
       onPress={() => onPress(email)}
       style={({ pressed }) => [
         styles.row,
+        { borderBottomColor: colors.cardBorder },
         pressed && { backgroundColor: colors.surface },
       ]}
       accessibilityRole="button"
@@ -80,7 +81,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F1F5F9',
   },
   content: {
     flex: 1,

@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from 'react';
 import { DEFAULT_ACCENT, TabKey } from './tabAppearance';
 
 /**
@@ -20,13 +19,6 @@ export function setTabAccentRuntime(tab: TabKey, hex: string): void {
 }
 
 export function useTabAccent(tab: TabKey): string {
-  return useSyncExternalStore(
-    (cb) => {
-      listeners.add(cb);
-      return () => {
-        listeners.delete(cb);
-      };
-    },
-    () => currents[tab],
-  );
+  // Brand-locked: per-tab accent customization is disabled in v1.
+  return DEFAULT_ACCENT;
 }

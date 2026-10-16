@@ -16,7 +16,7 @@ import {
   UserProfile,
 } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
-import { contrastText } from '@/constants/Glass';
+import { contrastText, withAlpha } from '@/constants/Glass';
 
 function CalendarSection() {
   const colors = Colors[useColorScheme()];
@@ -37,7 +37,7 @@ function CalendarSection() {
   );
 
   return (
-    <Pressable onPress={() => router.push('/calendar-connect')} style={styles.row}>
+    <Pressable onPress={() => router.push('/calendar-connect')} style={[styles.row, { borderBottomColor: colors.cardBorder }]}>
       <View style={styles.rowLabel}>
         <Text style={styles.sectionTitle}>Calendar</Text>
         <Text style={styles.sectionValue}>
@@ -50,6 +50,7 @@ function CalendarSection() {
 }
 
 function CalendarPreferencesSection() {
+  const colors = Colors[useColorScheme()];
   const [view, setView] = useState<CalendarView>('week');
 
   useFocusEffect(
@@ -67,7 +68,7 @@ function CalendarPreferencesSection() {
   };
 
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
       <Text style={styles.sectionTitle}>Calendar Preferences</Text>
       <Text style={[styles.sectionValue, { marginBottom: 10 }]}>Default view</Text>
       <CalendarViewSwitcher active={view} onChange={handleChange} />
@@ -76,9 +77,20 @@ function CalendarPreferencesSection() {
 }
 
 function StatusBadge({ active, label }: { active: boolean; label: string }) {
+  const colors = Colors[useColorScheme()];
   return (
-    <View style={[styles.badge, active ? styles.badgeActive : styles.badgeInactive]}>
-      <Text style={active ? styles.badgeTextActive : styles.badgeTextInactive}>{label}</Text>
+    <View
+      style={[
+        styles.badge,
+        { backgroundColor: active ? withAlpha(colors.success, 0.16) : withAlpha(colors.mutedText, 0.12) },
+      ]}>
+      <Text
+        style={[
+          styles.badgeText,
+          { color: active ? colors.success : colors.secondaryText },
+        ]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -138,21 +150,21 @@ export default function ProfileScreen() {
         </View>
 
         {university && (
-          <View style={styles.section}>
+          <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
             <Text style={styles.sectionTitle}>University</Text>
             <Text style={styles.sectionValue}>{university}</Text>
           </View>
         )}
 
         {profile?.program && (
-          <View style={styles.section}>
+          <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
             <Text style={styles.sectionTitle}>Program</Text>
             <Text style={styles.sectionValue}>{profile.program}</Text>
           </View>
         )}
 
         {profile?.academicYear && (
-          <View style={styles.section}>
+          <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
             <Text style={styles.sectionTitle}>Academic Year</Text>
             <Text style={styles.sectionValue}>{profile.academicYear}</Text>
           </View>
@@ -162,7 +174,7 @@ export default function ProfileScreen() {
 
         <CalendarPreferencesSection />
 
-        <Pressable onPress={() => router.push('/academic-setup')} style={styles.row}>
+        <Pressable onPress={() => router.push('/academic-setup')} style={[styles.row, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.rowLabel}>
             <Text style={styles.sectionTitle}>Academic Setup</Text>
             <Text style={styles.sectionValue}>Program, term & courses</Text>
@@ -216,19 +228,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeActive: {
-    backgroundColor: '#ECFDF5',
-  },
-  badgeInactive: {
-    backgroundColor: '#F1F5F9',
-  },
-  badgeTextActive: {
-    color: '#047857',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  badgeTextInactive: {
-    color: '#94A3B8',
+  badgeText: {
     fontSize: 12,
     fontWeight: '600',
   },
@@ -236,7 +236,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
   sectionTitle: {
     fontSize: 13,
@@ -256,7 +255,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
   },
   rowLabel: {
     flex: 1,

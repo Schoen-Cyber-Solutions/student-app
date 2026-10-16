@@ -7,6 +7,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { connectCalendar, getCalendarStatus, getMe, skipCalendar } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
@@ -207,9 +208,9 @@ export default function CalendarConnectScreen() {
               pressed && { opacity: 0.8 },
             ]}>
             {loading ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={contrastText(colors.tint)} />
             ) : (
-              <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Connect Calendar</Text>
+              <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Connect Calendar</Text>
             )}
           </Pressable>
 

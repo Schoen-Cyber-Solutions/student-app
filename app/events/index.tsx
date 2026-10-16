@@ -6,6 +6,7 @@ import { Text } from '@/components/Themed';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
+import EmyHelp from '@/components/EmyHelp';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getCampusEvents, CampusEvent, CampusEventsResponse } from '@/services/api/events';
@@ -145,7 +146,13 @@ export default function CampusEventsScreen() {
   if (multiSource && !selectedSource) {
     return (
       <>
-        <Stack.Screen options={{ title: 'Campus Events', headerTitleAlign: 'left' }} />
+        <Stack.Screen
+          options={{
+            title: 'Campus Events',
+            headerTitleAlign: 'left',
+            headerRight: () => <EmyHelp screen="events" />,
+          }}
+        />
         <ScreenWrapper>
           <View style={styles.header}>
             <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
@@ -210,7 +217,11 @@ export default function CampusEventsScreen() {
   return (
     <>
       <Stack.Screen
-        options={{ title: activeSource?.providerName ?? 'Campus Events', headerTitleAlign: 'left' }}
+        options={{
+          title: activeSource?.providerName ?? 'Campus Events',
+          headerTitleAlign: 'left',
+          headerRight: () => <EmyHelp screen="events" />,
+        }}
       />
       <ScreenWrapper>
         <View style={styles.header}>

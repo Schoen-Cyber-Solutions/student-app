@@ -7,6 +7,10 @@ import ScreenWrapper from '@/components/ScreenWrapper';
 import CalendarViewSwitcher, { CalendarView } from '@/components/CalendarViewSwitcher';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import EmyHelp from '@/components/EmyHelp';
+import EmySheet from '@/components/EmySheet';
+import { contrastText } from '@/constants/Glass';
+import { AppTheme, setAppTheme, useAppTheme } from '@/utils/appTheme';
 import { spacing, typography } from '@/constants/Theme';
 import { getCalendarStatus, getMe, getPreferences, updatePreferences } from '@/services/api/me';
 import { clearCommunityCache } from '@/services/api/communities';
@@ -84,6 +88,51 @@ function Row({
   );
 }
 
+const THEME_OPTIONS: { key: AppTheme; label: string; icon: string }[] = [
+  { key: 'light', label: 'Light', icon: 'sun.max' },
+  { key: 'dark', label: 'Dark', icon: 'moon' },
+];
+
+/** Two-option segmented control for the app theme — same visual language as
+ *  the Default Calendar View switcher above it. */
+function ThemeSwitcher() {
+  const colors = Colors[useColorScheme()];
+  const theme = useAppTheme();
+  return (
+    <View
+      style={[
+        styles.themeSeg,
+        { backgroundColor: colors.tintSoft, borderColor: colors.cardBorder },
+      ]}>
+      {THEME_OPTIONS.map((o) => {
+        const active = o.key === theme;
+        return (
+          <Pressable
+            key={o.key}
+            onPress={() => void setAppTheme(o.key)}
+            style={[styles.themePill, active && { backgroundColor: colors.tint }]}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            accessibilityLabel={`${o.label} theme`}>
+            <SymbolView
+              name={o.icon as any}
+              tintColor={active ? contrastText(colors.tint) : colors.secondaryText}
+              size={14}
+            />
+            <Text
+              style={[
+                styles.themePillLabel,
+                { color: active ? contrastText(colors.tint) : colors.secondaryText },
+              ]}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const colors = Colors[useColorScheme()];
   const [calendarView, setCalendarView] = useState<CalendarView>('week');
@@ -91,6 +140,7 @@ export default function SettingsScreen() {
   const [isStaff, setIsStaff] = useState(false);
   const calendarRange = useCalendarRange();
   const [pickerFor, setPickerFor] = useState<'start' | 'end' | null>(null);
+  const [aboutEmy, setAboutEmy] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -168,7 +218,13 @@ export default function SettingsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Settings', headerTitleAlign: 'left' }} />
+      <Stack.Screen
+        options={{
+          title: 'Settings',
+          headerTitleAlign: 'left',
+          headerRight: () => <EmyHelp screen="settings" />,
+        }}
+      />
       <ScreenWrapper>
         <SectionTitle title="Account" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
@@ -176,13 +232,31 @@ export default function SettingsScreen() {
           <Row icon="graduationcap" label="Academic Setup" onPress={() => router.push('/academic-setup')} />
         </View>
 
-        <SectionTitle title="Preferences" />
+        <SectionTitle title="Emy" />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <Row
-            icon="photo.on.rectangle"
-            label="Appearance"
-            onPress={() => router.push('/appearance')}
+            icon="sparkles"
+            label="Meet Emy"
+            onPress={() => router.push('/emy-welcome')}
           />
+          <Row icon="info.circle" label="About Emy" onPress={() => setAboutEmy(true)} />
+        </View>
+
+        <SectionTitle title="Appearance" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <View style={[styles.row, { borderBottomColor: 'transparent' }]}>
+            <SymbolView name="circle.lefthalf.filled" tintColor={colors.tint} size={20} />
+            <View style={styles.rowLabelWrap}>
+              <Text style={[styles.rowLabel, { color: colors.text }]}>Theme</Text>
+              <View style={{ marginTop: 8 }}>
+                <ThemeSwitcher />
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <SectionTitle title="Preferences" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
           <View style={[styles.row, { borderBottomColor: 'transparent' }]}>
             <SymbolView name="calendar" tintColor={colors.tint} size={20} />
             <View style={styles.rowLabelWrap}>
@@ -281,6 +355,7 @@ export default function SettingsScreen() {
         onDone={handleRangePick}
         onCancel={() => setPickerFor(null)}
       />
+      <EmySheet visible={aboutEmy} initialView="about" onClose={() => setAboutEmy(false)} />
     </>
   );
 }
@@ -321,6 +396,27 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontSize: 13,
     maxWidth: 160,
+  },
+  themeSeg: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 2,
+    gap: 2,
+  },
+  themePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  themePillLabel: {
+    ...typography.body,
+    fontSize: 14,
+    fontWeight: '600',
   },
   helperText: {
     ...typography.caption,

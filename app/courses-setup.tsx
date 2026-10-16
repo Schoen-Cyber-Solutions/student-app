@@ -4,9 +4,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import BackButton from '@/components/BackButton';
+import EmyHelp from '@/components/EmyHelp';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import {
   AcademicTermInfo,
@@ -208,9 +210,9 @@ export default function CoursesSetupScreen() {
             accessibilityRole="button"
             accessibilityLabel={enrolled ? `Remove ${sectionLabel(s)}` : `Add ${sectionLabel(s)}`}>
             {busySectionId === s.id ? (
-              <ActivityIndicator size="small" color={enrolled ? colors.tint : '#FFFFFF'} />
+              <ActivityIndicator size="small" color={enrolled ? colors.tint : contrastText(colors.tint)} />
             ) : (
-              <Text style={[styles.addButtonText, { color: enrolled ? colors.tint : '#FFFFFF' }]}>
+              <Text style={[styles.addButtonText, { color: enrolled ? colors.tint : contrastText(colors.tint) }]}>
                 {enrolled ? 'Added ✓' : 'Add'}
               </Text>
             )}
@@ -250,7 +252,10 @@ export default function CoursesSetupScreen() {
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}
         keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          <BackButton />
+          <View style={styles.headerRow}>
+            <BackButton />
+            <EmyHelp screen="courses" />
+          </View>
           <Text style={[styles.title, { color: colors.text }]}>Add your courses</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
             {term ? `${term.name} · official class schedule` : 'Official class schedule'}
@@ -315,7 +320,7 @@ export default function CoursesSetupScreen() {
             { backgroundColor: colors.tint },
             pressed && { opacity: 0.8 },
           ]}>
-          <Text style={[styles.buttonText, { color: '#FFFFFF' }]}>
+          <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>
             {onboarding === 'needs_courses' ? 'Continue' : 'Done'}
           </Text>
         </Pressable>
@@ -336,6 +341,12 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 460,
     alignSelf: 'center',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
   },
   title: {
     ...typography.heading,
