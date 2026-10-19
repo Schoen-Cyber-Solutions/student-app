@@ -11,7 +11,6 @@ import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
 import { useColorScheme } from './useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import {
   REPORT_REASON_LABELS,
@@ -147,9 +146,9 @@ export default function ReportSheet({ target, onClose, onSubmitted }: ReportShee
             accessibilityRole="button"
             accessibilityLabel="Submit report">
             {submitting ? (
-              <ActivityIndicator color={contrastText(colors.tint)} size="small" />
+              <ActivityIndicator color={colors.tintText} size="small" />
             ) : (
-              <Text style={[styles.submitText, { color: contrastText(colors.tint) }]}>Submit Report</Text>
+              <Text style={[styles.submitText, { color: colors.tintText }]}>Submit Report</Text>
             )}
           </Pressable>
         </Pressable>

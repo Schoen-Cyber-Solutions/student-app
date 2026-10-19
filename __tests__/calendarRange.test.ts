@@ -99,6 +99,17 @@ describe('timeline geometry (F/G)', () => {
     expect(eventBlockSpan('11:00 PM', '11:30 PM', 6, 22)).toBeNull();
   });
 
+  it('a 9–11 PM event renders fully when the end is 11:00 PM', () => {
+    const span = eventBlockSpan('9:00 PM', '11:00 PM', 6, 23);
+    expect(span).toEqual({ startMin: 15 * 60, durationMin: 120 });
+  });
+
+  it('a late event inside a midnight window renders to its real end', () => {
+    const span = eventBlockSpan('10:30 PM', '11:59 PM', 6, 24);
+    // 10:30 PM → 16.5 h in; ends 11:59 PM → 1079 min in.
+    expect(span).toEqual({ startMin: 16.5 * 60, durationMin: 89 });
+  });
+
   it('partially overlapping events clip to the window edge', () => {
     const span = eventBlockSpan('9:30 PM', '10:30 PM', 6, 22);
     expect(span).toEqual({ startMin: 15 * 60 + 30, durationMin: 30 });
@@ -108,6 +119,17 @@ describe('timeline geometry (F/G)', () => {
 describe('hour ticks', () => {
   it('labels every whole-hour boundary inside the range', () => {
     expect(timelineHourTicks(360, 1320)).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]);
+  });
+
+  it('an 11:00 PM end extends the window — 10 PM becomes the last labeled band', () => {
+    const ticks = timelineHourTicks(360, 23 * 60);
+    expect(ticks).toEqual([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]);
+    // The 11 PM boundary itself is the grid's closing line — rendered by the
+    // views via `endMin`, not as a labeled tick.
+  });
+
+  it('a midnight end (1440) labels through 11 PM', () => {
+    expect(timelineHourTicks(360, 24 * 60)).toContain(23);
   });
 
   it('a half-hour start ticks from the next whole hour', () => {

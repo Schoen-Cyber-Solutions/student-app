@@ -12,7 +12,7 @@ import DueDateGroup from '@/components/DueDateGroup';
 import DueDateItem from '@/components/DueDateItem';
 import CourseDetailOverlay from '@/components/CourseDetailOverlay';
 import EmptyState from '@/components/EmptyState';
-import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { glassColors, readableAccent } from '@/constants/Glass';
 import { TabTextModeProvider, useTextMode, useThemedColors } from '@/components/TabTextMode';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -463,7 +463,7 @@ function HomeScreenContent() {
                 { backgroundColor: accent, opacity: dismissingIntro ? 0.5 : 1 },
                 pressed && { opacity: 0.8 },
               ]}>
-              <Text style={[styles.introButtonText, { color: contrastText(accent) }]}>
+              <Text style={[styles.introButtonText, { color: colors.tintText }]}>
                 {dismissingIntro ? 'Saving...' : 'Get started'}
               </Text>
             </Pressable>

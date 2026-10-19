@@ -13,7 +13,13 @@ const LEGACY_CALENDAR_KEY = 'calendar_appearance_v1';
 export type TabKey = 'home' | 'calendar' | 'chat';
 export const TAB_KEYS: TabKey[] = ['home', 'calendar', 'chat'];
 
-export const DEFAULT_ACCENT = '#38BDF8'; // Emy cyan
+export const DEFAULT_ACCENT = '#38BDF8'; // Emy cyan — Dark theme accent
+export const LIGHT_ACCENT = '#020617';   // slate-950 navy — Light theme accent
+
+/** Brand accent for a scheme: navy in Light, Emy cyan in Dark. */
+export function accentForScheme(scheme: 'light' | 'dark'): string {
+  return scheme === 'light' ? LIGHT_ACCENT : DEFAULT_ACCENT;
+}
 
 export const ACCENT_PRESETS: { name: string; hex: string }[] = [
   { name: 'Ocean Blue', hex: '#3B82F6' },

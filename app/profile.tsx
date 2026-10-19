@@ -16,7 +16,7 @@ import {
   UserProfile,
 } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
-import { contrastText, withAlpha } from '@/constants/Glass';
+import { withAlpha } from '@/constants/Glass';
 
 function CalendarSection() {
   const colors = Colors[useColorScheme()];
@@ -142,8 +142,8 @@ export default function ProfileScreen() {
               { backgroundColor: colors.tint },
               pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] },
             ]}>
-            <SymbolView name="pencil" tintColor={contrastText(colors.tint)} size={16} />
-            <Text style={[styles.editButtonText, { color: contrastText(colors.tint) }]}>
+            <SymbolView name="pencil" tintColor={colors.tintText} size={16} />
+            <Text style={[styles.editButtonText, { color: colors.tintText }]}>
               Edit Profile
             </Text>
           </Pressable>

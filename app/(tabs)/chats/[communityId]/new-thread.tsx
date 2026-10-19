@@ -17,7 +17,7 @@ import { Text } from '@/components/Themed';
 import AppHeader from '@/components/AppHeader';
 import CalendarBackground from '@/components/CalendarBackground';
 import GlassPanel from '@/components/GlassPanel';
-import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { glassColors, readableAccent } from '@/constants/Glass';
 import { spacing, typography, radius, TAB_BAR_CLEARANCE } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useTextMode, useThemedColors } from '@/components/TabTextMode';
@@ -50,8 +50,13 @@ export default function NewThreadScreen() {
     title.trim().length > 0 && (message.trim().length > 0 || image !== null) && !submitting;
 
   const handlePickImage = useCallback(async () => {
-    const picked = await pickChatImage();
-    if (picked) setImage(picked); // cancel keeps the existing draft
+    try {
+      const picked = await pickChatImage();
+      if (picked) setImage(picked); // cancel keeps the existing draft
+    } catch (err) {
+      if (__DEV__) console.warn('[new-thread] image pick failed:', err);
+      Alert.alert('Could not add photo', 'The selected image could not be prepared. Try a different image.');
+    }
   }, []);
 
   const handleCreate = useCallback(async () => {
@@ -205,12 +210,12 @@ export default function NewThreadScreen() {
               accessibilityRole="button"
               accessibilityLabel="Post thread">
               {submitting ? (
-                <ActivityIndicator size="small" color={contrastText(accent)} />
+                <ActivityIndicator size="small" color={colors.tintText} />
               ) : (
                 <Text
                   style={[
                     styles.postButtonText,
-                    { color: canSubmit ? contrastText(accent) : colors.mutedText },
+                    { color: canSubmit ? colors.tintText : colors.mutedText },
                   ]}>
                   Post
                 </Text>

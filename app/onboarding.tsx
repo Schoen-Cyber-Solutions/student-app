@@ -6,7 +6,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { requestVerificationCode, verifyCode } from '@/services/api/auth';
 import { getMe } from '@/services/api/me';
@@ -222,9 +221,9 @@ export default function OnboardingScreen() {
                   pressed && { opacity: 0.8 },
                 ]}>
                 {loading ? (
-                  <ActivityIndicator color={contrastText(colors.tint)} />
+                  <ActivityIndicator color={colors.tintText} />
                 ) : (
-                  <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Send verification code</Text>
+                  <Text style={[styles.buttonText, { color: colors.tintText }]}>Send verification code</Text>
                 )}
               </Pressable>
             </>
@@ -260,9 +259,9 @@ export default function OnboardingScreen() {
                   pressed && { opacity: 0.8 },
                 ]}>
                 {loading ? (
-                  <ActivityIndicator color={contrastText(colors.tint)} />
+                  <ActivityIndicator color={colors.tintText} />
                 ) : (
-                  <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Verify</Text>
+                  <Text style={[styles.buttonText, { color: colors.tintText }]}>Verify</Text>
                 )}
               </Pressable>
 

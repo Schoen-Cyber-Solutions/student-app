@@ -1,17 +1,19 @@
 // Emy brand palette — deep navy surfaces with electric-cyan accents,
 // matched to the Study with Emy app icon.
-const tintColorLight = '#0284C7'; // sky-600 — readable cyan on white
+const tintColorLight = '#020617'; // slate-950 navy — Light theme accent (swapped from cyan)
 const tintColorDark = '#38BDF8';  // sky-400 — Emy cyan
 
 export default {
   light: {
-    text: '#0F172A',       // slate-900 — dark navy text
+    text: '#0F172A',       // slate-900 — dark navy text (kept: cyan fails contrast on white)
     secondaryText: '#64748B', // slate-500
     mutedText: '#94A3B8',  // slate-400
     background: '#F1F5F9', // slate-100 — light cool blue-gray
     surface: '#FFFFFF',
     tint: tintColorLight,
-    tintSoft: '#E0F2FE',   // sky-100
+    /** Foreground drawn ON `tint` — cyan on navy, the inverse of Dark. */
+    tintText: '#38BDF8',
+    tintSoft: '#E0F2FE',   // sky-100 — retained cyan highlight wash
     tabIconDefault: '#94A3B8',
     tabIconSelected: tintColorLight,
     card: '#FFFFFF',
@@ -22,9 +24,9 @@ export default {
     warning: '#F59E0B',
     warningSoft: '#FFFBEB',
     warningText: '#92400E',
-    info: '#0284C7',
+    info: '#0F172A',
     infoSoft: '#E0F2FE',
-    infoText: '#075985',
+    infoText: '#0F172A',
     success: '#10B981',
   },
   dark: {
@@ -34,6 +36,8 @@ export default {
     background: '#020617', // slate-950 — deep navy (Emy icon base)
     surface: '#0F172A',    // slate-900
     tint: tintColorDark,
+    /** Foreground drawn ON `tint` — navy on cyan (same value contrastText yields). */
+    tintText: '#0F172A',
     tintSoft: '#082F49',   // sky-950 — cyan on navy
     tabIconDefault: '#475569',
     tabIconSelected: tintColorDark,

@@ -123,7 +123,7 @@ export async function apiUpload<T>(
     throw new ApiError('client');
   }
 
-  const { uploadAsync, FileSystemUploadType } = await import('expo-file-system/legacy');
+  const { uploadAsync, FileSystemUploadType, FileSystemSessionType } = await import('expo-file-system/legacy');
 
   const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -134,6 +134,11 @@ export async function apiUpload<T>(
     result = await uploadAsync(url, options.file?.uri ?? '', {
       httpMethod: 'POST',
       uploadType: FileSystemUploadType.MULTIPART,
+      // Interactive send: must run on a foreground session. The BACKGROUND
+      // default hands the upload to nsurlsessiond, which can defer/retry
+      // it indefinitely — the promise never settles and the send spinner
+      // hangs with no failure.
+      sessionType: FileSystemSessionType.FOREGROUND,
       fieldName: 'image',
       mimeType: options.file?.type ?? 'image/jpeg',
       parameters: options.fields ?? {},

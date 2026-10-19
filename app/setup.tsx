@@ -7,11 +7,11 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { getMe, getMyUniversity, setupProfile, UserProfile } from '@/services/api/me';
 import { clearSessionToken } from '@/services/auth/devSession';
 import { toApiError } from '@/services/api/client';
+import { parseBirthday } from '@/utils/birthday';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{3,32}$/;
 const ACADEMIC_YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'Other'];
@@ -93,15 +93,13 @@ export default function SetupScreen() {
       academicYear: academicYear || null,
     };
 
-    const m = month.trim() === '' ? null : Number(month.trim());
-    const d = day.trim() === '' ? null : Number(day.trim());
-    if (m !== null || d !== null) {
-      payload.birthMonth = m;
-      payload.birthDay = d;
-    } else {
-      payload.birthMonth = null;
-      payload.birthDay = null;
+    const birthday = parseBirthday(month, day);
+    if (!birthday.ok) {
+      setError('Enter a valid birthday as MM / DD, or leave both fields empty.');
+      return;
     }
+    payload.birthMonth = birthday.birthMonth;
+    payload.birthDay = birthday.birthDay;
 
     setSaving(true);
     setError('');
@@ -232,9 +230,9 @@ export default function SetupScreen() {
               pressed && { opacity: 0.8 },
             ]}>
             {saving ? (
-              <ActivityIndicator color={contrastText(colors.tint)} />
+              <ActivityIndicator color={colors.tintText} />
             ) : (
-              <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Continue</Text>
+              <Text style={[styles.buttonText, { color: colors.tintText }]}>Continue</Text>
             )}
           </Pressable>
 

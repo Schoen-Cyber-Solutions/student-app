@@ -4,7 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { Course } from '@/types';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { glassColors, readableAccent } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
@@ -198,7 +198,7 @@ export default function DayView({
             </Text>
             {isToday ? (
               <View style={[styles.todayPill, { backgroundColor: colors.accent }]}>
-                <Text style={[styles.todayText, { color: contrastText(colors.accent) }]}>
+                <Text style={[styles.todayText, { color: colors.tintText }]}>
                   Today
                 </Text>
               </View>
@@ -267,7 +267,7 @@ export default function DayView({
                   <Text
                     style={[
                       styles.stripDate,
-                      { color: isStripToday ? contrastText(colors.accent) : selected ? colors.accent : colors.text },
+                      { color: isStripToday ? colors.tintText : selected ? colors.accent : colors.text },
                     ]}>
                     {formatDayOfMonth(weekDate)}
                   </Text>

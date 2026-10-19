@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors } from '@/constants/Glass';
+import { glassColors } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
@@ -50,7 +50,7 @@ export default function CalendarViewSwitcher({ active, onChange }: CalendarViewS
             <Text
               style={[
                 styles.label,
-                { color: isActive ? contrastText(colors.accent) : colors.secondaryText },
+                { color: isActive ? colors.tintText : colors.secondaryText },
               ]}>
               {v.label}
             </Text>

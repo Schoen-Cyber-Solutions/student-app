@@ -11,7 +11,7 @@ import {
 import { Course } from '@/types';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { glassColors, readableAccent } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
@@ -207,7 +207,7 @@ export default function WeekTimetable({
                   <Text
                     style={[
                       styles.dateHeader,
-                      { color: isToday ? contrastText(colors.accent) : colors.accent },
+                      { color: isToday ? colors.tintText : colors.accent },
                     ]}>
                     {formatDayOfMonth(date)}
                   </Text>
@@ -378,7 +378,7 @@ export default function WeekTimetable({
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Go to today">
-              <Text style={[styles.todayText, { color: contrastText(colors.accent) }]}>
+              <Text style={[styles.todayText, { color: colors.tintText }]}>
                 Today
               </Text>
             </Pressable>

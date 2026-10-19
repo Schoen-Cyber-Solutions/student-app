@@ -8,7 +8,6 @@ import EmyHelp from '@/components/EmyHelp';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import {
   AcademicTermInfo,
@@ -210,9 +209,9 @@ export default function CoursesSetupScreen() {
             accessibilityRole="button"
             accessibilityLabel={enrolled ? `Remove ${sectionLabel(s)}` : `Add ${sectionLabel(s)}`}>
             {busySectionId === s.id ? (
-              <ActivityIndicator size="small" color={enrolled ? colors.tint : contrastText(colors.tint)} />
+              <ActivityIndicator size="small" color={enrolled ? colors.tint : colors.tintText} />
             ) : (
-              <Text style={[styles.addButtonText, { color: enrolled ? colors.tint : contrastText(colors.tint) }]}>
+              <Text style={[styles.addButtonText, { color: enrolled ? colors.tint : colors.tintText }]}>
                 {enrolled ? 'Added ✓' : 'Add'}
               </Text>
             )}
@@ -320,7 +319,7 @@ export default function CoursesSetupScreen() {
             { backgroundColor: colors.tint },
             pressed && { opacity: 0.8 },
           ]}>
-          <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>
+          <Text style={[styles.buttonText, { color: colors.tintText }]}>
             {onboarding === 'needs_courses' ? 'Continue' : 'Done'}
           </Text>
         </Pressable>

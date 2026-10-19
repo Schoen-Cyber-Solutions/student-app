@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText, glassColors, readableAccent, withAlpha } from '@/constants/Glass';
+import { glassColors, readableAccent, withAlpha } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
@@ -151,7 +151,7 @@ export default function MonthView({
                           styles.dayNumber,
                           { color: inMonth ? colors.text : colors.mutedText },
                           isSelected && !isToday && { color: colors.accent, fontWeight: '700' },
-                          isToday && { color: contrastText(colors.accent), fontWeight: '700' },
+                          isToday && { color: colors.tintText, fontWeight: '700' },
                         ]}>
                         {day.getDate()}
                       </Text>
@@ -212,7 +212,7 @@ export default function MonthView({
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Go to today">
-              <Text style={[styles.todayText, { color: contrastText(colors.accent) }]}>
+              <Text style={[styles.todayText, { color: colors.tintText }]}>
                 Today
               </Text>
             </Pressable>

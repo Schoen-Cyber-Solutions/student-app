@@ -9,7 +9,6 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import EmyHelp from '@/components/EmyHelp';
 import EmySheet from '@/components/EmySheet';
-import { contrastText } from '@/constants/Glass';
 import { AppTheme, setAppTheme, useAppTheme } from '@/utils/appTheme';
 import { spacing, typography } from '@/constants/Theme';
 import { getCalendarStatus, getMe, getPreferences, updatePreferences } from '@/services/api/me';
@@ -116,13 +115,13 @@ function ThemeSwitcher() {
             accessibilityLabel={`${o.label} theme`}>
             <SymbolView
               name={o.icon as any}
-              tintColor={active ? contrastText(colors.tint) : colors.secondaryText}
+              tintColor={active ? colors.tintText : colors.secondaryText}
               size={14}
             />
             <Text
               style={[
                 styles.themePillLabel,
-                { color: active ? contrastText(colors.tint) : colors.secondaryText },
+                { color: active ? colors.tintText : colors.secondaryText },
               ]}>
               {o.label}
             </Text>

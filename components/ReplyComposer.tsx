@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView } from 'expo-symbols';
-import { contrastText, glassColors, readableAccent } from '@/constants/Glass';
+import { glassColors, readableAccent } from '@/constants/Glass';
 import { radius, spacing } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode, useThemedColors } from './TabTextMode';
@@ -46,9 +46,15 @@ export default function ReplyComposer({ onSubmit, sending = false, accent, reser
   const canSubmit = (text.trim().length > 0 || image !== null) && !sending;
 
   const handlePickImage = async () => {
-    const picked = await pickChatImage();
-    // Canceled/failed picks keep the existing draft untouched.
-    if (picked) setImage(picked);
+    try {
+      const picked = await pickChatImage();
+      // Canceled picks keep the existing draft untouched.
+      if (picked) setImage(picked);
+    } catch (err) {
+      // Previously an unhandled rejection — the button silently did nothing.
+      if (__DEV__) console.warn('[composer] image pick failed:', err);
+      Alert.alert('Could not add photo', 'The selected image could not be prepared. Try a different image.');
+    }
   };
 
   const handleSubmit = async () => {
@@ -137,11 +143,11 @@ export default function ReplyComposer({ onSubmit, sending = false, accent, reser
             accessibilityRole="button"
             accessibilityLabel="Send reply">
             {sending ? (
-              <ActivityIndicator size="small" color={contrastText(sendAccent)} />
+              <ActivityIndicator size="small" color={colors.tintText} />
             ) : (
               <SymbolView
                 name="paperplane.fill"
-                tintColor={canSubmit ? contrastText(sendAccent) : colors.mutedText}
+                tintColor={canSubmit ? colors.tintText : colors.mutedText}
                 size={17}
                 weight="semibold"
               />

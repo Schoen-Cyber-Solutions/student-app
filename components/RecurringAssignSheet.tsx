@@ -5,7 +5,6 @@ import { applyRecurringAssignmentRule, RecurringPreview } from '@/services/api/c
 import { Text } from './Themed';
 import { useThemedColors } from './TabTextMode';
 import { radius, spacing, typography } from '@/constants/Theme';
-import { contrastText } from '@/constants/Glass';
 
 interface RecurringAssignSheetProps {
   visible: boolean;
@@ -106,8 +105,8 @@ export default function RecurringAssignSheet({
             ]}
             accessibilityRole="button"
             accessibilityLabel={`Apply ${courseLabel} to all matching assignments`}>
-            <SymbolView name="checkmark" tintColor={contrastText(colors.tint)} size={14} />
-            <Text style={[styles.primaryButtonText, { color: contrastText(colors.tint) }]}>
+            <SymbolView name="checkmark" tintColor={colors.tintText} size={14} />
+            <Text style={[styles.primaryButtonText, { color: colors.tintText }]}>
               {saving ? 'Applying…' : `All ${count + 1} matching assignments`}
             </Text>
           </Pressable>

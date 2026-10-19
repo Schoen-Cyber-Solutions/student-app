@@ -5,10 +5,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import { getMe, updateProfile, UpdateProfileBody, UsernamePolicy } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
+import { parseBirthday } from '@/utils/birthday';
 
 const ACADEMIC_YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'Other'];
 
@@ -69,15 +69,14 @@ export default function ProfileEditScreen() {
       payload.username = nextUsername;
     }
 
-    const m = month.trim() === '' ? null : Number(month.trim());
-    const d = day.trim() === '' ? null : Number(day.trim());
-    if (m !== null || d !== null) {
-      payload.birthMonth = m;
-      payload.birthDay = d;
-    } else {
-      payload.birthMonth = null;
-      payload.birthDay = null;
+    const birthday = parseBirthday(month, day);
+    if (!birthday.ok) {
+      setError('Enter a valid birthday as MM / DD, or leave both fields empty.');
+      setSaving(false);
+      return;
     }
+    payload.birthMonth = birthday.birthMonth;
+    payload.birthDay = birthday.birthDay;
 
     try {
       await updateProfile(payload);
@@ -97,7 +96,9 @@ export default function ProfileEditScreen() {
       } else if (apiErr.kind === 'server' && payload.username) {
         setError(serverMessage ?? 'Username changes are unavailable right now.');
       } else if (apiErr.kind === 'client' && apiErr.status === 400) {
-        setError('Please check the birthday values.');
+        // The backend names the actual invalid field — surface it instead
+        // of blaming the birthday for every 400.
+        setError(serverMessage ?? 'Please check your inputs.');
       } else {
         setError('Could not save profile. Please try again.');
       }
@@ -223,7 +224,7 @@ export default function ProfileEditScreen() {
               { backgroundColor: colors.tint, opacity: saving ? 0.5 : 1 },
               pressed && { opacity: 0.8 },
             ]}>
-            {saving ? <ActivityIndicator color={contrastText(colors.tint)} /> : <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>Save</Text>}
+            {saving ? <ActivityIndicator color={colors.tintText} /> : <Text style={[styles.buttonText, { color: colors.tintText }]}>Save</Text>}
           </Pressable>
 
           {message ? <Text style={[styles.message, { color: colors.success }]}>{message}</Text> : null}

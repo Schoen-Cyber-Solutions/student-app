@@ -7,8 +7,9 @@ const JPEG_QUALITY = 0.8;
 
 /**
  * Opens the system photo picker (no library-wide permission on iOS), then
- * downscales + re-encodes to JPEG. Returns null on cancel or failure —
- * callers treat that as "no change" and keep the existing draft.
+ * downscales + re-encodes to JPEG. Returns null on cancel; failures
+ * (undecodable/iCloud-pending asset, native errors) propagate so callers
+ * can surface feedback — a bare `await` here used to reject silently.
  */
 export async function pickChatImage(): Promise<ChatImageDraft | null> {
   const ImagePicker = await import('expo-image-picker');
@@ -24,20 +25,27 @@ export async function pickChatImage(): Promise<ChatImageDraft | null> {
 
   const maxDim = Math.max(asset.width ?? 0, asset.height ?? 0);
   const ctx = ImageManipulator.manipulate(asset.uri);
-  if (maxDim > MAX_EDGE) {
-    if ((asset.width ?? 0) >= (asset.height ?? 0)) {
-      ctx.resize({ width: MAX_EDGE });
-    } else {
-      ctx.resize({ height: MAX_EDGE });
+  try {
+    if (maxDim > MAX_EDGE) {
+      if ((asset.width ?? 0) >= (asset.height ?? 0)) {
+        ctx.resize({ width: MAX_EDGE });
+      } else {
+        ctx.resize({ height: MAX_EDGE });
+      }
     }
+    const rendered = await ctx.renderAsync();
+    try {
+      const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: JPEG_QUALITY });
+      const scale = maxDim > MAX_EDGE ? MAX_EDGE / maxDim : 1;
+      return {
+        uri: saved.uri,
+        width: Math.round((asset.width ?? 0) * scale) || saved.width,
+        height: Math.round((asset.height ?? 0) * scale) || saved.height,
+      };
+    } finally {
+      rendered.release();
+    }
+  } finally {
+    ctx.release();
   }
-  const rendered = await ctx.renderAsync();
-  const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: JPEG_QUALITY });
-
-  const scale = maxDim > MAX_EDGE ? MAX_EDGE / maxDim : 1;
-  return {
-    uri: saved.uri,
-    width: Math.round((asset.width ?? 0) * scale) || saved.width,
-    height: Math.round((asset.height ?? 0) * scale) || saved.height,
-  };
 }

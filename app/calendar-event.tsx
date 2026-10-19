@@ -5,7 +5,6 @@ import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import DatePickerModal from '@/components/DatePickerModal';
@@ -391,7 +390,7 @@ export default function CalendarEventScreen() {
                   accessibilityState={{ selected: endsMode === mode }}>
                   <Text
                     style={{
-                      color: endsMode === mode ? contrastText(colors.tint) : colors.text,
+                      color: endsMode === mode ? colors.tintText : colors.text,
                       fontSize: 15,
                       fontWeight: '600',
                     }}>
@@ -450,7 +449,7 @@ export default function CalendarEventScreen() {
             { backgroundColor: colors.tint, opacity: canSave ? 1 : 0.5 },
             pressed && { opacity: 0.8 },
           ]}>
-          {saving ? <ActivityIndicator color={contrastText(colors.tint)} /> : <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>{editingId ? 'Save changes' : 'Save Event'}</Text>}
+          {saving ? <ActivityIndicator color={colors.tintText} /> : <Text style={[styles.buttonText, { color: colors.tintText }]}>{editingId ? 'Save changes' : 'Save Event'}</Text>}
         </Pressable>
         {missingRequired.length > 0 && !saving ? (
           <Text style={[styles.hint, { color: colors.mutedText }]}>

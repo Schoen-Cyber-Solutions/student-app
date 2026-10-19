@@ -8,7 +8,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { spacing, typography } from '@/constants/Theme';
 import {
   AcademicProgram,
@@ -211,9 +210,9 @@ export default function AcademicSetupScreen() {
             pressed && { opacity: 0.8 },
           ]}>
           {saving ? (
-            <ActivityIndicator color={contrastText(colors.tint)} />
+            <ActivityIndicator color={colors.tintText} />
           ) : (
-            <Text style={[styles.buttonText, { color: contrastText(colors.tint) }]}>
+            <Text style={[styles.buttonText, { color: colors.tintText }]}>
               {onboarding === 'needs_academic_setup' ? 'Continue' : 'Save & manage courses'}
             </Text>
           )}

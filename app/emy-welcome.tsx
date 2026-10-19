@@ -4,7 +4,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { markEmyWelcomeSeen } from '@/utils/emyOnboarding';
@@ -114,7 +113,7 @@ export default function EmyWelcome() {
             accessibilityRole="button"
             accessibilityLabel={last ? 'Get started' : 'Next'}
             style={[styles.nextButton, { backgroundColor: colors.tint }]}>
-            <Text style={[styles.nextText, { color: contrastText(colors.tint) }]}>
+            <Text style={[styles.nextText, { color: colors.tintText }]}>
               {last ? 'Get Started' : 'Next'}
             </Text>
           </Pressable>

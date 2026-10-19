@@ -1,5 +1,5 @@
 import Colors from './Colors';
-import { DEFAULT_ACCENT, TAB_TEXT_COLORS, TextMode } from '@/utils/tabAppearance';
+import { accentForScheme, TAB_TEXT_COLORS, TextMode } from '@/utils/tabAppearance';
 
 type Scheme = 'light' | 'dark';
 
@@ -151,7 +151,7 @@ export function themedColors(scheme: Scheme, textMode?: TextMode | null) {
  */
 export function glassColors(
   scheme: Scheme,
-  accent: string = DEFAULT_ACCENT,
+  accent: string = accentForScheme(scheme),
   textMode?: TextMode | null,
 ) {
   const base = themedColors(scheme, textMode);

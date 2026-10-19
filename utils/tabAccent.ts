@@ -1,4 +1,5 @@
-import { DEFAULT_ACCENT, TabKey } from './tabAppearance';
+import { accentForScheme, DEFAULT_ACCENT, TabKey } from './tabAppearance';
+import { useAppTheme } from './appTheme';
 
 /**
  * In-memory accent colors per tab, seeded from the persisted appearance
@@ -19,6 +20,7 @@ export function setTabAccentRuntime(tab: TabKey, hex: string): void {
 }
 
 export function useTabAccent(tab: TabKey): string {
-  // Brand-locked: per-tab accent customization is disabled in v1.
-  return DEFAULT_ACCENT;
+  // Brand-locked: per-tab accent customization is disabled in v1 — the
+  // accent follows the app theme (navy in Light, Emy cyan in Dark).
+  return accentForScheme(useAppTheme());
 }

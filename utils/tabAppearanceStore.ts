@@ -1,4 +1,5 @@
 import {
+  accentForScheme,
   DEFAULT_ACCENT,
   TAB_KEYS,
   TabAppearance,
@@ -7,6 +8,7 @@ import {
   registerAppearanceWriteListener,
 } from './tabAppearance';
 import { setTabAccentRuntime } from './tabAccent';
+import { useAppTheme } from './appTheme';
 
 /**
  * Single in-memory source of truth for per-tab appearance, backed by the
@@ -77,5 +79,5 @@ export function useTabAppearance(tab: TabKey): TabAppearance {
   // App-theme customization is disabled in v1 — screens always get the Emy
   // brand defaults regardless of any prefs stored by older builds. The
   // persisted store below is kept for its tests/future reuse.
-  return { accent: DEFAULT_ACCENT };
+  return { accent: accentForScheme(useAppTheme()) };
 }

@@ -5,7 +5,6 @@ import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
 import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
-import { contrastText } from '@/constants/Glass';
 import EmyHelp from '@/components/EmyHelp';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -165,8 +164,8 @@ export default function CampusEventDetailScreen() {
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={`View Original Event on ${sourceName}`}>
-                  <Text style={[styles.rsvpText, { color: contrastText(colors.tint) }]}>View Original Event</Text>
-                  <SymbolView name="arrow.up.right" tintColor={contrastText(colors.tint)} size={14} />
+                  <Text style={[styles.rsvpText, { color: colors.tintText }]}>View Original Event</Text>
+                  <SymbolView name="arrow.up.right" tintColor={colors.tintText} size={14} />
                 </Pressable>
               ) : null}
               {link ? (

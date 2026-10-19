@@ -70,9 +70,14 @@ function Wheel<T>({
   }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // targetContentOffset (iOS) reports the final snap destination at drag
+    // release — before deceleration finishes — so a Done tap while the wheel
+    // is still settling still commits the row it is landing on.
+    const y =
+      e.nativeEvent.targetContentOffset?.y ?? e.nativeEvent.contentOffset.y;
     const idx = Math.max(
       0,
-      Math.min(items.length - 1, Math.round(e.nativeEvent.contentOffset.y / ITEM_H)),
+      Math.min(items.length - 1, Math.round(y / ITEM_H)),
     );
     onSelect(idx);
   };
@@ -84,6 +89,9 @@ function Wheel<T>({
       showsVerticalScrollIndicator={false}
       snapToInterval={ITEM_H}
       decelerationRate="fast"
+      // Momentum end alone misses drags that release exactly on a snap
+      // boundary — iOS reports willDecelerate:NO and never fires it.
+      onScrollEndDrag={handleEnd}
       onMomentumScrollEnd={handleEnd}
       contentContainerStyle={{ paddingVertical: ITEM_H * 2 }}>
       {items.map((item, i) => (
