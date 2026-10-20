@@ -82,6 +82,13 @@ function RootLayoutNav() {
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         <Stack.Screen name="emy-welcome" options={{ headerShown: false }} />
         <Stack.Screen name="about" options={{ title: 'About' }} />
+        {/* headerShown: false — the screen renders its own safe-area header
+            with the document title + Done button; without this the native
+            header duplicates it and falls back to the raw "legal/doc" route name. */}
+        <Stack.Screen
+          name="legal/[doc]"
+          options={{ presentation: 'modal', headerShown: false }}
+        />
         <Stack.Screen name="events/index" options={{ title: 'Campus Events' }} />
         <Stack.Screen name="events/[id]" options={{ title: 'Event' }} />
         <Stack.Screen name="profile" options={{ title: 'Profile' }} />

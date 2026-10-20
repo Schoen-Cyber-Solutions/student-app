@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Stack, router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
@@ -10,6 +10,7 @@ import Colors from '@/constants/Colors';
 import EmyHelp from '@/components/EmyHelp';
 import EmySheet from '@/components/EmySheet';
 import { AppTheme, setAppTheme, useAppTheme } from '@/utils/appTheme';
+import { SUPPORT_URL } from '@/constants/legal';
 import { spacing, typography } from '@/constants/Theme';
 import { getCalendarStatus, getMe, getPreferences, updatePreferences } from '@/services/api/me';
 import { clearCommunityCache } from '@/services/api/communities';
@@ -327,6 +328,25 @@ export default function SettingsScreen() {
               submit anything to Blackboard or Canvas.
             </Text>
           </View>
+        </View>
+
+        <SectionTitle title="Legal & Support" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+          <Row
+            icon="doc.text"
+            label="Privacy Policy"
+            onPress={() => router.push('/legal/privacy')}
+          />
+          <Row
+            icon="doc.plaintext"
+            label="Terms of Service"
+            onPress={() => router.push('/legal/terms')}
+          />
+          <Row
+            icon="questionmark.circle"
+            label="Help & Support"
+            onPress={() => Linking.openURL(SUPPORT_URL)}
+          />
         </View>
 
         {isStaff && (

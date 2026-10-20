@@ -21,9 +21,18 @@ export async function requestVerificationCode(email: string): Promise<RequestCod
   });
 }
 
-export async function verifyCode(email: string, code: string): Promise<VerifyCodeResponse> {
+/**
+ * Verify the emailed code. `tosAccepted` must reflect the user's explicit
+ * Terms of Service acceptance — the backend refuses to create a new account
+ * without it and returns `{ status: 'terms_required' }`.
+ */
+export async function verifyCode(
+  email: string,
+  code: string,
+  tosAccepted: boolean
+): Promise<VerifyCodeResponse> {
   return apiRequest<VerifyCodeResponse>('/api/auth/email/verify-code', {
     method: 'POST',
-    body: { email, code },
+    body: { email, code, acceptedTerms: tosAccepted },
   });
 }
