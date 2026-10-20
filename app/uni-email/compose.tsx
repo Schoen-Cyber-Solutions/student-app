@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams, router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
 import Colors from '@/constants/Colors';
+import { EMAIL_FEATURE_ENABLED } from '@/constants/features';
 import { spacing, radius, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export default function ComposeEmailScreen() {
+  // Feature hidden for v1.0 — see UniEmailScreen.
+  if (!EMAIL_FEATURE_ENABLED) {
+    return <Redirect href="/" />;
+  }
   const colors = Colors[useColorScheme()];
   const { toName, toAddress } = useLocalSearchParams<{
     toName?: string;

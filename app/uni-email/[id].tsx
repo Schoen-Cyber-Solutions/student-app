@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Redirect, useLocalSearchParams } from 'expo-router';
 import AppHeader from '@/components/AppHeader';
 import { Text } from '@/components/Themed';
 import { EmailMessage } from '@/types';
 import { getMessage, markAsRead } from '@/services/email';
 import Colors from '@/constants/Colors';
+import { EMAIL_FEATURE_ENABLED } from '@/constants/features';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export default function EmailDetailScreen() {
+  // Feature hidden for v1.0 — see UniEmailScreen.
+  if (!EMAIL_FEATURE_ENABLED) {
+    return <Redirect href="/" />;
+  }
   const { id } = useLocalSearchParams<{ id: string }>();
   const colors = Colors[useColorScheme()];
   const [email, setEmail] = useState<EmailMessage | null>(null);

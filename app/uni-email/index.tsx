@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View, ActivityIndicator } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { Redirect, router, useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { SymbolView } from 'expo-symbols';
 import AppHeader from '@/components/AppHeader';
@@ -13,10 +13,18 @@ import { getMicrosoftConnectUrl } from '@/services/api/email';
 import { getSessionToken } from '@/services/auth/devSession';
 import { toApiError } from '@/services/api/client';
 import Colors from '@/constants/Colors';
+import { EMAIL_FEATURE_ENABLED } from '@/constants/features';
 import { spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export default function UniEmailScreen() {
+  // Feature hidden for v1.0 — bounce any navigation (deep link, stray push)
+  // back to Home while EMAIL_FEATURE_ENABLED is off. Early return before
+  // hooks is safe: the flag is a module constant, so every render takes
+  // the same branch.
+  if (!EMAIL_FEATURE_ENABLED) {
+    return <Redirect href="/" />;
+  }
   const colors = Colors[useColorScheme()];
   const { status, messages, retry } = useMyEmail();
   const [connecting, setConnecting] = useState(false);

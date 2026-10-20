@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 import { Course } from '@/types';
 import { Text } from './Themed';
 import { radius, spacing, typography } from '@/constants/Theme';
+import { EMAIL_FEATURE_ENABLED } from '@/constants/features';
 import { glassColors, withAlpha } from '@/constants/Glass';
 import { useCalendarAccent } from '@/utils/calendarAccent';
 import { useColorScheme } from './useColorScheme';
@@ -263,7 +264,7 @@ export default function CourseDetailOverlay({
   };
 
   const handleEmailProfessor = () => {
-    if (!course) return;
+    if (!EMAIL_FEATURE_ENABLED || !course) return;
     onClose();
     router.push({
       pathname: '/uni-email/compose',
@@ -527,7 +528,7 @@ export default function CourseDetailOverlay({
                 </View>
               ) : null}
 
-              {course.instructor && course.instructorEmail ? (
+              {EMAIL_FEATURE_ENABLED && course.instructor && course.instructorEmail ? (
                 <Pressable
                   onPress={handleEmailProfessor}
                   style={({ pressed }) => [
