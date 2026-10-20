@@ -5,6 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import BackButton from '@/components/BackButton';
 import EmyHelp from '@/components/EmyHelp';
+import OnboardingProgress from '@/components/OnboardingProgress';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -207,6 +208,7 @@ export default function CoursesSetupScreen() {
               pressed && { opacity: 0.8 },
             ]}
             accessibilityRole="button"
+            accessibilityState={{ selected: enrolled }}
             accessibilityLabel={enrolled ? `Remove ${sectionLabel(s)}` : `Add ${sectionLabel(s)}`}>
             {busySectionId === s.id ? (
               <ActivityIndicator size="small" color={enrolled ? colors.tint : colors.tintText} />
@@ -255,6 +257,7 @@ export default function CoursesSetupScreen() {
             <BackButton />
             <EmyHelp screen="courses" />
           </View>
+          {onboarding === 'needs_courses' && <OnboardingProgress current={4} />}
           <Text style={[styles.title, { color: colors.text }]}>Add your courses</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
             {term ? `${term.name} · official class schedule` : 'Official class schedule'}
@@ -266,6 +269,7 @@ export default function CoursesSetupScreen() {
               value={query}
               onChangeText={handleQueryChange}
               placeholder='Search "CSIA", "CSIA 301", or a course name'
+              accessibilityLabel="Search the class schedule"
               autoCapitalize="characters"
               autoCorrect={false}
               style={[styles.searchInput, { color: colors.text }]}
@@ -284,7 +288,11 @@ export default function CoursesSetupScreen() {
                   <Text style={{ color: colors.text, flex: 1 }} numberOfLines={1}>
                     {sectionLabel(e.section)} · {e.section.course.name}
                   </Text>
-                  <Pressable onPress={() => handleRemove(e.id)} hitSlop={8}>
+                  <Pressable
+                    onPress={() => handleRemove(e.id)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${sectionLabel(e.section)}`}>
                     <SymbolView name="xmark.circle.fill" tintColor={colors.mutedText} size={18} />
                   </Pressable>
                 </View>

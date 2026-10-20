@@ -21,28 +21,12 @@ const SLIDES: Slide[] = [
     body: "Welcome to Study with Emy — I'm your university companion, and I'll help you get around.",
   },
   {
-    title: 'Home',
-    body: "Home shows what matters today — your next classes, upcoming events, and updates at a glance.",
+    title: 'Your day, organized.',
+    body: 'Home shows what matters today. Calendar keeps your classes and personal events in one view, and each course has a community for questions and discussion.',
   },
   {
-    title: 'Calendar',
-    body: 'See your schedule by Day, Week, or Month — and add personal events alongside your classes.',
-  },
-  {
-    title: 'Courses',
-    body: 'Search courses in Academic Setup, pick your sections, and build your semester schedule.',
-  },
-  {
-    title: 'Campus Events',
-    body: 'Discover what\'s happening on campus — open locations in Maps and save events to your calendar.',
-  },
-  {
-    title: 'Communities',
-    body: 'Every course section has a community. Ask questions, reply in threads — and report or block when needed.',
-  },
-  {
-    title: 'That\'s it!',
-    body: "Tap me anytime on a screen and I'll give you a quick tip about what you're looking at.",
+    title: 'Ask me anytime.',
+    body: "Tap me on any screen and I'll give you a quick tip about what you're looking at.",
   },
 ];
 

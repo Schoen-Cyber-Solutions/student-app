@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
-import BackButton from '@/components/BackButton';
+import OnboardingProgress from '@/components/OnboardingProgress';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -14,7 +14,6 @@ import { toApiError } from '@/services/api/client';
 import { parseBirthday } from '@/utils/birthday';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{3,32}$/;
-const ACADEMIC_YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'Other'];
 
 export default function SetupScreen() {
   const colors = Colors[useColorScheme()];
@@ -27,8 +26,6 @@ export default function SetupScreen() {
   const [firstName, setFirstName] = useState('');
   const [month, setMonth] = useState('');
   const [day, setDay] = useState('');
-  const [program, setProgram] = useState('');
-  const [academicYear, setAcademicYear] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -46,8 +43,6 @@ export default function SetupScreen() {
       setFirstName(user.firstName ?? '');
       setMonth(user.birthMonth ? String(user.birthMonth) : '');
       setDay(user.birthDay ? String(user.birthDay) : '');
-      setProgram(user.program ?? '');
-      setAcademicYear(user.academicYear ?? '');
 
       if (didInitialRoute.current) return;
       didInitialRoute.current = true;
@@ -89,8 +84,6 @@ export default function SetupScreen() {
     const payload: Parameters<typeof setupProfile>[0] = {
       username: trimmedUsername,
       firstName: firstName.trim() || null,
-      program: program.trim() || null,
-      academicYear: academicYear || null,
     };
 
     const birthday = parseBirthday(month, day);
@@ -133,7 +126,10 @@ export default function SetupScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.card}>
-          <BackButton />
+          {/* No BackButton here — this screen only exists inside onboarding,
+              and going back lands on the verification screen whose session
+              check routes right back here. */}
+          <OnboardingProgress current={2} />
           <Text style={[styles.title, { color: colors.text }]}>Create your profile</Text>
 
           <View style={[styles.uniRow, { backgroundColor: colors.tintSoft }]}>
@@ -146,6 +142,7 @@ export default function SetupScreen() {
             value={username}
             onChangeText={setUsername}
             placeholder="emily123"
+            accessibilityLabel="Username"
             autoCapitalize="none"
             autoCorrect={false}
             maxLength={32}
@@ -161,6 +158,7 @@ export default function SetupScreen() {
             value={firstName}
             onChangeText={setFirstName}
             placeholder="Emily"
+            accessibilityLabel="First name (optional)"
             style={[
               styles.input,
               { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface },
@@ -168,12 +166,13 @@ export default function SetupScreen() {
             placeholderTextColor={colors.mutedText}
           />
 
-          <Text style={[styles.label, { color: colors.secondaryText }]}>Birthday</Text>
+          <Text style={[styles.label, { color: colors.secondaryText }]}>Birthday (optional)</Text>
           <View style={styles.birthdayRow}>
             <TextInput
               value={month}
               onChangeText={setMonth}
               placeholder="MM"
+              accessibilityLabel="Birthday month"
               keyboardType="number-pad"
               maxLength={2}
               style={[styles.birthdayInput, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface }]}
@@ -184,41 +183,12 @@ export default function SetupScreen() {
               value={day}
               onChangeText={setDay}
               placeholder="DD"
+              accessibilityLabel="Birthday day"
               keyboardType="number-pad"
               maxLength={2}
               style={[styles.birthdayInput, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface }]}
               placeholderTextColor={colors.mutedText}
             />
-          </View>
-
-          <Text style={[styles.label, { color: colors.secondaryText }]}>Program / Major</Text>
-          <TextInput
-            value={program}
-            onChangeText={setProgram}
-            placeholder="e.g. Computer Science"
-            style={[
-              styles.input,
-              { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface },
-            ]}
-            placeholderTextColor={colors.mutedText}
-          />
-
-          <Text style={[styles.label, { color: colors.secondaryText }]}>Academic year</Text>
-          <View style={styles.yearRow}>
-            {ACADEMIC_YEARS.map((year) => (
-              <Pressable
-                key={year}
-                onPress={() => setAcademicYear(year)}
-                style={[
-                  styles.yearChip,
-                  {
-                    borderColor: academicYear === year ? colors.tint : colors.cardBorder,
-                    backgroundColor: academicYear === year ? colors.tintSoft : colors.surface,
-                  },
-                ]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{year}</Text>
-              </Pressable>
-            ))}
           </View>
 
           <Pressable
@@ -255,7 +225,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 400,
   },
   title: {
     ...typography.heading,
@@ -303,18 +273,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     fontSize: 16,
     textAlign: 'center',
-  },
-  yearRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: spacing.lg,
-  },
-  yearChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
-    borderWidth: 1,
   },
   button: {
     height: 48,

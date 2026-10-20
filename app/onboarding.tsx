@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View, ActivityIndicator } from 'react-native';
+import { Image, Pressable, StyleSheet, TextInput, View, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SymbolView } from 'expo-symbols';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { spacing, typography } from '@/constants/Theme';
+import OnboardingProgress from '@/components/OnboardingProgress';
+
+const emyImage = require('@/assets/images/emy-icon.png');
 import { requestVerificationCode, verifyCode } from '@/services/api/auth';
 import { getMe } from '@/services/api/me';
 import { setSessionToken, clearSessionToken, getSessionToken } from '@/services/auth/devSession';
@@ -17,7 +21,7 @@ const RESEND_COOLDOWN_SECONDS = 60;
 export default function OnboardingScreen() {
   const colors = Colors[useColorScheme()];
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [step, setStep] = useState<'welcome' | 'email' | 'code'>('welcome');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [message, setMessage] = useState('');
@@ -25,6 +29,7 @@ export default function OnboardingScreen() {
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTimer = useCallback(() => {
@@ -93,7 +98,7 @@ export default function OnboardingScreen() {
   }, [checkSession]);
 
   const handleRequestCode = async () => {
-    if (!email.trim()) return;
+    if (!email.trim() || !acceptedTerms) return;
     setLoading(true);
     setError('');
     setMessage('');
@@ -143,7 +148,7 @@ export default function OnboardingScreen() {
     setMessage('');
 
     try {
-      const data = await verifyCode(email.trim(), code.trim());
+      const data = await verifyCode(email.trim(), code.trim(), acceptedTerms);
       if (data.status === 'verified' && data.sessionToken && data.user) {
         await setSessionToken(data.sessionToken);
         routeForUser(data.user.onboardingState);
@@ -152,7 +157,16 @@ export default function OnboardingScreen() {
       setError('Invalid or expired code. Please try again.');
     } catch (err) {
       const apiErr = toApiError(err);
-      if (apiErr.kind === 'client' || apiErr.kind === 'unauthorized') {
+      const bodyStatus =
+        typeof apiErr.body === 'object' && apiErr.body !== null
+          ? (apiErr.body as { status?: unknown }).status
+          : undefined;
+      if (bodyStatus === 'terms_required') {
+        // Backend refused account creation — return to the email step so the
+        // user sees the unchecked consent box.
+        setStep('email');
+        setError('Please agree to the Terms of Service to continue.');
+      } else if (apiErr.kind === 'client' || apiErr.kind === 'unauthorized') {
         setError('Invalid or expired code. Please try again.');
       } else {
         setError('Could not verify code. Please try again.');
@@ -184,8 +198,33 @@ export default function OnboardingScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.card}>
-          {step === 'email' ? (
+          {step === 'welcome' ? (
             <>
+              <Image
+                source={emyImage}
+                style={styles.mascot}
+                accessibilityLabel="Emy, your guide"
+                accessibilityIgnoresInvertColors
+              />
+              <Text style={[styles.title, { color: colors.text }]}>Study with Emy</Text>
+              <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
+                Your classes, calendar, and campus — in one place.
+              </Text>
+              <Pressable
+                onPress={() => setStep('email')}
+                accessibilityRole="button"
+                accessibilityLabel="Get started"
+                style={({ pressed }) => [
+                  styles.button,
+                  { backgroundColor: colors.tint },
+                  pressed && { opacity: 0.8 },
+                ]}>
+                <Text style={[styles.buttonText, { color: colors.tintText }]}>Get Started</Text>
+              </Pressable>
+            </>
+          ) : step === 'email' ? (
+            <>
+              <OnboardingProgress current={1} />
               <Text style={[styles.title, { color: colors.text }]}>Verify your university email</Text>
               <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
                 Use your official university student email address.
@@ -199,6 +238,7 @@ export default function OnboardingScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="name@university.edu"
+                accessibilityLabel="University email address"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -213,11 +253,41 @@ export default function OnboardingScreen() {
                 placeholderTextColor={colors.mutedText}
               />
               <Pressable
+                onPress={() => setAcceptedTerms((v) => !v)}
+                style={styles.consentRow}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: acceptedTerms }}
+                accessibilityLabel="Agree to the Terms of Service and Privacy Policy">
+                <SymbolView
+                  name={acceptedTerms ? 'checkmark.square.fill' : 'square'}
+                  tintColor={acceptedTerms ? colors.tint : colors.mutedText}
+                  size={22}
+                />
+                <Text style={[styles.consentText, { color: colors.secondaryText }]}>
+                  I agree to the Terms of Service and Privacy Policy.
+                </Text>
+              </Pressable>
+              <View style={styles.legalLinksRow}>
+                <Text
+                  onPress={() => router.push('/legal/terms')}
+                  style={[styles.linkText, { color: colors.tint }]}
+                  accessibilityRole="link">
+                  Terms of Service
+                </Text>
+                <Text style={[styles.legalSeparator, { color: colors.mutedText }]}>·</Text>
+                <Text
+                  onPress={() => router.push('/legal/privacy')}
+                  style={[styles.linkText, { color: colors.tint }]}
+                  accessibilityRole="link">
+                  Privacy Policy
+                </Text>
+              </View>
+              <Pressable
                 onPress={handleRequestCode}
-                disabled={loading || !email.trim()}
+                disabled={loading || !email.trim() || !acceptedTerms}
                 style={({ pressed }) => [
                   styles.button,
-                  { backgroundColor: colors.tint, opacity: (loading || !email.trim()) ? 0.5 : 1 },
+                  { backgroundColor: colors.tint, opacity: (loading || !email.trim() || !acceptedTerms) ? 0.5 : 1 },
                   pressed && { opacity: 0.8 },
                 ]}>
                 {loading ? (
@@ -229,6 +299,7 @@ export default function OnboardingScreen() {
             </>
           ) : (
             <>
+              <OnboardingProgress current={1} />
               <Text style={[styles.title, { color: colors.text }]}>Enter verification code</Text>
               <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
                 Code expires in 10 minutes.
@@ -238,6 +309,7 @@ export default function OnboardingScreen() {
                 value={code}
                 onChangeText={setCode}
                 placeholder="123456"
+                accessibilityLabel="Six digit verification code"
                 keyboardType="number-pad"
                 maxLength={6}
                 style={[
@@ -300,7 +372,13 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 400,
+  },
+  mascot: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    marginBottom: spacing.lg,
   },
   title: {
     ...typography.heading,
@@ -330,6 +408,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.md,
+  },
+  consentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  consentText: {
+    ...typography.body,
+    fontSize: 14,
+    flex: 1,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+    paddingLeft: 30,
+    gap: spacing.xs,
+  },
+  legalSeparator: {
+    fontSize: 14,
   },
   buttonText: {
     ...typography.label,

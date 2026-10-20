@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, TextInput, View, ActivityIndicator } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import BackButton from '@/components/BackButton';
+import OnboardingProgress from '@/components/OnboardingProgress';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -133,6 +134,7 @@ export default function CalendarConnectScreen() {
       contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}>
         <View style={styles.card}>
           <BackButton />
+          {isOnboarding && <OnboardingProgress current={5} />}
           <Text style={[styles.title, { color: colors.text }]}>Connect Blackboard or Canvas</Text>
           <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
             Optional — import assignments, quizzes, and due dates from your learning platform.
@@ -157,6 +159,9 @@ export default function CalendarConnectScreen() {
               <Pressable
                 key={p}
                 onPress={() => setProvider(p)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: provider === p }}
+                accessibilityLabel={`Connect ${PROVIDER_INFO[p].name}`}
                 style={({ pressed }) => [
                   styles.providerCard,
                   {
@@ -182,6 +187,7 @@ export default function CalendarConnectScreen() {
                 value={feedUrl}
                 onChangeText={setFeedUrl}
                 placeholder={PROVIDER_INFO[provider].placeholder}
+                accessibilityLabel="Calendar feed URL"
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"
@@ -240,7 +246,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 400,
   },
   title: {
     ...typography.heading,

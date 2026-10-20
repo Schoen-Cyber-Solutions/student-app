@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import BackButton from '@/components/BackButton';
 import EmyHelp from '@/components/EmyHelp';
+import OnboardingProgress from '@/components/OnboardingProgress';
 import { router, useFocusEffect } from 'expo-router';
 import { Text } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -114,6 +115,7 @@ export default function AcademicSetupScreen() {
           <BackButton />
           <EmyHelp screen="courses" />
         </View>
+        {onboarding === 'needs_academic_setup' && <OnboardingProgress current={3} />}
         <Text style={[styles.title, { color: colors.text }]}>Academic setup</Text>
         <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
           Confirmed from your verified university email.
@@ -129,6 +131,7 @@ export default function AcademicSetupScreen() {
           value={programFilter}
           onChangeText={setProgramFilter}
           placeholder="Search programs"
+          accessibilityLabel="Search programs"
           autoCapitalize="none"
           autoCorrect={false}
           style={[
@@ -142,6 +145,8 @@ export default function AcademicSetupScreen() {
             <Pressable
               key={p.id}
               onPress={() => setProgramId(programId === p.id ? null : p.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: programId === p.id }}
               style={[
                 styles.optionRow,
                 {
@@ -163,6 +168,8 @@ export default function AcademicSetupScreen() {
             <Pressable
               key={l.value}
               onPress={() => setLevel(l.value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: level === l.value }}
               style={[
                 styles.chip,
                 {
@@ -186,6 +193,8 @@ export default function AcademicSetupScreen() {
             <Pressable
               key={t.id}
               onPress={() => setTermId(t.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: termId === t.id }}
               style={[
                 styles.chip,
                 {
