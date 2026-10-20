@@ -8,9 +8,12 @@
     "scheme": "studentappdevelopment",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.schoencybersolutions.studentapp",
-      "appleTeamId": "5ZULG5R92Y"
+      "appleTeamId": "5ZULG5R92Y",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
