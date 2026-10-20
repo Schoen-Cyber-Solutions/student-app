@@ -5,7 +5,6 @@ import { SymbolView } from 'expo-symbols';
 import { Text } from '@/components/Themed';
 import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
-import EmyHelp from '@/components/EmyHelp';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import {
@@ -77,7 +76,6 @@ export default function CampusEventDetailScreen() {
         options={{
           title: 'Event',
           headerTitleAlign: 'left',
-          headerRight: () => <EmyHelp screen="events" />,
         }}
       />
       <ScrollView

@@ -92,7 +92,7 @@ export default function NewThreadScreen() {
   return (
     <View style={styles.container}>
         <CalendarBackground appearance={chatAppearance} />
-        <AppHeader safeAreaTop greeting="New Thread" backLabel="Cancel" accent={accent} emyScreen="communities" />
+        <AppHeader safeAreaTop greeting="New Thread" backLabel="Cancel" accent={accent} />
         {/* Single keyboard strategy — identical to the thread screen: KAV
             padding with the real header offset, plain ScrollView, on-drag
             dismiss. The sheet's native keyboard resize + the old

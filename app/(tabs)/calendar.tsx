@@ -387,7 +387,7 @@ function CalendarScreenContent() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={appearance} />
-      <AppHeader safeAreaTop greeting="Calendar" titleLeft accent={accent} emyScreen="calendar" />
+      <AppHeader safeAreaTop greeting="Calendar" titleLeft accent={accent} />
       {/* Transparent container — ScreenWrapper paints an opaque themed
           background that would cover CalendarBackground. */}
       <SafeAreaView style={styles.safeArea} edges={['bottom']}>

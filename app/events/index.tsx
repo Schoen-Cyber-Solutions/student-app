@@ -6,7 +6,6 @@ import { Text } from '@/components/Themed';
 import ScreenWrapper from '@/components/ScreenWrapper';
 import EmptyState from '@/components/EmptyState';
 import Colors from '@/constants/Colors';
-import EmyHelp from '@/components/EmyHelp';
 import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from '@/components/useColorScheme';
 import { getCampusEvents, CampusEvent, CampusEventsResponse } from '@/services/api/events';
@@ -150,7 +149,6 @@ export default function CampusEventsScreen() {
           options={{
             title: 'Campus Events',
             headerTitleAlign: 'left',
-            headerRight: () => <EmyHelp screen="events" />,
           }}
         />
         <ScreenWrapper>
@@ -220,7 +218,6 @@ export default function CampusEventsScreen() {
         options={{
           title: activeSource?.providerName ?? 'Campus Events',
           headerTitleAlign: 'left',
-          headerRight: () => <EmyHelp screen="events" />,
         }}
       />
       <ScreenWrapper>

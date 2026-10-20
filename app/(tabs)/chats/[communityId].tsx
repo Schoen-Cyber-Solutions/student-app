@@ -169,7 +169,6 @@ export default function CommunityScreen() {
           greeting={community ? communityDisplayName(community) : 'Community'}
           backLabel="Chat"
           accent={accent}
-          emyScreen="communities"
         />
         <ScreenWrapper>
 

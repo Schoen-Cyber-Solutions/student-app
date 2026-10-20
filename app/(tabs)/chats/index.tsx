@@ -106,7 +106,7 @@ export default function ChatsScreen() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={chatAppearance} />
-      <AppHeader safeAreaTop greeting="Chats" titleLeft accent={accent} emyScreen="communities" />
+      <AppHeader safeAreaTop greeting="Chats" titleLeft accent={accent} />
       <ScreenWrapper>
         <View style={styles.section}>
           <ChatSearchBar

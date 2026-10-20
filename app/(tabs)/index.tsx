@@ -439,7 +439,7 @@ function HomeScreenContent() {
   return (
     <View style={styles.container}>
       <CalendarBackground appearance={homeAppearance} />
-      <AppHeader safeAreaTop greeting="Home" accent={accent} emyScreen="home" />
+      <AppHeader safeAreaTop greeting="Home" accent={accent} />
       <ScreenWrapper>
         <View style={styles.greeting}>
           <Text style={[styles.date, { color: readableAccent(accent, scheme === 'dark' ? 'dark' : 'light') }]}>
