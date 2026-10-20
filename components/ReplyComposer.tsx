@@ -6,7 +6,7 @@ import { glassColors, readableAccent } from '@/constants/Glass';
 import { radius, spacing } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode, useThemedColors } from './TabTextMode';
-import { pickChatImage } from '@/utils/chatImage';
+import { chooseChatImage } from '@/utils/chatImage';
 import type { ChatImageDraft } from '@/services/api/communities';
 
 interface ReplyComposerProps {
@@ -47,7 +47,7 @@ export default function ReplyComposer({ onSubmit, sending = false, accent, reser
 
   const handlePickImage = async () => {
     try {
-      const picked = await pickChatImage();
+      const picked = await chooseChatImage();
       // Canceled picks keep the existing draft untouched.
       if (picked) setImage(picked);
     } catch (err) {

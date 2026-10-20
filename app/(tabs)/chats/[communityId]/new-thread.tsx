@@ -23,7 +23,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import { useTextMode, useThemedColors } from '@/components/TabTextMode';
 import { useMyCommunity } from '@/hooks/useMyCommunities';
 import { communityDisplayName, createCommunityThread, ChatImageDraft } from '@/services/api/communities';
-import { pickChatImage } from '@/utils/chatImage';
+import { chooseChatImage } from '@/utils/chatImage';
 import { toApiError } from '@/services/api/client';
 import { useTabAccent } from '@/utils/tabAccent';
 import { useTabAppearance } from '@/utils/tabAppearanceStore';
@@ -51,7 +51,7 @@ export default function NewThreadScreen() {
 
   const handlePickImage = useCallback(async () => {
     try {
-      const picked = await pickChatImage();
+      const picked = await chooseChatImage();
       if (picked) setImage(picked); // cancel keeps the existing draft
     } catch (err) {
       if (__DEV__) console.warn('[new-thread] image pick failed:', err);

@@ -35,7 +35,20 @@
           "backgroundColor": "#020617"
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Study with Emy to access your photos so you can share images in chats.",
+          "cameraPermission": "Allow Study with Emy to use your camera to take photos and share them in chats.",
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-build-properties",
         {
