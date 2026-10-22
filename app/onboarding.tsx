@@ -15,6 +15,7 @@ import { requestVerificationCode, verifyCode } from '@/services/api/auth';
 import { getMe } from '@/services/api/me';
 import { setSessionToken, clearSessionToken, getSessionToken } from '@/services/auth/devSession';
 import { toApiError } from '@/services/api/client';
+import { APP_REVIEW_EMAIL } from '@/constants/appReview';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -31,6 +32,11 @@ export default function OnboardingScreen() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // The public review identity swaps the 6-digit keypad for a paste-friendly
+  // field — the credential is long and only verified server-side.
+  const isReviewEmail = email.trim().toLowerCase() === APP_REVIEW_EMAIL;
+  const codeReady = isReviewEmail ? code.trim().length > 0 : code.length === 6;
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -302,16 +308,18 @@ export default function OnboardingScreen() {
               <OnboardingProgress current={1} />
               <Text style={[styles.title, { color: colors.text }]}>Enter verification code</Text>
               <Text style={[styles.subtitle, { color: colors.secondaryText }]}>
-                Code expires in 10 minutes.
+                {isReviewEmail ? 'Paste the review credential from your notes.' : 'Code expires in 10 minutes.'}
               </Text>
 
               <TextInput
                 value={code}
                 onChangeText={setCode}
-                placeholder="123456"
-                accessibilityLabel="Six digit verification code"
-                keyboardType="number-pad"
-                maxLength={6}
+                placeholder={isReviewEmail ? 'Review credential' : '123456'}
+                accessibilityLabel={isReviewEmail ? 'Review credential' : 'Six digit verification code'}
+                keyboardType={isReviewEmail ? 'default' : 'number-pad'}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={isReviewEmail ? 128 : 6}
                 style={[
                   styles.input,
                   {
@@ -324,10 +332,10 @@ export default function OnboardingScreen() {
               />
               <Pressable
                 onPress={handleVerifyCode}
-                disabled={loading || code.length !== 6}
+                disabled={loading || !codeReady}
                 style={({ pressed }) => [
                   styles.button,
-                  { backgroundColor: colors.tint, opacity: (loading || code.length !== 6) ? 0.5 : 1 },
+                  { backgroundColor: colors.tint, opacity: (loading || !codeReady) ? 0.5 : 1 },
                   pressed && { opacity: 0.8 },
                 ]}>
                 {loading ? (
