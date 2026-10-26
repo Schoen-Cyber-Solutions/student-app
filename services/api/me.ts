@@ -139,6 +139,10 @@ export async function connectCalendar(feedUrl: string, provider: string): Promis
     method: 'POST',
     sessionToken: token(),
     body: { feedUrl, provider },
+    // Fetching + parsing + importing a semester of ICS events legitimately
+    // exceeds the 10s default — the server continues after a client abort,
+    // which previously showed "could not connect" for a working import.
+    timeoutMs: 60_000,
   });
   notifyCalendarMutated();
   return res;

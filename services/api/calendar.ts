@@ -340,6 +340,9 @@ export async function applyRecurringAssignmentRule(
       method: 'POST',
       sessionToken: token(),
       body: { eventId, courseSectionId },
+      // Backfill updates many rows server-side — give it more than the
+      // default 10s so a completed import isn't misreported as a failure.
+      timeoutMs: 30_000,
     },
   );
   notifyCalendarMutated();

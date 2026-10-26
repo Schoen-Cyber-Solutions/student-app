@@ -26,6 +26,8 @@ export default function SetupScreen() {
   const [firstName, setFirstName] = useState('');
   const [month, setMonth] = useState('');
   const [day, setDay] = useState('');
+  const dayInputRef = useRef<TextInput>(null);
+  const monthInputRef = useRef<TextInput>(null);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -169,8 +171,13 @@ export default function SetupScreen() {
           <Text style={[styles.label, { color: colors.secondaryText }]}>Birthday (optional)</Text>
           <View style={styles.birthdayRow}>
             <TextInput
+              ref={monthInputRef}
               value={month}
-              onChangeText={setMonth}
+              onChangeText={(text) => {
+                const digits = text.replace(/\D/g, '');
+                setMonth(digits);
+                if (digits.length === 2) dayInputRef.current?.focus();
+              }}
               placeholder="MM"
               accessibilityLabel="Birthday month"
               keyboardType="number-pad"
@@ -180,8 +187,14 @@ export default function SetupScreen() {
             />
             <Text style={{ color: colors.text }}>/</Text>
             <TextInput
+              ref={dayInputRef}
               value={day}
-              onChangeText={setDay}
+              onChangeText={(text) => setDay(text.replace(/\D/g, ''))}
+              onKeyPress={({ nativeEvent }) => {
+                if (nativeEvent.key === 'Backspace' && day === '') {
+                  monthInputRef.current?.focus();
+                }
+              }}
               placeholder="DD"
               accessibilityLabel="Birthday day"
               keyboardType="number-pad"

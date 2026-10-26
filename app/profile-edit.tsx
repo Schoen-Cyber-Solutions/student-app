@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import KeyboardAwareScrollView from '@/components/KeyboardAwareScrollView';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,6 +22,8 @@ export default function ProfileEditScreen() {
   const [firstName, setFirstName] = useState('');
   const [month, setMonth] = useState('');
   const [day, setDay] = useState('');
+  const monthInputRef = useRef<TextInput>(null);
+  const dayInputRef = useRef<TextInput>(null);
   const [program, setProgram] = useState('');
   const [academicYear, setAcademicYear] = useState('');
   const [message, setMessage] = useState('');
@@ -169,8 +171,13 @@ export default function ProfileEditScreen() {
           <Text style={[styles.label, { color: colors.secondaryText }]}>Birthday</Text>
           <View style={styles.birthdayRow}>
             <TextInput
+              ref={monthInputRef}
               value={month}
-              onChangeText={setMonth}
+              onChangeText={(text) => {
+                const digits = text.replace(/\D/g, '');
+                setMonth(digits);
+                if (digits.length === 2) dayInputRef.current?.focus();
+              }}
               placeholder="MM"
               keyboardType="number-pad"
               maxLength={2}
@@ -179,8 +186,14 @@ export default function ProfileEditScreen() {
             />
             <Text style={{ color: colors.text }}>/</Text>
             <TextInput
+              ref={dayInputRef}
               value={day}
-              onChangeText={setDay}
+              onChangeText={(text) => setDay(text.replace(/\D/g, ''))}
+              onKeyPress={({ nativeEvent }) => {
+                if (nativeEvent.key === 'Backspace' && day === '') {
+                  monthInputRef.current?.focus();
+                }
+              }}
               placeholder="DD"
               keyboardType="number-pad"
               maxLength={2}

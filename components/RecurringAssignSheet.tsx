@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { applyRecurringAssignmentRule, RecurringPreview } from '@/services/api/calendar';
+import { toApiError } from '@/services/api/client';
 import { Text } from './Themed';
 import { useThemedColors } from './TabTextMode';
 import { radius, spacing, typography } from '@/constants/Theme';
@@ -53,8 +54,15 @@ export default function RecurringAssignSheet({
         onClose();
         onApplied();
       })
-      .catch(() => {
-        Alert.alert('Could not apply to series', 'Please try again.');
+      .catch((err) => {
+        const apiErr = toApiError(err);
+        if (apiErr.kind === 'client' && apiErr.status === 400) {
+          Alert.alert('Could not apply to series', 'Reconnect your calendar in Settings, then try again.');
+        } else if (apiErr.kind === 'client' && apiErr.status === 422) {
+          Alert.alert('Could not apply to series', 'These events could not be confirmed as a series — you can assign each one individually.');
+        } else {
+          Alert.alert('Could not apply to series', 'Please try again.');
+        }
       })
       .finally(() => setSaving(false));
   };
