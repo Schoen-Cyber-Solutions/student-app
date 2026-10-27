@@ -200,6 +200,20 @@ export function endOfDay(date: Date): Date {
  *  Mon–Sun, "later" = anything beyond that. */
 export type UpcomingWeekBucket = 'this-week' | 'next-week' | 'later';
 
+/** Due-date classification by local calendar day, relative to `now`.
+ *  'today' covers the entire local day [00:00:00, 23:59:59.999] — an item
+ *  due at 9 AM is still 'today' at 5 PM — 'upcoming' starts tomorrow, and
+ *  'past' is anything before today's local midnight (excluded from the
+ *  Home due lists). */
+export type DueDateSection = 'past' | 'today' | 'upcoming';
+
+export function dueDateSection(startAt: Date, now: Date): DueDateSection {
+  const t = startAt.getTime();
+  if (t < startOfDay(now).getTime()) return 'past';
+  if (t <= endOfDay(now).getTime()) return 'today';
+  return 'upcoming';
+}
+
 export function upcomingWeekBucket(start: Date, now: Date): UpcomingWeekBucket {
   const monday = getMondayOfWeek(now);
   const thisSunday = new Date(monday);
