@@ -50,9 +50,19 @@ export default function RecurringAssignSheet({
     if (!eventId || !courseSectionId || saving) return;
     setSaving(true);
     applyRecurringAssignmentRule(eventId, courseSectionId)
-      .then(() => {
+      .then((result) => {
         onClose();
         onApplied();
+        // Report the actual write count — a silent partial application was
+        // indistinguishable from failure before this confirmation existed.
+        const skipped = result.skippedCount;
+        Alert.alert(
+          'Series updated',
+          `Applied ${courseLabel} to ${result.assignedCount + 1} assignment${result.assignedCount === 0 ? '' : 's'}.` +
+            (skipped > 0
+              ? ` ${skipped} related assignment${skipped === 1 ? ' was' : 's were'} left unchanged (already assigned or conflicting).`
+              : ''),
+        );
       })
       .catch((err) => {
         const apiErr = toApiError(err);
@@ -87,6 +97,9 @@ export default function RecurringAssignSheet({
             These appear to be a weekly series with the same due time
             {sampleDates.length ? ` — e.g. ${sampleDates.join(', ')}` : ''}.
             Future imports in this series will be assigned automatically.
+            {(recurring?.skippedCount ?? 0) > 0
+              ? ` ${recurring!.skippedCount} related assignment${recurring!.skippedCount === 1 ? '' : 's'} will be left unchanged (already assigned or conflicting).`
+              : ''}
           </Text>
 
           <Pressable

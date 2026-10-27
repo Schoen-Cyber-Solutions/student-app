@@ -131,6 +131,7 @@ export default function AcademicSetupScreen() {
           value={programFilter}
           onChangeText={setProgramFilter}
           placeholder="Search programs"
+          clearButtonMode="while-editing"
           accessibilityLabel="Search programs"
           autoCapitalize="none"
           autoCorrect={false}

@@ -180,12 +180,14 @@ export default function CalendarEditScreen() {
                   key={c}
                   onPress={() => setCourseColor(code, c)}
                   disabled={savingColor}
-                  style={[
-                    styles.colorSwatch,
-                    { backgroundColor: c },
-                    (courseColors[code] ?? '') === c && styles.colorSelected,
-                  ]}
-                />
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: (courseColors[code] ?? '') === c }}
+                  accessibilityLabel={`Color ${c}`}
+                  style={[styles.colorSwatch, { backgroundColor: c }]}>
+                  {(courseColors[code] ?? '') === c && (
+                    <Text style={styles.colorCheck}>✓</Text>
+                  )}
+                </Pressable>
               ))}
             </View>
           </View>
@@ -287,10 +289,15 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  colorSelected: {
-    borderWidth: 3,
-    borderColor: '#000000',
+  colorCheck: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowRadius: 2,
   },
   eventRow: {
     flexDirection: 'row',

@@ -287,6 +287,9 @@ export type CourseSectionSource = 'auto' | 'manual' | 'recurring_rule' | 'unassi
  *  "apply to all matching" when this is present. */
 export interface RecurringPreview {
   matchCount: number;
+  /** Series-mates the rule will deliberately NOT change (manual picks,
+   *  explicit Unassigned, confident different-course mappings). */
+  skippedCount?: number;
   sampleStartAts: string[];
 }
 
@@ -333,8 +336,8 @@ export async function assignEventCourse(
 export async function applyRecurringAssignmentRule(
   eventId: string,
   courseSectionId: string,
-): Promise<{ ruleId: string; assignedCount: number }> {
-  const data = await apiRequest<{ rule: { id: string }; assignedCount: number }>(
+): Promise<{ ruleId: string; assignedCount: number; skippedCount: number }> {
+  const data = await apiRequest<{ rule: { id: string }; assignedCount: number; skippedCount?: number }>(
     '/api/me/calendar/recurring-rules',
     {
       method: 'POST',
@@ -346,7 +349,7 @@ export async function applyRecurringAssignmentRule(
     },
   );
   notifyCalendarMutated();
-  return { ruleId: data.rule.id, assignedCount: data.assignedCount };
+  return { ruleId: data.rule.id, assignedCount: data.assignedCount, skippedCount: data.skippedCount ?? 0 };
 }
 
 /**

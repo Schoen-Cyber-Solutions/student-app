@@ -251,7 +251,8 @@ export default function CoursesSetupScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + spacing.lg }]}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag">
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <BackButton />
@@ -275,6 +276,15 @@ export default function CoursesSetupScreen() {
               style={[styles.searchInput, { color: colors.text }]}
               placeholderTextColor={colors.mutedText}
             />
+            {query.length > 0 && (
+              <Pressable
+                onPress={() => handleQueryChange('')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search">
+                <SymbolView name="xmark.circle.fill" tintColor={colors.mutedText} size={18} />
+              </Pressable>
+            )}
             {searching && <ActivityIndicator size="small" color={colors.tint} />}
           </View>
 

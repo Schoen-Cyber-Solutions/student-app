@@ -432,12 +432,12 @@ export default function CalendarEventScreen() {
             <Pressable
               key={c}
               onPress={() => setColor(c)}
-              style={[
-                styles.colorSwatch,
-                { backgroundColor: c },
-                color === c && styles.colorSelected,
-              ]}
-            />
+              accessibilityRole="button"
+              accessibilityState={{ selected: color === c }}
+              accessibilityLabel={`Color ${c}`}
+              style={[styles.colorSwatch, { backgroundColor: c }]}>
+              {color === c && <Text style={styles.colorCheck}>✓</Text>}
+            </Pressable>
           ))}
         </View>
 
@@ -588,10 +588,15 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  colorSelected: {
-    borderWidth: 3,
-    borderColor: '#000000',
+  colorCheck: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowRadius: 2,
   },
   button: {
     height: 48,

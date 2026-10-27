@@ -145,12 +145,21 @@ function HomeScreenContent() {
     return endOfDay(nextSunday);
   }, [now]);
 
+  // The fetch window reaches back 90 days so incomplete overdue items keep
+  // surfacing in the Overdue section — previously a due item silently
+  // disappeared the morning after its deadline.
+  const overdueStart = useMemo(() => {
+    const d = new Date(todayStart);
+    d.setDate(d.getDate() - 90);
+    return d;
+  }, [todayStart]);
+
   const range = useMemo(
     () => ({
-      from: todayStart.toISOString(),
+      from: overdueStart.toISOString(),
       to: rangeEnd.toISOString(),
     }),
-    [todayStart, rangeEnd]
+    [overdueStart, rangeEnd]
   );
 
   const { status, events, retry, refresh } = useMyCalendar(range);
@@ -177,12 +186,13 @@ function HomeScreenContent() {
     return events
       .filter((e) => {
         const start = new Date(e.startAt);
-        return isDueDate(e) && start.getTime() >= todayStart.getTime() && start.getTime() <= rangeEnd.getTime();
+        return isDueDate(e) && start.getTime() >= overdueStart.getTime() && start.getTime() <= rangeEnd.getTime();
       })
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
       .map((e) => {
         const start = new Date(e.startAt);
         const assignment: Assignment = {
+
           id: e.id,
           courseId: '',
           courseCode: e.courseCode ?? e.courseName ?? '',
@@ -194,12 +204,18 @@ function HomeScreenContent() {
         };
         return { event: e, assignment };
       });
-  }, [events, todayStart, rangeEnd]);
+  }, [events, overdueStart, rangeEnd]);
 
-  // Local-day boundary split — the two sections are disjoint by construction.
+  // Local-day boundary split — the three sections are disjoint by
+  // construction: overdue (< todayStart), today, upcoming (> todayEnd).
+  // Overdue is derived below, once completion state is available.
   const todayDueItems = useMemo(
-    () => dueItems.filter((d) => new Date(d.event.startAt).getTime() <= todayEnd.getTime()),
-    [dueItems, todayEnd]
+    () =>
+      dueItems.filter((d) => {
+        const t = new Date(d.event.startAt).getTime();
+        return t >= todayStart.getTime() && t <= todayEnd.getTime();
+      }),
+    [dueItems, todayStart, todayEnd]
   );
   const upcomingDueItems = useMemo(
     () => dueItems.filter((d) => new Date(d.event.startAt).getTime() > todayEnd.getTime()),
@@ -414,19 +430,33 @@ function HomeScreenContent() {
     [labelForSection, courseColors, colorMap, accent, isItemCompleted]
   );
 
+  // Incomplete items whose due time already passed — grouped by section
+  // exactly like today's list so the same assign/complete actions apply.
+  const overdueDueItems = useMemo(
+    () =>
+      dueItems.filter(
+        (d) =>
+          new Date(d.event.startAt).getTime() < todayStart.getTime() &&
+          !isItemCompleted(d.event.id),
+      ),
+    [dueItems, todayStart, isItemCompleted]
+  );
+
   const todayGrouped = useMemo(() => groupDueItems(todayDueItems), [groupDueItems, todayDueItems]);
+  const overdueGrouped = useMemo(() => groupDueItems(overdueDueItems), [groupDueItems, overdueDueItems]);
 
 
   // Start every group expanded by default.
   useEffect(() => {
     setExpanded((prev) => {
       const next: Record<string, boolean> = { ...prev };
-      for (const g of todayGrouped) {
+      for (const g of [...todayGrouped, ...overdueGrouped]) {
+        if (!(`overdue-${g.key}` in next)) next[`overdue-${g.key}`] = true;
         if (!(g.key in next)) next[g.key] = true;
       }
       return next;
     });
-  }, [todayGrouped]);
+  }, [todayGrouped, overdueGrouped]);
 
   const todayLabel = now.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -522,6 +552,34 @@ function HomeScreenContent() {
               </GlassPanel>
             ))}
         </View>
+
+        {showContent && overdueGrouped.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader
+              title="Overdue"
+              detail={`${overdueDueItems.length} incomplete`}
+              accent={accent}
+            />
+            <GlassPanel style={styles.sectionPanel} intensity={30}>
+              <View style={styles.listInner}>
+                {overdueGrouped.map((g) => (
+                  <DueDateGroup
+                    key={`overdue-${g.key}`}
+                    courseCode={g.label}
+                    color={g.color}
+                    dueDates={g.items}
+                    completedIds={completedIds}
+                    expanded={!!expanded[`overdue-${g.key}`]}
+                    onToggleExpand={() => toggleExpand(`overdue-${g.key}`)}
+                    onToggleComplete={toggleComplete}
+                    onPressItem={handlePressDueItem}
+                    onAssignItem={g.unassigned ? handleAssignItem : undefined}
+                  />
+                ))}
+              </View>
+            </GlassPanel>
+          </View>
+        )}
 
         <View style={styles.section}>
           <SectionHeader

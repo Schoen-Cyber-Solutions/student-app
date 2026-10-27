@@ -35,9 +35,16 @@ export default function WheelPicker<T>({
   const padCount = Math.floor(visibleCount / 2);
   const wheelHeight = itemHeight * visibleCount;
   const lastIndex = useRef(selectedIndex);
+  const didInit = useRef(false);
 
-  // Scroll to the initial selection once mounted (and on external resets).
+  // Snap to the selected row on mount and on EXTERNAL changes only.
+  // settle/onScrollEndDrag update lastIndex before calling onSelect, so a
+  // change that came from the wheel itself never triggers a scrollTo —
+  // without that guard the effect fights in-flight momentum on rapid
+  // gestures and the value visibly jumps back.
   useEffect(() => {
+    if (didInit.current && selectedIndex === lastIndex.current) return;
+    didInit.current = true;
     lastIndex.current = selectedIndex;
     scrollRef.current?.scrollTo({ y: selectedIndex * itemHeight, animated: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,9 +78,15 @@ export default function WheelPicker<T>({
         onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
         onScrollEndDrag={(e) => {
           // Slow drags with no momentum don't fire onMomentumScrollEnd.
-          const y = e.nativeEvent.contentOffset.y;
+          // targetContentOffset (iOS) reports the final snap destination
+          // at release — committing the mid-flight contentOffset would
+          // record the row under the finger, not the row the wheel lands
+          // on, which made rapid flings settle on a different value.
+          const y = e.nativeEvent.targetContentOffset?.y ?? e.nativeEvent.contentOffset.y;
           const index = Math.min(items.length - 1, Math.max(0, Math.round(y / itemHeight)));
-          scrollRef.current?.scrollTo({ y: index * itemHeight, animated: true });
+          if (e.nativeEvent.targetContentOffset === undefined) {
+            scrollRef.current?.scrollTo({ y: index * itemHeight, animated: true });
+          }
           if (index !== lastIndex.current) {
             lastIndex.current = index;
             onSelect(index);
