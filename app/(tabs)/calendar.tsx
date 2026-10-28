@@ -430,7 +430,7 @@ function CalendarScreenContent() {
             )}
 
             {(status === 'success' || status === 'empty') && (
-              <View style={styles.calendarBody}>
+              <View style={[styles.calendarBody, { paddingBottom: tabBarContentOverlay(insets.bottom) }]}>
                 <WeekTimetable
                   courses={courses}
                   weekStart={currentWeekStart}
@@ -483,7 +483,7 @@ function CalendarScreenContent() {
             )}
 
             {(status === 'success' || status === 'empty') && (
-              <View style={styles.calendarBody}>
+              <View style={[styles.calendarBody, { paddingBottom: tabBarContentOverlay(insets.bottom) }]}>
                 <DayView
                   selectedDate={currentDay}
                   courses={courses}

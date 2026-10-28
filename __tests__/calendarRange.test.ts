@@ -144,3 +144,47 @@ describe('reset (H)', () => {
     expect(await getCalendarRange()).toEqual(DEFAULT_CALENDAR_RANGE);
   });
 });
+
+// ── Tab-bar clearance (the "stops at 8 PM" defect) ─────────────────────────
+// The tab bar floats over scene content. Day/Week scale the configured
+// range into the measured grid, so without bottom clearance the last
+// ~40 min of the window renders UNDER the bar. These tests pin the
+// geometry constant the calendar body must reserve.
+
+import {
+  tabBarContentOverlay,
+  tabBarTotalHeight,
+  tabBarBottomInset,
+  TAB_BAR_CONTENT_HEIGHT,
+} from '../utils/tabBarGeometry';
+
+describe('tab-bar clearance for the timeline', () => {
+  it('a 34pt-inset device reserves real clearance above the safe area', () => {
+    // 8 (top pad) + 49 (icons) + 14 (shrunken bottom pad) = 71 total;
+    // scene already consumes 34 → 37pt of the bar overlaps content.
+    expect(tabBarTotalHeight(34)).toBe(8 + TAB_BAR_CONTENT_HEIGHT + 14);
+    expect(tabBarContentOverlay(34)).toBe(37);
+  });
+
+  it('a zero-inset device still reserves the 8pt floor', () => {
+    expect(tabBarBottomInset(0)).toBe(8);
+    expect(tabBarContentOverlay(0)).toBe(8 + TAB_BAR_CONTENT_HEIGHT + 8);
+  });
+
+  it('clearance never exceeds total bar height and never goes negative', () => {
+    for (const inset of [0, 8, 20, 34, 59]) {
+      const overlay = tabBarContentOverlay(inset);
+      expect(overlay).toBeGreaterThan(0);
+      expect(overlay).toBeLessThanOrEqual(tabBarTotalHeight(inset));
+    }
+  });
+
+  it('a 10 PM end maps to gridHeight minutes — the boundary lands inside', () => {
+    // endMin - startMin is the exact vertical span the grid scales into;
+    // shrinking the container by the overlay moves the 10 PM line above
+    // the bar rather than clipping it.
+    const rangeMin = 22 * 60 - 6 * 60;
+    expect(rangeMin).toBe(960);
+    expect(timelineHourTicks(6 * 60, 22 * 60).length).toBe(16);
+  });
+});

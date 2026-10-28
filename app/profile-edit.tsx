@@ -179,6 +179,7 @@ export default function ProfileEditScreen() {
                 if (digits.length === 2) dayInputRef.current?.focus();
               }}
               placeholder="MM"
+              accessibilityLabel="Birthday month"
               keyboardType="number-pad"
               maxLength={2}
               style={[styles.birthdayInput, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface }]}
@@ -195,6 +196,7 @@ export default function ProfileEditScreen() {
                 }
               }}
               placeholder="DD"
+              accessibilityLabel="Birthday day"
               keyboardType="number-pad"
               maxLength={2}
               style={[styles.birthdayInput, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.surface }]}
