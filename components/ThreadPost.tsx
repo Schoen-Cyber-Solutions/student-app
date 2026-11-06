@@ -40,7 +40,7 @@ export default function ThreadPost({ title, authorUsername, createdAt, body, rem
             accessibilityRole="button"
             accessibilityLabel="Delete thread">
             {({ pressed }) => (
-              <Text style={[styles.delete, pressed && { opacity: 0.5 }]}>Delete</Text>
+              <Text style={[styles.delete, { color: colors.urgent }, pressed && { opacity: 0.5 }]}>Delete</Text>
             )}
           </Pressable>
         )}
@@ -95,7 +95,6 @@ const styles = StyleSheet.create({
   },
   delete: {
     ...typography.caption,
-    color: '#DC2626',
     fontWeight: '600',
   },
   body: {

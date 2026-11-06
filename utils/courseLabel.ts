@@ -53,8 +53,8 @@ export function buildCourseColorMap(
 
 /** Display-only neutral grays for completed LMS events — never persisted and
  *  never overwrite the saved CourseColor. */
-export const COMPLETED_EVENT_COLOR = '#D4D7DB';
-export const COMPLETED_EVENT_TEXT = '#6B7280';
+export const COMPLETED_EVENT_COLOR = '#EAE5D8'; // warm stone wash (Light divider family)
+export const COMPLETED_EVENT_TEXT = '#57534E';  // stone-600 — 6.1:1 on the wash
 
 /** Deterministic accent color for a course code (or any string key). */
 export function colorForKey(key: string | null | undefined): string | undefined {

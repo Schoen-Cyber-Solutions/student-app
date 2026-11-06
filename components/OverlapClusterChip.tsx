@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     left: 2,
     right: 2,
     borderRadius: radius.sm,
-    backgroundColor: withAlpha('#334155', 0.82),
+    backgroundColor: withAlpha('#44403C', 0.82),
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.35)',
     borderStyle: 'dashed',

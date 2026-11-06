@@ -159,14 +159,15 @@ export function glassColors(
   return {
     ...base,
     /** Translucent panel fill over the background image. */
-    glass: dark ? 'rgba(30,41,59,0.30)' : 'rgba(255,255,255,0.28)',
+    glass: dark ? 'rgba(30,41,59,0.30)' : 'rgba(255,253,248,0.30)',
     /** Slightly stronger fill for text-heavy surfaces (agenda rows, sheets). */
-    glassStrong: dark ? 'rgba(30,41,59,0.40)' : 'rgba(255,255,255,0.40)',
+    glassStrong: dark ? 'rgba(30,41,59,0.40)' : 'rgba(255,253,248,0.45)',
     /** Barely-there fill for large timetable areas so the photo shows
      *  through the grid itself, not just around panel edges. */
-    glassFaint: dark ? 'rgba(30,41,59,0.20)' : 'rgba(255,255,255,0.18)',
-    /** Hairline panel border. */
-    glassBorder: dark ? 'rgba(148,163,184,0.24)' : 'rgba(255,255,255,0.55)',
+    glassFaint: dark ? 'rgba(30,41,59,0.20)' : 'rgba(255,253,248,0.20)',
+    /** Hairline panel border — warm stone so glass panels and the floating
+     *  tab bar stay visible against the paper background. */
+    glassBorder: dark ? 'rgba(148,163,184,0.24)' : 'rgba(87,83,78,0.22)',
     /** User-configurable accent for selection + the floating add button. */
     accent,
     accentDark: shade(accent, -0.22),

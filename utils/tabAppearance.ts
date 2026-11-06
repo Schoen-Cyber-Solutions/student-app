@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
+import Colors from '@/constants/Colors';
+
 /**
  * Shared per-tab appearance model for Home / Calendar / Chat.
  * Everything is stored locally in SecureStore — nothing is uploaded to the
@@ -13,8 +15,8 @@ const LEGACY_CALENDAR_KEY = 'calendar_appearance_v1';
 export type TabKey = 'home' | 'calendar' | 'chat';
 export const TAB_KEYS: TabKey[] = ['home', 'calendar', 'chat'];
 
-export const DEFAULT_ACCENT = '#38BDF8'; // Emy cyan — Dark theme accent
-export const LIGHT_ACCENT = '#020617';   // slate-950 navy — Light theme accent
+export const DEFAULT_ACCENT = Colors.dark.tint;  // Emy cyan — Dark theme accent
+export const LIGHT_ACCENT = Colors.light.tint;   // muted navy — Light theme accent
 
 /** Brand accent for a scheme: navy in Light, Emy cyan in Dark. */
 export function accentForScheme(scheme: 'light' | 'dark'): string {
@@ -54,11 +56,11 @@ export const TAB_TEXT_COLORS: Record<TextMode, TabTextColors> = {
     border: '#334155',     // slate-700 — dark-scheme cardBorder
   },
   dark: {
-    primary: '#0B1220',    // near-black
-    secondary: '#475569',  // slate-600
-    tertiary: '#94A3B8',   // slate-400
-    icon: '#475569',
-    border: '#E2E8F0',     // slate-200 — light-scheme cardBorder
+    primary: Colors.light.text,
+    secondary: Colors.light.secondaryText,
+    tertiary: Colors.light.mutedText,
+    icon: Colors.light.secondaryText,
+    border: Colors.light.cardBorder,
   },
 };
 
@@ -90,10 +92,9 @@ export const SOLID_BACKGROUND_PRESETS: { name: string; hex: string }[] = [
   { name: 'Soft Lavender', hex: '#E9E4FF' },
 ];
 
-/** Default solid fill when none is stored — Emy navy in dark, white in
- *  light. */
+/** Default solid fill when none is stored — the scheme's theme background. */
 export function defaultBackgroundColor(scheme: 'light' | 'dark'): string {
-  return scheme === 'dark' ? '#020617' : '#F1F5F9';
+  return Colors[scheme].background;
 }
 
 /** Stored color or the scheme-aware default. */

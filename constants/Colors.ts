@@ -1,33 +1,33 @@
 // Emy brand palette — deep navy surfaces with electric-cyan accents,
 // matched to the Study with Emy app icon.
-const tintColorLight = '#020617'; // slate-950 navy — Light theme accent (swapped from cyan)
+const tintColorLight = '#3D4F6B'; // muted navy — Warm Academic Light accent
 const tintColorDark = '#38BDF8';  // sky-400 — Emy cyan
 
 export default {
   light: {
-    text: '#0F172A',       // slate-900 — dark navy text (kept: cyan fails contrast on white)
-    secondaryText: '#64748B', // slate-500
-    mutedText: '#94A3B8',  // slate-400
-    background: '#F1F5F9', // slate-100 — light cool blue-gray
-    surface: '#FFFFFF',
+    text: '#292524',       // stone-800 — warm near-black text
+    secondaryText: '#57534E', // stone-600
+    mutedText: '#6B635A',  // warm gray — WCAG AA on bg and cards (was slate-400)
+    background: '#F5F2EC', // warm paper ivory
+    surface: '#FFFDF8',    // soft cream
     tint: tintColorLight,
-    /** Foreground drawn ON `tint` — cyan on navy, the inverse of Dark. */
-    tintText: '#38BDF8',
-    tintSoft: '#E0F2FE',   // sky-100 — retained cyan highlight wash
-    tabIconDefault: '#94A3B8',
+    /** Foreground drawn ON `tint` — Emy cyan on muted navy. */
+    tintText: '#7DD3FC',
+    tintSoft: '#EAE6DA',   // warm parchment highlight wash
+    tabIconDefault: '#6B635A',
     tabIconSelected: tintColorLight,
-    card: '#FFFFFF',
-    cardBorder: '#E2E8F0',
-    divider: '#F1F5F9',    // slate-100
-    urgent: '#EF4444',
-    urgentSoft: '#FEF2F2',
+    card: '#FFFDF8',
+    cardBorder: '#E4DECF', // warm hairline — visible against the paper bg
+    divider: '#EAE5D8',    // warm separator (was identical to background)
+    urgent: '#B91C1C',     // red-700 — AA-compliant error/destructive text
+    urgentSoft: '#FAE8E5',
     warning: '#F59E0B',
-    warningSoft: '#FFFBEB',
+    warningSoft: '#FBF2DE',
     warningText: '#92400E',
-    info: '#0F172A',
-    infoSoft: '#E0F2FE',
-    infoText: '#0F172A',
-    success: '#10B981',
+    info: '#075985',       // sky-800 — distinguishable info accent
+    infoSoft: '#E8F0F4',
+    infoText: '#075985',
+    success: '#3F6212',    // olive-700 — AA-compliant success text
   },
   dark: {
     text: '#F1F5F9',       // slate-100

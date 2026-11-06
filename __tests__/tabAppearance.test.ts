@@ -111,7 +111,7 @@ describe('textMode', () => {
   it('exposes dark-text and light-text token sets', () => {
     const dark = getTabTextColors({ textMode: 'dark' }, 'light');
     expect(dark).toEqual(TAB_TEXT_COLORS.dark);
-    expect(dark.primary).toBe('#0B1220');
+    expect(dark.primary).toBe('#292524');
     const light = getTabTextColors({ textMode: 'light' }, 'dark');
     expect(light.primary).toBe('#F8FAFC');
     // Unset → scheme-derived tokens.
@@ -123,7 +123,7 @@ describe('backgroundColor', () => {
   it('defaults to the scheme-aware solid color for fresh installs', async () => {
     const a = await getTabAppearance('home');
     expect(a.backgroundColor).toBeUndefined();
-    expect(resolveBackgroundColor(a, 'light')).toBe('#F1F5F9');
+    expect(resolveBackgroundColor(a, 'light')).toBe('#F5F2EC');
     expect(resolveBackgroundColor(a, 'dark')).toBe('#020617');
   });
 
@@ -141,7 +141,7 @@ describe('backgroundColor', () => {
     );
     const a = await getTabAppearance('home');
     expect(a.backgroundColor).toBeUndefined();
-    expect(resolveBackgroundColor(a, 'light')).toBe('#F1F5F9'); // safe fallback
+    expect(resolveBackgroundColor(a, 'light')).toBe('#F5F2EC'); // safe fallback
   });
 });
 
@@ -167,7 +167,7 @@ describe('legacy photo data', () => {
       textMode: 'light',
       backgroundColor: undefined,
     });
-    expect(resolveBackgroundColor(a, 'light')).toBe('#F1F5F9');
+    expect(resolveBackgroundColor(a, 'light')).toBe('#F5F2EC');
   });
 
   it('ignores photo fields in the legacy calendar_appearance_v1 store', async () => {

@@ -39,7 +39,7 @@ function CalendarSection() {
   return (
     <Pressable onPress={() => router.push('/calendar-connect')} style={[styles.row, { borderBottomColor: colors.cardBorder }]}>
       <View style={styles.rowLabel}>
-        <Text style={styles.sectionTitle}>Calendar</Text>
+        <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Calendar</Text>
         <Text style={styles.sectionValue}>
           {connected ? `${eventCount} events synced` : 'Not connected'}
         </Text>
@@ -69,7 +69,7 @@ function CalendarPreferencesSection() {
 
   return (
     <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
-      <Text style={styles.sectionTitle}>Calendar Preferences</Text>
+      <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Calendar Preferences</Text>
       <Text style={[styles.sectionValue, { marginBottom: 10 }]}>Default view</Text>
       <CalendarViewSwitcher active={view} onChange={handleChange} />
     </View>
@@ -151,21 +151,21 @@ export default function ProfileScreen() {
 
         {university && (
           <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
-            <Text style={styles.sectionTitle}>University</Text>
+            <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>University</Text>
             <Text style={styles.sectionValue}>{university}</Text>
           </View>
         )}
 
         {profile?.program && (
           <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
-            <Text style={styles.sectionTitle}>Program</Text>
+            <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Program</Text>
             <Text style={styles.sectionValue}>{profile.program}</Text>
           </View>
         )}
 
         {profile?.academicYear && (
           <View style={[styles.section, { borderBottomColor: colors.cardBorder }]}>
-            <Text style={styles.sectionTitle}>Academic Year</Text>
+            <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Academic Year</Text>
             <Text style={styles.sectionValue}>{profile.academicYear}</Text>
           </View>
         )}
@@ -176,14 +176,14 @@ export default function ProfileScreen() {
 
         <Pressable onPress={() => router.push('/academic-setup')} style={[styles.row, { borderBottomColor: colors.cardBorder }]}>
           <View style={styles.rowLabel}>
-            <Text style={styles.sectionTitle}>Academic Setup</Text>
+            <Text style={[styles.sectionTitle, { color: colors.mutedText }]}>Academic Setup</Text>
             <Text style={styles.sectionValue}>Program, term & courses</Text>
           </View>
           <Text style={[styles.linkText, { color: colors.tint }]}>Edit</Text>
         </Pressable>
 
         <Pressable onPress={handleLogout} style={styles.logoutRow}>
-          <Text style={styles.logoutText}>Log out</Text>
+          <Text style={[styles.logoutText, { color: colors.urgent }]}>Log out</Text>
         </Pressable>
       </ScreenWrapper>
     </>
@@ -239,7 +239,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    color: '#94A3B8',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 4,
@@ -271,6 +270,5 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#DC2626',
   },
 });
