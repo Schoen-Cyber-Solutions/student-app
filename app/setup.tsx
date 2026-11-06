@@ -162,7 +162,7 @@ export default function SetupScreen() {
             placeholderTextColor={colors.mutedText}
           />
           <Text style={[styles.hint, { color: colors.mutedText }]}>
-            Your username doesn't have to be your real name. Choose a nickname, your pet's name, or a favorite character.
+            Your username doesn't have to be your real name. Choose a nickname, your pet's name, or your favorite character. You can change it once per semester.
           </Text>
 
           <Text style={[styles.label, { color: colors.secondaryText }]}>First name</Text>

@@ -21,6 +21,8 @@ export interface UsernamePolicy {
   termResolved: boolean;
   currentTermName: string | null;
   nextTermName: string | null;
+  /** ISO date the next term starts — the actual next-eligible-change date. */
+  nextTermStartDate?: string | null;
 }
 
 export interface MeResponse {

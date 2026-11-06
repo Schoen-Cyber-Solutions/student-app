@@ -9,6 +9,7 @@ import { spacing, typography } from '@/constants/Theme';
 import { getMe, updateProfile, UpdateProfileBody, UsernamePolicy } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
 import { parseBirthday } from '@/utils/birthday';
+import { usernamePolicyStatus } from '@/utils/usernamePolicy';
 import {
   applyDayInput,
   applyMonthInput,
@@ -117,18 +118,7 @@ export default function ProfileEditScreen() {
   };
 
   const usernameLocked = usernamePolicy ? !usernamePolicy.canChange : false;
-  const usernameStatus = (() => {
-    if (!usernamePolicy) return null;
-    if (!usernamePolicy.termResolved) {
-      return 'Username changes are temporarily unavailable.';
-    }
-    if (usernamePolicy.canChange) {
-      return 'Username change available this semester.';
-    }
-    return usernamePolicy.nextTermName
-      ? `You can change your username again next semester (${usernamePolicy.nextTermName}).`
-      : 'You can change your username again next semester.';
-  })();
+  const usernameStatus = usernamePolicyStatus(usernamePolicy);
 
   if (loading) {
     return (
