@@ -285,8 +285,10 @@ export interface OverlapSlot {
 }
 
 /** Per-column width below which simultaneous events become unreadable
- *  slivers — callers collapse such clusters into an aggregate chip. */
-export const MIN_LEGIBLE_COL_PX = 26;
+ *  slivers — callers collapse such clusters into an aggregate chip.
+ *  ~34px can't hold even a compact course code, so lanes narrower than
+ *  this always render better as one chip than as clipped text. */
+export const MIN_LEGIBLE_COL_PX = 34;
 
 /** True when a cluster's columns would render narrower than the legible
  *  minimum and should collapse to an aggregate representation instead. */

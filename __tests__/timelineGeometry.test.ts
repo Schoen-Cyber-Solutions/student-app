@@ -248,10 +248,12 @@ describe('shouldCollapseCluster — sliver collapse threshold', () => {
   it('collapses when per-column width drops below the legible minimum', () => {
     // ~50pt weekday column ÷ 3 simultaneous → ~17pt: collapse.
     expect(shouldCollapseCluster(50, 3)).toBe(true);
-    // Same column, 2 events → 25pt: just under 26pt → collapse.
+    // Same column, 2 events → 25pt: under 34pt → collapse.
     expect(shouldCollapseCluster(50, 2)).toBe(true);
-    // ~55pt column, 2 events → 27.5pt: renders as columns.
-    expect(shouldCollapseCluster(55, 2)).toBe(false);
+    // ~60pt column, 2 events → 30pt: still can't hold a code → collapse.
+    expect(shouldCollapseCluster(60, 2)).toBe(true);
+    // ~70pt column, 2 events → 35pt: renders as columns.
+    expect(shouldCollapseCluster(70, 2)).toBe(false);
   });
 
   it('never collapses a single-column cluster', () => {

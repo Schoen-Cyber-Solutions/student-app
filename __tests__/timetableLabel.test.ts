@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeBlockLabels } from '@/utils/timetableLabel';
+import { computeBlockLabels, compactTimeLabel } from '@/utils/timetableLabel';
 import { Course } from '@/types';
 
 // computeBlockLabels is the pure label pipeline TimetableCourseBlock runs
@@ -112,5 +112,139 @@ describe('timetable labels — other event types unaffected', () => {
     // Name doesn't fit, but the extracted code wins the priority slot —
     // 'Laker Event' never leaks onto a course block.
     expect(l.code).toBe('CSIA301');
+  });
+});
+
+describe('timetable labels — width-aware micro mode', () => {
+  const WIDE = 60;        // ≥ MIN_TRUSTED_TEXT_PX → normal labels
+  const NARROW = 30;      // micro band: ~5 chars at 6px/char
+  const TIGHT = 16;       // ~2 chars
+  const DOT = 10;         // below MIN_TEXT_PX → indicator only
+
+  it('wide blocks get normal code/name/time lines', () => {
+    const l = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, WIDE,
+    );
+    expect(l.code).toBe('CSIA301');
+    expect(l.name).toBe('Machine Learning');
+    expect(l.microLabel).toBe('');
+    expect(l.indicatorOnly).toBe(false);
+  });
+
+  it('narrow blocks show the course code when it fits whole', () => {
+    // 'BIO101' = 6×6=36 ≤ 38 usable → the code wins micro mode.
+    const l = computeBlockLabels(
+      base({ name: 'BIO101 Genetics', code: 'BIO101' }),
+      TALL, true, undefined, 38,
+    );
+    expect(l.microLabel).toBe('BIO101');
+    // 'CSIA301' = 7×6=42 > 30 → skips to the compact start time.
+    const narrower = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, NARROW,
+    );
+    expect(narrower.microLabel).toBe('5P');
+  });
+
+  it('narrow blocks fall back to the first title word when no code fits', () => {
+    const l = computeBlockLabels(
+      base({ name: 'Data Structures', isCampusEvent: true }),
+      TALL, true, 'Laker Event', NARROW,
+    );
+    expect(l.microLabel).toBe('Data');
+  });
+
+  it('very narrow blocks show a compact start time before the dot', () => {
+    const l = computeBlockLabels(
+      base({ name: 'Independent Study Abroad', code: '', startTime: '5:00 PM' }),
+      TALL, true, undefined, TIGHT,
+    );
+    // 'Independent' (11×6=66) and '5P' (2×6=12): only '5P' fits 16px.
+    expect(l.microLabel).toBe('5P');
+  });
+
+  it('renders the deliberate indicator when nothing can fit', () => {
+    const l = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, DOT,
+    );
+    expect(l.microLabel).toBe('');
+    expect(l.indicatorOnly).toBe(true);
+    expect(l.code).toBe('');
+    expect(l.name).toBe('');
+    expect(l.showTime).toBe(false);
+  });
+
+  it('micro mode suppresses every normal line', () => {
+    const l = computeBlockLabels(
+      base({ name: 'Data Structures', isCampusEvent: true }),
+      TALL, true, 'Laker Event', NARROW,
+    );
+    expect(l.code).toBe('');
+    expect(l.name).toBe('');
+    expect(l.showTime).toBe(false);
+    expect(l.showEndLine).toBe(false);
+  });
+
+  it('no width supplied → identical to previous behavior', () => {
+    const withW = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, undefined,
+    );
+    expect(withW.code).toBe('CSIA301');
+    expect(withW.name).toBe('Machine Learning');
+    expect(withW.showTime).toBe(true);
+  });
+});
+
+describe('timetable labels — fit-checked time lines', () => {
+  it('drops the merged range to the bare start when the range can\'t fit', () => {
+    // merged '5:00 PM – 7:00 PM' = 17×6=102px; start '5:00 PM' = 42px.
+    const l = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, 60,
+    );
+    expect(l.timeLabel).toBe('5:00 PM');
+    expect(l.showTime).toBe(true);
+  });
+
+  it('renders the full merged range when it fits whole', () => {
+    const l = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, 120,
+    );
+    expect(l.timeLabel).toBe('5:00 PM – 7:00 PM');
+  });
+
+  it('drops the time line entirely when even the start cannot fit', () => {
+    const l = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, 45, // '5:00 PM' = 42 fits → shows start
+    );
+    expect(l.timeLabel).toBe('5:00 PM');
+    const narrower = computeBlockLabels(
+      base({ name: 'CSIA301 Machine Learning', code: 'CSIA301' }),
+      TALL, true, undefined, 45 - 5, // 40 < 42 → no time line at all
+    );
+    expect(narrower.showTime).toBe(false);
+    expect(narrower.timeLabel).toBe('');
+  });
+
+  it('personal events fit-check the stacked end line independently', () => {
+    const l = computeBlockLabels(
+      base({ name: 'Gym', isPersonal: true }),
+      TALL, true, undefined, 60, // '7:00 PM' fits at 42
+    );
+    expect(l.timeLabel).toBe('5:00 PM');
+    expect(l.endLabel).toBe('7:00 PM');
+    expect(l.showEndLine).toBe(true);
+  });
+
+  it('compactTimeLabel produces atomic micro times', () => {
+    expect(compactTimeLabel('5:00 PM')).toBe('5P');
+    expect(compactTimeLabel('11:30 AM')).toBe('11:30A');
+    expect(compactTimeLabel('12:00 PM')).toBe('12P');
+    expect(compactTimeLabel('not a time')).toBe('');
   });
 });

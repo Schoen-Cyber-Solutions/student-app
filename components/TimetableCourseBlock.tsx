@@ -16,6 +16,10 @@ interface TimetableCourseBlockProps {
   /** Compact mode (fit-to-screen Week view): tighter padding and lower
    *  height thresholds so short events still show their code/name. */
   compact?: boolean;
+  /** Measured pixel width of this block (column width × its lane share).
+   *  Omitted = unconstrained width (Day view). Drives the micro-label
+   *  fallback so narrow lanes never render truncated fragments. */
+  blockWidthPx?: number;
   /** Week-only label used when a saved campus event's title can't be
    *  rendered (e.g. 'Laker Event'). Never mutates the stored title. */
   fallbackTitle?: string;
@@ -30,6 +34,7 @@ export default function TimetableCourseBlock({
   widthPercent,
   leftPercent,
   compact = false,
+  blockWidthPx,
   fallbackTitle,
   onPress,
   onLongPress,
@@ -39,13 +44,11 @@ export default function TimetableCourseBlock({
   // lines — the merged "5:00 PM – 9:00 PM" string doesn't fit narrow Week
   // columns. Priority when space is tight: title → start → end.
   const stackedTimes = !!(course.isPersonal || course.isCampusEvent);
-  const labels = computeBlockLabels(course, height, compact, fallbackTitle);
-
-  const timeText = isPointInTime
-    ? course.startTime
-    : course.endTime
-    ? `${course.startTime} – ${course.endTime}`
-    : course.startTime;
+  const usablePx =
+    blockWidthPx != null
+      ? blockWidthPx - (compact ? 6 : 8) - (isPointInTime ? 3 : 0)
+      : undefined;
+  const labels = computeBlockLabels(course, height, compact, fallbackTitle, usablePx);
 
   // Slightly translucent course color keeps the glass feel while preserving
   // course identity; completed events keep their solid light-gray status.
@@ -79,6 +82,18 @@ export default function TimetableCourseBlock({
       }${course.location ? `, ${course.location}` : ''}`}
       accessibilityRole="button">
       {isPointInTime && <View style={[styles.pointMarker, { backgroundColor: fgSoft }]} />}
+      {/* Micro mode: one atomic token that always fits whole (code, first
+          word, or "5P") — or a deliberate marker dot when nothing fits.
+          Never an ellipsized fragment. */}
+      {labels.microLabel ? (
+        <RNText
+          style={[styles.microText, { color: fg }]}
+          numberOfLines={1}>
+          {labels.microLabel}
+        </RNText>
+      ) : labels.indicatorOnly ? (
+        <View style={[styles.indicatorDot, { backgroundColor: fgSoft }]} />
+      ) : null}
       {labels.code ? (
         <RNText
           style={[styles.codeText, { color: fg }]}
@@ -105,25 +120,22 @@ export default function TimetableCourseBlock({
         <>
           <RNText
             style={[styles.timeText, { color: fgSoft }]}
-            numberOfLines={1}
-            ellipsizeMode="tail">
-            {course.startTime}
+            numberOfLines={1}>
+            {labels.timeLabel}
           </RNText>
-          {labels.showEndLine && course.endTime ? (
+          {labels.showEndLine ? (
             <RNText
               style={[styles.timeText, { color: fgSoft }]}
-              numberOfLines={1}
-              ellipsizeMode="tail">
-              {course.endTime}
+              numberOfLines={1}>
+              {labels.endLabel}
             </RNText>
           ) : null}
         </>
       ) : labels.showTime ? (
         <RNText
           style={[styles.timeText, { color: fgSoft }]}
-          numberOfLines={1}
-          ellipsizeMode="tail">
-          {timeText}
+          numberOfLines={1}>
+          {labels.timeLabel}
         </RNText>
       ) : null}
     </Pressable>
@@ -161,6 +173,22 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: 'rgba(255,255,255,0.75)',
+  },
+  // Micro-mode label — one atomic token, always rendered whole.
+  microText: {
+    fontSize: 9,
+    fontWeight: '800',
+    lineHeight: 11,
+    textAlign: 'center',
+    letterSpacing: 0.2,
+  },
+  // Deliberate marker when a block is too narrow for any text — the event
+  // stays visible and tappable (full label lives on the a11y label).
+  indicatorDot: {
+    alignSelf: 'center',
+    width: 5,
+    height: 5,
+    borderRadius: 3,
   },
   codeText: {
     fontSize: 10,

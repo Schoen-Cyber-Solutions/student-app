@@ -333,6 +333,12 @@ export default function WeekTimetable({
                         const totalCols = slot?.totalColumns ?? 1;
                         const widthPercent = 100 / totalCols;
                         const leftPercent = (slot?.columnIndex ?? 0) * widthPercent;
+                        // Real pixel width drives the block's micro-label
+                        // fallback — Infinity while unmeasured means
+                        // unconstrained (full labels on the first pass).
+                        const blockPx = Number.isFinite(colPx)
+                          ? (colPx * widthPercent) / 100
+                          : undefined;
 
                         return (
                           <TimetableCourseBlock
@@ -343,6 +349,7 @@ export default function WeekTimetable({
                             widthPercent={widthPercent}
                             leftPercent={leftPercent}
                             compact
+                            blockWidthPx={blockPx}
                             // Week-only label when a saved campus event's
                             // title can't render — the stored title is
                             // untouched (Day/Month/detail keep it).
