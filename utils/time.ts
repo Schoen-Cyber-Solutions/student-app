@@ -271,17 +271,42 @@ export function getHourRange(startHour: number, endHour: number): number[] {
   return hours;
 }
 
-interface OverlapSlot {
+export interface OverlapSlot {
   courseId: string;
   columnIndex: number;
+  /** Columns used by THIS event's overlap cluster — not the whole day. */
   totalColumns: number;
+  /** Stable id of the transitively-connected overlap cluster. */
+  clusterId: number;
+  /** Cluster span, minutes after midnight — for aggregate rendering. */
+  clusterStartMin: number;
+  clusterEndMin: number;
+  clusterSize: number;
+}
+
+/** Per-column width below which simultaneous events become unreadable
+ *  slivers — callers collapse such clusters into an aggregate chip. */
+export const MIN_LEGIBLE_COL_PX = 26;
+
+/** True when a cluster's columns would render narrower than the legible
+ *  minimum and should collapse to an aggregate representation instead. */
+export function shouldCollapseCluster(columnPx: number, totalColumns: number): boolean {
+  return totalColumns > 1 && columnPx / totalColumns < MIN_LEGIBLE_COL_PX;
 }
 
 /**
- * Detect overlapping courses within a single day and assign each course
- * a column index. Returns the total number of columns needed and each
- * course's position. Events without an end time overlap for
- * `defaultDurationMinutes` (the same visual span they render with).
+ * Detect overlapping courses within a single day and assign each course a
+ * column index inside its own overlap cluster.
+ *
+ * Events are grouped into clusters of transitively-overlapping intervals;
+ * events that merely touch (end == start) or belong to different clusters
+ * get their own column count. This fixes the previous behavior where the
+ * whole day shared one lane total — a single morning overlap compressed
+ * every unrelated event for the rest of the day into a sliver.
+ *
+ * Ordering is deterministic: start time, then end time, then course id.
+ * Events without an end time overlap for `defaultDurationMinutes` (the
+ * same visual span they render with).
  */
 export function detectOverlaps(
   courses: Course[],
@@ -289,43 +314,68 @@ export function detectOverlaps(
 ): OverlapSlot[] {
   if (courses.length === 0) return [];
 
-  const sorted = [...courses].sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
-  const slots: OverlapSlot[] = [];
-  const lanes: { end: number }[] = [];
+  const endOf = (c: Course): number => {
+    const start = toMinutes(c.startTime);
+    const realEnd = c.endTime ? toMinutes(c.endTime) : start;
+    // Blocks render floored at defaultDurationMinutes (MIN_EVENT_MINUTES);
+    // the overlap math uses the same visual extent so two adjacent short
+    // events whose rendered blocks would collide are clustered too.
+    return Math.max(realEnd, start + defaultDurationMinutes);
+  };
 
+  const sorted = [...courses].sort(
+    (a, b) =>
+      toMinutes(a.startTime) - toMinutes(b.startTime) ||
+      endOf(a) - endOf(b) ||
+      a.id.localeCompare(b.id),
+  );
+
+  // Sweep into clusters: a new cluster starts when the event does not
+  // overlap anything running — i.e. it starts at or after every lane's
+  // end. Touching endpoints (end == start) do NOT overlap.
+  const clusters: { events: Course[]; end: number }[] = [];
   for (const course of sorted) {
     const start = toMinutes(course.startTime);
-    const end = course.endTime
-      ? toMinutes(course.endTime)
-      : start + defaultDurationMinutes;
-
-    let laneIndex = -1;
-    for (let i = 0; i < lanes.length; i++) {
-      if (lanes[i].end <= start) {
-        laneIndex = i;
-        break;
-      }
-    }
-
-    if (laneIndex === -1) {
-      laneIndex = lanes.length;
-      lanes.push({ end });
+    const end = endOf(course);
+    const last = clusters[clusters.length - 1];
+    if (last && start < last.end) {
+      last.events.push(course);
+      last.end = Math.max(last.end, end);
     } else {
-      lanes[laneIndex].end = end;
+      clusters.push({ events: [course], end });
     }
-
-    slots.push({
-      courseId: course.id,
-      columnIndex: laneIndex,
-      totalColumns: lanes.length,
-    });
   }
 
-  // Second pass: ensure all slots for this day share the same totalColumns
-  const totalColumns = lanes.length;
-  for (const slot of slots) {
-    slot.totalColumns = totalColumns;
-  }
+  const slots: OverlapSlot[] = [];
+  clusters.forEach((cluster, clusterId) => {
+    // Greedy interval partitioning — minimum lanes = max concurrency.
+    const lanes: number[] = [];
+    const clusterStart = Math.min(...cluster.events.map((c) => toMinutes(c.startTime)));
+    for (const course of cluster.events) {
+      const start = toMinutes(course.startTime);
+      const end = endOf(course);
+      let lane = lanes.findIndex((laneEnd) => laneEnd <= start);
+      if (lane === -1) {
+        lane = lanes.length;
+        lanes.push(end);
+      } else {
+        lanes[lane] = end;
+      }
+      slots.push({
+        courseId: course.id,
+        columnIndex: lane,
+        totalColumns: lanes.length,
+        clusterId,
+        clusterStartMin: clusterStart,
+        clusterEndMin: cluster.end,
+        clusterSize: cluster.events.length,
+      });
+    }
+    // All cluster members share the cluster's own lane count.
+    for (const slot of slots) {
+      if (slot.clusterId === clusterId) slot.totalColumns = lanes.length;
+    }
+  });
 
   return slots;
 }

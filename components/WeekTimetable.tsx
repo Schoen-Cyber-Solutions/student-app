@@ -17,6 +17,7 @@ import { useColorScheme } from './useColorScheme';
 import { useTextMode } from './TabTextMode';
 import GlassPanel from './GlassPanel';
 import TimetableCourseBlock from './TimetableCourseBlock';
+import OverlapClusterChip from './OverlapClusterChip';
 import { timelineHourTicks } from '@/utils/calendarRange';
 import { campusSourceFallbackTitle } from '@/utils/campusSource';
 import {
@@ -26,6 +27,7 @@ import {
   eventBlockSpan,
   MIN_EVENT_MINUTES,
   detectOverlaps,
+  shouldCollapseCluster,
   isSameCalendarDay,
   formatWeekdayShort,
   formatDayOfMonth,
@@ -159,6 +161,16 @@ export default function WeekTimetable({
   const colWeight = (date: Date) =>
     date.getDay() === 0 || date.getDay() === 6 ? WEEKEND_WEIGHT : 1;
 
+  // Weighted day-column pixel width — needed to decide when simultaneous
+  // events must collapse into an aggregate chip instead of unreadable
+  // slivers. Falls back to a generous width when unmeasured so the first
+  // render pass shows columns rather than chips.
+  const totalColWeight = (dates: Date[]) => dates.reduce((w, d) => w + colWeight(d), 0);
+  const dayColumnPx = (date: Date, totalWeight: number) =>
+    pageWidth > 0
+      ? Math.max(0, (pageWidth - GUTTER_WIDTH) * (colWeight(date) / totalWeight))
+      : Number.POSITIVE_INFINITY;
+
   /** One week page — day headers (with the page's own ISO week number over
    *  the time gutter) plus the timetable grid. Everything derives from the
    *  page's own Monday: dates, week number, today column, and events. */
@@ -168,6 +180,7 @@ export default function WeekTimetable({
     const weekNumber = isoWeekNumber(dates[0]);
     const todayColIndex = dates.findIndex((d) => isSameCalendarDay(d, today));
     const pageHasToday = todayColIndex >= 0;
+    const weekTotalWeight = totalColWeight(dates);
 
     return (
       <View style={styles.page}>
@@ -249,7 +262,25 @@ export default function WeekTimetable({
               {dates.map((date, colIndex) => {
                 const dayCourses = coursesByDay[colIndex];
                 const overlapSlots = detectOverlaps(dayCourses, MIN_EVENT_MINUTES);
+                const slotById = new Map(overlapSlots.map((s) => [s.courseId, s]));
+                const colPx = dayColumnPx(date, weekTotalWeight);
                 const isToday = isSameCalendarDay(date, today);
+
+                // Clusters whose per-column width can't render legibly
+                // collapse into one aggregate chip per cluster — the chip
+                // opens Day view, so no event is dropped or unreachable.
+                const collapsedIds = new Set(
+                  overlapSlots
+                    .filter((s) => shouldCollapseCluster(colPx, s.totalColumns))
+                    .map((s) => s.clusterId),
+                );
+                const collapsedClusters = [
+                  ...new Map(
+                    overlapSlots
+                      .filter((s) => collapsedIds.has(s.clusterId))
+                      .map((s) => [s.clusterId, s]),
+                  ).values(),
+                ].sort((a, b) => a.clusterStartMin - b.clusterStartMin);
 
                 return (
                   <View
@@ -295,9 +326,10 @@ export default function WeekTimetable({
                         );
                         if (!span) return null;
 
-                        const slot = overlapSlots.find(
-                          (s) => s.courseId === course.id
-                        );
+                        const slot = slotById.get(course.id);
+                        // Collapsed clusters render as one chip below —
+                        // the member events are reachable through it.
+                        if (slot && collapsedIds.has(slot.clusterId)) return null;
                         const totalCols = slot?.totalColumns ?? 1;
                         const widthPercent = 100 / totalCols;
                         const leftPercent = (slot?.columnIndex ?? 0) * widthPercent;
@@ -321,6 +353,33 @@ export default function WeekTimetable({
                             }
                             onPress={(c) => onSelectCourse?.(c)}
                             onLongPress={(c) => onCourseLongPress?.(c)}
+                          />
+                        );
+                      })}
+
+                    {/* One chip per collapsed cluster, spanning the
+                        cluster's real time range and carrying its member
+                        colors. Tapping opens Day view at full width. */}
+                    {gridHeight > 0 &&
+                      collapsedClusters.map((slot) => {
+                        const spanStart = Math.max(slot.clusterStartMin, startMin);
+                        const spanEnd = Math.min(slot.clusterEndMin, endMin);
+                        if (spanEnd <= spanStart) return null;
+                        const memberColors = dayCourses
+                          .filter(
+                            (c) => slotById.get(c.id)?.clusterId === slot.clusterId,
+                          )
+                          .map((c) => c.color ?? '#64748B');
+                        return (
+                          <OverlapClusterChip
+                            key={`cluster-${slot.clusterId}`}
+                            count={slot.clusterSize}
+                            top={(spanStart - startMin) * pxPerMinute}
+                            height={(spanEnd - spanStart) * pxPerMinute}
+                            colors={memberColors}
+                            startLabel={minutesToTimeLabel(slot.clusterStartMin)}
+                            endLabel={minutesToTimeLabel(slot.clusterEndMin)}
+                            onPress={() => onSelectDay?.(date)}
                           />
                         );
                       })}
@@ -456,6 +515,15 @@ function formatHourLabel(hour24: number): string {
   const period = hour24 >= 12 ? 'PM' : 'AM';
   const h = hour24 % 12 || 12;
   return `${h} ${period}`;
+}
+
+/** Minutes-after-midnight → "5:15 PM" for the cluster chip's time range. */
+function minutesToTimeLabel(minutes: number): string {
+  const h24 = Math.floor(minutes / 60);
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const h = h24 % 12 || 12;
+  const m = (minutes % 60).toString().padStart(2, '0');
+  return `${h}:${m} ${period}`;
 }
 
 
