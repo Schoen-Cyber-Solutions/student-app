@@ -90,11 +90,18 @@ export default function TimetableCourseBlock({
       ) : labels.indicatorOnly ? (
         <View style={[styles.indicatorDot, { backgroundColor: fgSoft }]} />
       ) : null}
-      {labels.code ? (
+      {labels.codeLines.length > 0 ? (
         <RNText
           style={[styles.codeText, { color: fg }]}
-          // Week fallback ("Laker\nEvent") needs two lines; course codes
-          // stay single-line.
+          // Whole lines only — a wrapped code ("CSIA"/"301") renders as
+          // two deliberate lines, never an ellipsized fragment.
+          numberOfLines={labels.codeLines.length}>
+          {labels.codeLines.join('\n')}
+        </RNText>
+      ) : labels.code ? (
+        <RNText
+          style={[styles.codeText, { color: fg }]}
+          // Week fallback ("Laker\nEvent") needs two lines.
           numberOfLines={labels.codeIsFallback ? 2 : 1}
           ellipsizeMode="tail">
           {labels.code}

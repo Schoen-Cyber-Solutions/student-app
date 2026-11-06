@@ -57,12 +57,21 @@ export interface BlockLabels {
   /** True when the block is too narrow for any text — the renderer draws
    *  a deliberate small marker instead of ellipsized fragments. */
   indicatorOnly: boolean;
+  /** The code laid out as renderable lines: [whole code] when it fits on
+   *  one line, [letters, digits] when it must wrap ("CSIA301" →
+   *  ["CSIA","301"]). Rendering uses this, never ellipsized text. */
+  codeLines: string[];
 }
 
 // Width model for the label pipeline. ~0.62em average glyph advance for
 // the 9–10pt semibold/extrabold label fonts (uppercase-heavy codes run a
 // touch wider — the estimate errs wide so tokens never clip mid-word).
 const CHAR_W = 6.0;
+/** The code line renders 10pt extra-bold with letter-spacing — measurably
+ *  wider per glyph than the generic estimate. Using the generic 6px made
+ *  "CSIA301" pass the fit check at 42px while RN really needed ~49px,
+ *  producing the "CSIA3…" truncation seen on device. */
+const CODE_CHAR_W = 7.0;
 /** Usable width below which multi-word labels can't be trusted — every
  *  line would ellipsize into a 1–3 character fragment. */
 export const MIN_TRUSTED_TEXT_PX = 42;
@@ -71,6 +80,14 @@ export const MIN_TEXT_PX = 14;
 
 function fitsWhole(text: string, usablePx: number): boolean {
   return text.length > 0 && text.length * CHAR_W <= usablePx;
+}
+
+/** Split a normalized code at the letters→digits boundary for the
+ *  two-line fallback: "CSIA301" → ["CSIA","301"], "ITMO544L" →
+ *  ["ITMO","544L"], "BIO101" → ["BIO","101"]. */
+function wrapCourseCode(code: string): [string, string] | null {
+  const m = /^([A-Za-z]+)(\d.*)$/.exec(code);
+  return m ? [m[1], m[2]] : null;
 }
 
 /** "5:00 PM" → "5P", "11:30 AM" → "11:30A" — an atomic micro time label. */
@@ -104,7 +121,7 @@ export function computeBlockLabels(
   const none: BlockLabels = {
     code: '', codeIsFallback: false, name: '', nameIsFallback: false,
     showTime: false, showEndLine: false, timeLabel: '', endLabel: '',
-    microLabel: '', indicatorOnly: false,
+    microLabel: '', indicatorOnly: false, codeLines: [],
   };
 
   const userAdded = !!(course.isPersonal || course.isCampusEvent);
@@ -183,22 +200,33 @@ export function computeBlockLabels(
   // line can't render (too-short block) the fallback label takes this
   // lower threshold so the block still identifies itself.
   const codeFromFallback = !displayCode && !canShowName && fallbackText.length > 0;
-  // Prefer the full spaced identifier; fall back to the compact form when
-  // the column can hold it but not the spaced one.
-  const codeText =
-    displayCode && codeFits(displayCode)
-      ? displayCode
-      : displayCode && codeFits(compactCode)
-        ? compactCode
-        : displayCode
-          ? ''
-          : codeFromFallback
-            ? fallbackText
-            : '';
-  const code = height >= (compact ? 22 : 30) && codeFits(codeText)
-    ? codeText
-    : '';
-  const codeIsFallback = codeFromFallback && code.length > 0;
+
+  // Code layout priority: normalized code on one line → wrapped two lines
+  // (letters/digits split) → Week fallback text. The normalized form is
+  // preferred per spec; the spaced variant is only longer, never wider-
+  // compatible, so it's dropped from contention entirely.
+  let codeLines: string[] = [];
+  let codeText = '';
+  const fitsCode = (t: string) => t.length > 0 && t.length * CODE_CHAR_W <= usable;
+  const heightFitsCodeLine = height >= (compact ? 22 : 30);
+  const heightFitsTwoCodeLines = height >= (compact ? 34 : 44);
+  if (displayCode && heightFitsCodeLine && fitsCode(compactCode)) {
+    codeText = compactCode;
+    codeLines = [compactCode];
+  } else if (displayCode && heightFitsTwoCodeLines) {
+    const wrapped = wrapCourseCode(compactCode);
+    if (wrapped && wrapped.every((line) => fitsCode(line))) {
+      codeText = compactCode;
+      codeLines = wrapped;
+    }
+  }
+  const code =
+    codeLines.length > 0
+      ? codeText
+      : heightFitsCodeLine && codeFromFallback && fitsWhole(fallbackText, usable)
+        ? fallbackText
+        : '';
+  const codeIsFallback = codeFromFallback && code.length > 0 && codeLines.length === 0;
 
   return {
     code,
@@ -211,5 +239,6 @@ export function computeBlockLabels(
     endLabel,
     microLabel: '',
     indicatorOnly: false,
+    codeLines,
   };
 }

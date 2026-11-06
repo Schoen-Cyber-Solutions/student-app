@@ -241,21 +241,46 @@ describe('timetable labels — fit-checked time lines', () => {
     expect(l.showEndLine).toBe(true);
   });
 
-  it('compacts spaced course codes before dropping them', () => {
-    // 'CSIA 301' = 8×6=48 > 44 usable → compact 'CSIA301' = 42 fits.
+  it('prefers the normalized one-line code when it fits', () => {
+    // 'CSIA301' = 7×7=49 ≤ 60 → single line, normalized form.
+    const l = computeBlockLabels(
+      base({ name: 'CSIA 301 Systems Analysis', code: 'CSIA 301' }),
+      TALL, true, undefined, 60,
+    );
+    expect(l.code).toBe('CSIA301');
+    expect(l.codeLines).toEqual(['CSIA301']);
+  });
+
+  it('wraps the code to two lines instead of truncating it', () => {
+    // 'CSIA301' needs 49px one-line; at 44px it wraps to 'CSIA'/'301'
+    // (28px/21px) — all 7 chars stay visible, never "CSIA3…".
     const l = computeBlockLabels(
       base({ name: 'CSIA 301 Systems Analysis', code: 'CSIA 301' }),
       TALL, true, undefined, 44,
     );
     expect(l.code).toBe('CSIA301');
+    expect(l.codeLines).toEqual(['CSIA', '301']);
   });
 
-  it('prefers the full spaced code whenever it fits', () => {
+  it('same-width columns get identical labels (Monday = Wednesday)', () => {
+    for (const day of ['Mon', 'Wed'] as const) {
+      const l = computeBlockLabels(
+        base({ name: 'CSIA 301 Systems Analysis', code: 'CSIA 301', days: [day] }),
+        TALL, true, undefined, 44,
+      );
+      expect(l.codeLines).toEqual(['CSIA', '301']);
+    }
+  });
+
+  it('blocks too short for two code lines fall back deliberately', () => {
+    // 30px height < the 34px two-line threshold; 42px width can't hold
+    // 'CSIA301' one-line either → code slot empty, deliberate not clipped.
     const l = computeBlockLabels(
       base({ name: 'CSIA 301 Systems Analysis', code: 'CSIA 301' }),
-      TALL, true, undefined, 50,
+      SHORT, true, undefined, 42,
     );
-    expect(l.code).toBe('CSIA 301');
+    expect(l.code).toBe('');
+    expect(l.codeLines).toEqual([]);
   });
 
   it('micro mode also tries the compact code before the title word', () => {
