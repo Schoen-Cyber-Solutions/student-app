@@ -3,6 +3,7 @@ import { MyCalendarEvent } from '@/services/api/calendar';
 import { formatTime12, formatWeekdayShort } from '@/utils/time';
 import { colorForKey, getCourseColor, COMPLETED_EVENT_COLOR } from '@/utils/courseLabel';
 import { isCampusEventProvider } from '@/utils/campusSource';
+import { displayEventTitle } from '@/utils/eventTitle';
 
 /**
  * The single mapping every Calendar view uses: MyCalendarEvent → Course.
@@ -43,7 +44,7 @@ export function toTimetableCourse(
 
   return {
     id: event.id,
-    name: event.title,
+    name: displayEventTitle(event.title),
     code: event.courseCode ?? event.courseName ?? '',
     location: event.location ?? '',
     startTime: formatTime12(start),

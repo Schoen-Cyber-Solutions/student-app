@@ -19,6 +19,7 @@ import {
 import { getSessionToken } from '@/services/auth/devSession';
 import { toApiError } from '@/services/api/client';
 import { startOfDay, endOfDay } from '@/utils/time';
+import { normalizeEventTitle } from '@/utils/eventTitle';
 
 const COLOR_OPTIONS = [
   '#3B82F6',
@@ -77,6 +78,7 @@ export default function CalendarEventScreen() {
 
   const [loadingEvent, setLoadingEvent] = useState(!!editingId);
   const [title, setTitle] = useState('');
+  const [titleTouched, setTitleTouched] = useState(false);
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -160,7 +162,7 @@ export default function CalendarEventScreen() {
   }, [date, endTime]);
 
   const missingRequired = [
-    !title.trim() && 'Event Name',
+    !title.trim() && 'Title',
     !parseDateText(date) && 'Date',
     !startTime && 'Start Time',
   ].filter(Boolean) as string[];
@@ -172,7 +174,7 @@ export default function CalendarEventScreen() {
     if (!startAt) return;
 
     const input: PersonalEventInput = {
-      title: title.trim().slice(0, TITLE_MAX),
+      title: normalizeEventTitle(title, TITLE_MAX) ?? '',
       description: notes.trim() || undefined,
       location: location.trim() || undefined,
       startAt: startAt.toISOString(),
@@ -268,15 +270,22 @@ export default function CalendarEventScreen() {
           {editingId ? 'Edit event' : 'Add personal event'}
         </Text>
 
-        {label('Event Name', true)}
+        {label('Title', true)}
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="e.g. Study group"
+          onBlur={() => setTitleTouched(true)}
+          placeholder="e.g., Study Session"
           maxLength={TITLE_MAX}
           style={baseInputStyle}
           placeholderTextColor={colors.mutedText}
+          accessibilityLabel="Event title"
         />
+        {titleTouched && !title.trim() ? (
+          <Text style={[styles.fieldError, { color: colors.urgent }]}>
+            A title is required.
+          </Text>
+        ) : null}
 
         {label('Date', true)}
         <View style={styles.dateRow}>

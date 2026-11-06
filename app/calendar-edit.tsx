@@ -10,6 +10,7 @@ import { useMyCalendar } from '@/hooks/useMyCalendar';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import { deletePersonalEvent, MyCalendarEvent } from '@/services/api/calendar';
 import { toApiError } from '@/services/api/client';
+import { displayEventTitle } from '@/utils/eventTitle';
 
 const COLOR_OPTIONS = [
   '#3B82F6',
@@ -205,7 +206,7 @@ export default function CalendarEditScreen() {
           <View key={event.id} style={[styles.eventRow, { borderBottomColor: colors.cardBorder }]}>
             <View style={[styles.eventDot, { backgroundColor: event.color ?? '#3B82F6' }]} />
             <View style={styles.eventInfo}>
-              <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
+              <Text style={[styles.eventTitle, { color: colors.text }]}>{displayEventTitle(event.title)}</Text>
               <Text style={[styles.eventDate, { color: colors.mutedText }]}>
                 {new Date(event.startAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </Text>
@@ -222,7 +223,7 @@ export default function CalendarEditScreen() {
               <Text style={{ color: colors.tint, fontSize: 14, marginRight: spacing.md }}>Edit</Text>
             </Pressable>
             <Pressable
-              onPress={() => handleDeletePersonalEvent(event.id, event.title, !!event.seriesId)}
+              onPress={() => handleDeletePersonalEvent(event.id, displayEventTitle(event.title), !!event.seriesId)}
               hitSlop={8}>
               <Text style={{ color: colors.urgent, fontSize: 14 }}>Delete</Text>
             </Pressable>

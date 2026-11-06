@@ -13,6 +13,7 @@ import { MyCalendarEvent } from '@/services/api/calendar';
 import { isSameCalendarDay, formatTime12 } from '@/utils/time';
 import { monthGridRows, monthAgendaSelection, dayAgendaEvents } from '@/utils/monthGrid';
 import { isCampusEventProvider } from '@/utils/campusSource';
+import { displayEventTitle } from '@/utils/eventTitle';
 
 interface MonthViewProps {
   /** Any date inside the currently displayed month. */
@@ -311,7 +312,7 @@ export default function MonthView({
                   pressed && { opacity: 0.8 },
                 ]}
                 accessibilityRole="button"
-                accessibilityLabel={`${event.title}, ${timeText}`}>
+                accessibilityLabel={`${displayEventTitle(event.title)}, ${timeText}`}>
                 <View
                   style={[
                     styles.eventIcon,
@@ -327,7 +328,7 @@ export default function MonthView({
                       event.isCompleted && { textDecorationLine: 'line-through' },
                     ]}
                     numberOfLines={2}>
-                    {event.title}
+                    {displayEventTitle(event.title)}
                   </Text>
                   <View style={styles.eventMetaRow}>
                     <SymbolView name="clock" tintColor={colors.mutedText} size={13} />

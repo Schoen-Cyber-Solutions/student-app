@@ -31,6 +31,7 @@ import {
   formatTime12,
 } from '@/utils/time';
 import { eventColor, toTimetableCourse } from '@/utils/timetableCourse';
+import { displayEventTitle } from '@/utils/eventTitle';
 import {
   applyDayChange,
   applyMonthSelect,
@@ -253,7 +254,7 @@ function CalendarScreenContent() {
         ]);
       if (Platform.OS === 'ios') {
         ActionSheetIOS.showActionSheetWithOptions(
-          { options: ['Remove from Calendar', 'Cancel'], cancelButtonIndex: 1, destructiveButtonIndex: 0, title: event.title },
+          { options: ['Remove from Calendar', 'Cancel'], cancelButtonIndex: 1, destructiveButtonIndex: 0, title: displayEventTitle(event.title) },
           (index) => { if (index === 0) remove(); },
         );
       } else {
@@ -276,7 +277,7 @@ function CalendarScreenContent() {
       Alert.alert(
         isSeries && scope === 'all' ? 'Delete this series?' : 'Delete this event?',
         isSeries && scope === 'all'
-          ? `"${event.title}" repeats — deleting removes the whole series.`
+          ? `"${displayEventTitle(event.title)}" repeats — deleting removes the whole series.`
           : undefined,
         [
           { text: 'Cancel', style: 'cancel' },
@@ -314,12 +315,12 @@ function CalendarScreenContent() {
           options,
           cancelButtonIndex: cancelIndex,
           destructiveButtonIndex: isSeries ? [1, 2] : 1,
-          title: event.title,
+          title: displayEventTitle(event.title),
         },
         onPick,
       );
     } else {
-      Alert.alert(event.title, undefined, [
+      Alert.alert(displayEventTitle(event.title), undefined, [
         { text: 'Edit', onPress: openEditor },
         ...(isSeries
           ? [{ text: 'Delete This Event', style: 'destructive' as const, onPress: () => confirmDelete('this') }]
