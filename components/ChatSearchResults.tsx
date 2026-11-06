@@ -7,7 +7,7 @@ import { radius, spacing, typography } from '@/constants/Theme';
 import { useColorScheme } from './useColorScheme';
 import { useTextMode, useThemedColors } from './TabTextMode';
 import { relativeTime } from '@/utils/time';
-import type { ChatSearchResult } from '@/services/api/communities';
+import { displayThreadTitle, type ChatSearchResult } from '@/services/api/communities';
 import type { ChatSearchType } from '@/hooks/useChatSearch';
 
 const TYPE_FILTERS: { key: ChatSearchType; label: string }[] = [
@@ -122,7 +122,7 @@ export default function ChatSearchResults({
             pressed && { opacity: 0.7 },
           ]}
           accessibilityRole="button"
-          accessibilityLabel={`${r.type === 'thread' ? 'Thread' : 'Reply'} in ${r.threadTitle}`}>
+          accessibilityLabel={`${r.type === 'thread' ? 'Thread' : 'Reply'} in ${displayThreadTitle(r.threadTitle)}`}>
           <View style={styles.headerRow}>
             <View style={[styles.badge, { backgroundColor: glass.accentSoft }]}>
               <Text style={[styles.badgeText, { color: badgeTint }]}>
@@ -136,7 +136,7 @@ export default function ChatSearchResults({
             )}
           </View>
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-            {r.threadTitle}
+            {displayThreadTitle(r.threadTitle)}
           </Text>
           <Text style={[styles.snippet, { color: colors.secondaryText }]} numberOfLines={2}>
             {r.snippet}

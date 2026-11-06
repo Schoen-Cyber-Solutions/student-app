@@ -64,8 +64,10 @@ export default function DeleteAccountScreen() {
             signs you out on all devices.
           </Text>
           <Text style={[styles.body, { color: colors.secondaryText }]}>
-            Some community content may remain in anonymized form so
-            conversations are not broken. Your name and profile are removed.
+            Your chat messages, uploaded images, profile, and academic
+            information are removed. Discussions you started stay available
+            to other students as a removed placeholder, and limited
+            moderation records may be kept where required.
           </Text>
         </View>
 

@@ -464,7 +464,7 @@ const PRIVACY: LegalDocument = {
           type: 'paragraph',
           segments: [
             {
-              text: 'You can delete your account directly from within Student App. When an account is deleted, your personal profile data, sessions, verification data, enrollments, calendar data, and uploaded media are removed or scheduled for removal. Community content you created may remain visible under an anonymized "Deleted User" attribution so existing discussions stay intact, and moderation audit records may be retained in anonymized form.',
+              text: 'You can delete your account directly from within Student App. When an account is deleted, your personal profile data, sessions, verification data, enrollments, calendar data, and uploaded media are removed. The chat messages and thread titles you authored are deleted; discussions you participated in may remain for other students, with your contributions replaced by a neutral removed placeholder and no name or profile attached. Limited moderation and security audit records may be retained where needed to protect the community or meet legal obligations.',
             },
           ],
         },

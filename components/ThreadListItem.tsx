@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { CommunityThread } from '@/services/api/communities';
+import { CommunityThread, displayThreadTitle } from '@/services/api/communities';
 import { Text } from './Themed';
 import { glassColors } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
@@ -37,9 +37,9 @@ export default function ThreadListItem({ thread, onPress, onLongPress, onOptions
         pressed && { opacity: 0.7 },
       ]}
       accessibilityRole="button"
-      accessibilityLabel={`${thread.title}, by ${thread.authorUsername}`}>
+      accessibilityLabel={`${displayThreadTitle(thread.title)}, by ${thread.authorUsername}`}>
       <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
-        {thread.title}
+        {displayThreadTitle(thread.title)}
       </Text>
       <View style={styles.metaRow}>
         <Text style={[styles.meta, { color: colors.secondaryText }]} numberOfLines={1}>

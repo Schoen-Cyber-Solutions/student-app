@@ -59,11 +59,23 @@ export interface MessageAttachment {
 export interface ThreadMessage {
   id: string;
   body: string;
+  /** True when the author removed the message or deleted their account —
+   *  body is always empty and the UI shows a neutral placeholder. */
+  removed?: boolean;
   createdAt: string;
   authorId: string;
   authorUsername: string;
   isAuthor: boolean;
   attachment?: MessageAttachment | null;
+}
+
+export const REMOVED_MESSAGE = 'Message removed';
+export const REMOVED_DISCUSSION = 'Removed discussion';
+
+/** Display title: the backend scrubs a deleted user's title to empty, so
+ *  an empty title can only mean "removed" (titles are required on create). */
+export function displayThreadTitle(title: string): string {
+  return title.trim().length > 0 ? title : REMOVED_DISCUSSION;
 }
 
 /** A chat search hit: a thread title/opening-post match or a reply match. */

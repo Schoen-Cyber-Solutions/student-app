@@ -31,6 +31,7 @@ import {
   ThreadMessage,
   chatAttachmentSource,
   communityDisplayName,
+  displayThreadTitle,
   getThread,
   postThreadMessage,
   deleteThread,
@@ -234,6 +235,7 @@ export default function ThreadDetailScreen() {
                 authorUsername={thread.authorUsername}
                 createdAt={thread.createdAt}
                 body={openingPost?.body ?? ''}
+                removed={openingPost?.removed}
                 attachment={openingPost?.attachment}
                 onPressImage={(attachment) =>
                   setViewingImage({ attachment, isAuthor: thread.isAuthor })
@@ -269,8 +271,8 @@ export default function ThreadDetailScreen() {
                   onPressImage={(attachment) =>
                     setViewingImage({ attachment, isAuthor: reply.isAuthor })
                   }
-                  onLongPress={() => openReplyMenu(reply)}
-                  onOptions={() => openReplyMenu(reply)}
+                  onLongPress={reply.removed ? undefined : () => openReplyMenu(reply)}
+                  onOptions={reply.removed ? undefined : () => openReplyMenu(reply)}
                 />
               ))}
             </GlassPanel>
@@ -288,7 +290,7 @@ export default function ThreadDetailScreen() {
             while loading. Left-aligned, truncates with ellipsis. */}
         <AppHeader
           safeAreaTop
-          greeting={thread?.title ?? (community ? communityDisplayName(community) : 'Thread')}
+          greeting={thread ? displayThreadTitle(thread.title) : (community ? communityDisplayName(community) : 'Thread')}
           backLabel="Back"
           accent={accent}
         />

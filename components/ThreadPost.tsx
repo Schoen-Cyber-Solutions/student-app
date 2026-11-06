@@ -5,13 +5,16 @@ import { radius, spacing, typography } from '@/constants/Theme';
 import { useThemedColors } from './TabTextMode';
 import { relativeTime } from '@/utils/time';
 import AttachedImage from './AttachedImage';
-import type { MessageAttachment } from '@/services/api/communities';
+import { displayThreadTitle, REMOVED_MESSAGE, type MessageAttachment } from '@/services/api/communities';
 
 interface ThreadPostProps {
   title: string;
   authorUsername: string;
   createdAt: string;
   body: string;
+  /** True when the opening post's author removed it or deleted their
+   *  account — the body is empty and a neutral placeholder renders. */
+  removed?: boolean;
   attachment?: MessageAttachment | null;
   onPressImage?: (attachment: MessageAttachment) => void;
   /** Shown only when the current user authored the thread. */
@@ -20,12 +23,12 @@ interface ThreadPostProps {
   onOptions?: () => void;
 }
 
-export default function ThreadPost({ title, authorUsername, createdAt, body, attachment, onPressImage, onDelete, onOptions }: ThreadPostProps) {
+export default function ThreadPost({ title, authorUsername, createdAt, body, removed, attachment, onPressImage, onDelete, onOptions }: ThreadPostProps) {
   const colors = useThemedColors();
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{displayThreadTitle(title)}</Text>
       <View style={styles.metaRow}>
         <Text style={[styles.author, { color: colors.secondaryText }]}>
           {authorUsername} · {relativeTime(createdAt)}
@@ -58,7 +61,11 @@ export default function ThreadPost({ title, authorUsername, createdAt, body, att
           </Pressable>
         )}
       </View>
-      {body.length > 0 && <Text style={[styles.body, { color: colors.text }]}>{body}</Text>}
+      {removed ? (
+        <Text style={[styles.body, styles.removed, { color: colors.mutedText }]}>{REMOVED_MESSAGE}</Text>
+      ) : (
+        body.length > 0 && <Text style={[styles.body, { color: colors.text }]}>{body}</Text>
+      )}
       {attachment && (
         <AttachedImage attachment={attachment} onPress={onPressImage} style={styles.attachment} />
       )}
@@ -95,6 +102,9 @@ const styles = StyleSheet.create({
     ...typography.bodyRegular,
     fontSize: 15,
     lineHeight: 22,
+  },
+  removed: {
+    fontStyle: 'italic',
   },
   attachment: {
     marginTop: spacing.sm,

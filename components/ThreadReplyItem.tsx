@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { MessageAttachment, ThreadMessage } from '@/services/api/communities';
+import { MessageAttachment, REMOVED_MESSAGE, ThreadMessage } from '@/services/api/communities';
 import { Text } from './Themed';
 import { glassColors, readableAccent } from '@/constants/Glass';
 import { radius, spacing, typography } from '@/constants/Theme';
@@ -70,8 +70,12 @@ export default function ThreadReplyItem({ reply, onLongPress, onOptions, accent,
           )}
         </View>
       </View>
-      {reply.body.length > 0 && (
-        <Text style={[styles.body, { color: colors.text }]}>{reply.body}</Text>
+      {reply.removed ? (
+        <Text style={[styles.body, styles.removed, { color: colors.mutedText }]}>{REMOVED_MESSAGE}</Text>
+      ) : (
+        reply.body.length > 0 && (
+          <Text style={[styles.body, { color: colors.text }]}>{reply.body}</Text>
+        )
       )}
       {reply.attachment && (
         <AttachedImage attachment={reply.attachment} onPress={onPressImage} style={styles.attachment} />
@@ -111,6 +115,9 @@ const styles = StyleSheet.create({
     ...typography.bodyRegular,
     fontSize: 15,
     lineHeight: 20,
+  },
+  removed: {
+    fontStyle: 'italic',
   },
   attachment: {
     marginTop: spacing.sm,
