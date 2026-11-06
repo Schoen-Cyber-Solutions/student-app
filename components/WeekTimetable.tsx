@@ -46,7 +46,6 @@ interface WeekTimetableProps {
   /** Fired when a swipe settles on a different week page. */
   onWeekChange?: (weekStart: Date) => void;
   onSelectCourse?: (course: Course) => void;
-  onCourseLongPress?: (course: Course) => void;
   onSelectDay?: (date: Date) => void;
   onGoToToday?: () => void;
   /** User-configured visible window, minutes after midnight. The whole
@@ -65,7 +64,6 @@ export default function WeekTimetable({
   weekStart,
   onWeekChange,
   onSelectCourse,
-  onCourseLongPress,
   onSelectDay,
   onGoToToday,
   startMin,
@@ -289,27 +287,14 @@ export default function WeekTimetable({
                       styles.dayCol,
                       {
                         flex: colWeight(date),
-                        borderLeftColor: colors.glassBorder,
                         backgroundColor: isToday
                           ? colors.accentSoft
                           : undefined,
                       },
                     ]}>
-                    {/* Hour grid lines — one per boundary tick plus the
-                        closing line at the bottom edge (endMin). */}
-                    {gridHeight > 0 &&
-                      [...hourTicks.map((h) => h * 60), endMin].map((boundary) => (
-                        <View
-                          key={boundary}
-                          style={[
-                            styles.hourLine,
-                            {
-                              top: (boundary - startMin) * pxPerMinute,
-                              borderBottomColor: colors.glassBorder,
-                            },
-                          ]}
-                        />
-                      ))}
+                    {/* Decorative hour grid lines removed — they rendered
+                        inconsistently across themes/densities. Event
+                        geometry is independent of them. */}
 
                     {/* Course blocks — clamped into the configured window so
                         out-of-range events surface as edge slivers instead of
@@ -359,7 +344,6 @@ export default function WeekTimetable({
                                 : undefined
                             }
                             onPress={(c) => onSelectCourse?.(c)}
-                            onLongPress={(c) => onCourseLongPress?.(c)}
                           />
                         );
                       })}
@@ -632,7 +616,6 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   dayCol: {
-    borderLeftWidth: StyleSheet.hairlineWidth,
     position: 'relative',
   },
   dayHeaderPress: {
@@ -662,12 +645,6 @@ const styles = StyleSheet.create({
   },
   gridPanel: {
     flex: 1,
-  },
-  hourLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   gutterLabel: {
     position: 'absolute',

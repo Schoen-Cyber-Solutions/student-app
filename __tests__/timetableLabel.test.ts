@@ -241,6 +241,38 @@ describe('timetable labels — fit-checked time lines', () => {
     expect(l.showEndLine).toBe(true);
   });
 
+  it('compacts spaced course codes before dropping them', () => {
+    // 'CSIA 301' = 8×6=48 > 44 usable → compact 'CSIA301' = 42 fits.
+    const l = computeBlockLabels(
+      base({ name: 'CSIA 301 Systems Analysis', code: 'CSIA 301' }),
+      TALL, true, undefined, 44,
+    );
+    expect(l.code).toBe('CSIA301');
+  });
+
+  it('prefers the full spaced code whenever it fits', () => {
+    const l = computeBlockLabels(
+      base({ name: 'CSIA 301 Systems Analysis', code: 'CSIA 301' }),
+      TALL, true, undefined, 50,
+    );
+    expect(l.code).toBe('CSIA 301');
+  });
+
+  it('micro mode also tries the compact code before the title word', () => {
+    // 'CSIA-301' → 'CSIA301' = 42px > 40: no code fits → first title word.
+    const l = computeBlockLabels(
+      base({ name: 'CSIA-301 AI Systems', code: 'CSIA-301' }),
+      TALL, true, undefined, 40,
+    );
+    expect(l.microLabel).toBe('AI');
+    // 'BIO-101' → 'BIO101' = 36 ≤ 40 → compact code wins micro mode.
+    const l2 = computeBlockLabels(
+      base({ name: 'BIO-101 Genetics', code: 'BIO-101' }),
+      TALL, true, undefined, 40,
+    );
+    expect(l2.microLabel).toBe('BIO101');
+  });
+
   it('compactTimeLabel produces atomic micro times', () => {
     expect(compactTimeLabel('5:00 PM')).toBe('5P');
     expect(compactTimeLabel('11:30 AM')).toBe('11:30A');

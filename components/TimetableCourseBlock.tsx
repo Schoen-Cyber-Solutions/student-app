@@ -24,7 +24,6 @@ interface TimetableCourseBlockProps {
    *  rendered (e.g. 'Laker Event'). Never mutates the stored title. */
   fallbackTitle?: string;
   onPress?: (course: Course) => void;
-  onLongPress?: (course: Course) => void;
 }
 
 export default function TimetableCourseBlock({
@@ -37,7 +36,6 @@ export default function TimetableCourseBlock({
   blockWidthPx,
   fallbackTitle,
   onPress,
-  onLongPress,
 }: TimetableCourseBlockProps) {
   const isPointInTime = !course.endTime && !course.isCluster;
   // Personal and saved Laker Connect events stack start/end on separate
@@ -75,8 +73,6 @@ export default function TimetableCourseBlock({
         },
       ]}
       onPress={() => onPress?.(course)}
-      onLongPress={() => onLongPress?.(course)}
-      delayLongPress={850}
       accessibilityLabel={`${course.name}, ${course.startTime}${
         course.endTime ? ` to ${course.endTime}` : ''
       }${course.location ? `, ${course.location}` : ''}`}

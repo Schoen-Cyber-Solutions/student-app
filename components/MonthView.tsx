@@ -32,7 +32,6 @@ interface MonthViewProps {
   onNextMonth: () => void;
   onGoToToday: () => void;
   onSelectEvent: (event: MyCalendarEvent) => void;
-  onEventLongPress?: (event: MyCalendarEvent) => void;
 }
 
 // Monday-first, matching monthGridRows (gridStart = getMondayOfWeek).
@@ -54,7 +53,6 @@ export default function MonthView({
   onNextMonth,
   onGoToToday,
   onSelectEvent,
-  onEventLongPress,
 }: MonthViewProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = glassColors(scheme, useCalendarAccent(), useTextMode());
@@ -301,8 +299,6 @@ export default function MonthView({
               <Pressable
                 key={event.id}
                 onPress={() => onSelectEvent(event)}
-                onLongPress={() => onEventLongPress?.(event)}
-                delayLongPress={850}
                 style={({ pressed }) => [
                   styles.eventCard,
                   {

@@ -6,25 +6,19 @@ import { useColorScheme } from './useColorScheme';
 import Colors from '@/constants/Colors';
 import { radius, spacing } from '@/constants/Theme';
 import WheelPicker from './WheelPicker';
+import { HOURS12, to24 } from '@/utils/timeWheel';
 
 export interface TimeValue {
   hour24: number; // 0-23
   minute: number; // 0-59
 }
 
-const HOURS12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 const MERIDIEM = ['AM', 'PM'];
 
 export function formatTimeValue(t: TimeValue): string {
   const h12 = t.hour24 % 12 === 0 ? 12 : t.hour24 % 12;
   return `${h12}:${String(t.minute).padStart(2, '0')} ${t.hour24 < 12 ? 'AM' : 'PM'}`;
-}
-
-/** Convert a wheel selection to 24h. */
-function to24(hourIndex: number, meridiemIndex: number): number {
-  const h12 = HOURS12[hourIndex];
-  return (h12 % 12) + (meridiemIndex === 1 ? 12 : 0);
 }
 
 interface TimeWheelFieldProps {

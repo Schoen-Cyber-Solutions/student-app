@@ -29,7 +29,6 @@ interface DayViewProps {
   selectedDate: Date;
   courses: Course[];
   onSelectCourse: (course: Course) => void;
-  onCourseLongPress?: (course: Course) => void;
   onPreviousDay: () => void;
   onNextDay: () => void;
   onGoToToday?: () => void;
@@ -51,7 +50,6 @@ export default function DayView({
   selectedDate,
   courses,
   onSelectCourse,
-  onCourseLongPress,
   onPreviousDay,
   onNextDay,
   onGoToToday,
@@ -65,8 +63,7 @@ export default function DayView({
   const rangeMin = endMin - startMin;
   const pxPerMinute = HOUR_HEIGHT / 60;
   const timelineHeight = rangeMin * pxPerMinute;
-  // Hour labels + grid lines at each whole-hour boundary inside the window,
-  // plus the closing line at the bottom edge (endMin).
+  // Hour labels at each whole-hour boundary inside the window.
   const hourTicks = timelineHourTicks(startMin, endMin);
 
   // Each page's ScrollView opens around 9 AM. Slot-keyed pages keep their
@@ -123,24 +120,15 @@ export default function DayView({
             ))}
           </View>
 
-          {/* Day column — hour grid lines plus duration-positioned blocks. */}
+          {/* Day column — duration-positioned blocks; the decorative
+              hour grid lines were removed after they rendered
+              inconsistently across themes/densities. Event geometry
+              doesn't depend on them. */}
           <View
             style={[
               styles.dayColumn,
-              { borderLeftColor: colors.glassBorder, height: timelineHeight },
+              { height: timelineHeight },
             ]}>
-            {[...hourTicks.map((h) => h * 60), endMin].map((boundary) => (
-              <View
-                key={boundary}
-                style={[
-                  styles.hourLine,
-                  {
-                    top: (boundary - startMin) * pxPerMinute,
-                    borderBottomColor: colors.glassBorder,
-                  },
-                ]}
-              />
-            ))}
             {dayCourses.map((course) => {
               const span = eventBlockSpan(course.startTime, course.endTime, startMin / 60, endMin / 60);
               if (!span) return null;
@@ -157,7 +145,6 @@ export default function DayView({
                   widthPercent={widthPercent}
                   leftPercent={leftPercent}
                   onPress={onSelectCourse}
-                  onLongPress={onCourseLongPress}
                 />
               );
             })}
@@ -407,13 +394,6 @@ const styles = StyleSheet.create({
   dayColumn: {
     flex: 1,
     position: 'relative',
-    borderLeftWidth: StyleSheet.hairlineWidth,
     marginRight: spacing.sm,
-  },
-  hourLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
 });

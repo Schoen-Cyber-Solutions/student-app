@@ -68,6 +68,9 @@ interface CourseDetailOverlayProps {
   onClose: () => void;
   /** Called after the course association changes so parents can refetch. */
   onEventChanged?: () => void;
+  /** Personal events only: routes to the editor. The parent owns the
+   *  navigation so it can preserve its navigation state. */
+  onEditPersonal?: (event: MyCalendarEvent) => void;
 }
 
 export default function CourseDetailOverlay({
@@ -75,6 +78,7 @@ export default function CourseDetailOverlay({
   event,
   onClose,
   onEventChanged,
+  onEditPersonal,
 }: CourseDetailOverlayProps) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const textMode = useTextMode();
@@ -257,6 +261,40 @@ export default function CourseDetailOverlay({
       .then(() => onEventChanged?.())
       .catch(() => Alert.alert('Could not update', 'Please try again.'))
       .finally(() => setSaving(false));
+  };
+
+  // Personal events: Edit/Delete live in the sheet (the old long-press
+  // action sheet was undiscoverable). Series get occurrence-scoped +
+  // whole-series delete; one-time events a plain delete. Edits always
+  // apply to the whole series — per-occurrence overrides aren't stored.
+  const isPersonal = event?.provider === 'personal';
+  const isSeries = !!event?.recurrence || !!event?.seriesId;
+
+  const handleDeletePersonal = (scope: 'all' | 'this') => {
+    if (!event || saving) return;
+    Alert.alert(
+      isSeries && scope === 'all' ? 'Delete this series?' : 'Delete this event?',
+      isSeries && scope === 'all'
+        ? 'This event repeats — deleting removes the whole series.'
+        : undefined,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setSaving(true);
+            deletePersonalEvent(event.id, scope)
+              .then(() => {
+                onEventChanged?.();
+                onClose();
+              })
+              .catch(() => Alert.alert('Delete failed', 'Could not delete the event. Please try again.'))
+              .finally(() => setSaving(false));
+          },
+        },
+      ],
+    );
   };
 
   const handleOpenLink = (url: string) => {
@@ -514,6 +552,61 @@ export default function CourseDetailOverlay({
                   <SymbolView name="calendar.badge.minus" tintColor={colors.urgent} size={16} />
                   <Text style={[styles.rowText, { color: colors.urgent }]}>
                     Remove from Calendar
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {isPersonal && onEditPersonal ? (
+                <Pressable
+                  onPress={() => {
+                    onClose();
+                    onEditPersonal(event);
+                  }}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.courseRow,
+                    { backgroundColor: rowFill },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit event">
+                  <SymbolView name="pencil" tintColor={colors.accent} size={16} />
+                  <Text style={[styles.rowText, { color: colors.accent }]}>Edit Event</Text>
+                </Pressable>
+              ) : null}
+
+              {isPersonal && isSeries ? (
+                <Pressable
+                  onPress={() => handleDeletePersonal('this')}
+                  disabled={saving}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.courseRow,
+                    { backgroundColor: rowFill },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete this event">
+                  <SymbolView name="calendar.badge.minus" tintColor={colors.urgent} size={16} />
+                  <Text style={[styles.rowText, { color: colors.urgent }]}>Delete This Event</Text>
+                </Pressable>
+              ) : null}
+
+              {isPersonal ? (
+                <Pressable
+                  onPress={() => handleDeletePersonal('all')}
+                  disabled={saving}
+                  style={({ pressed }) => [
+                    styles.row,
+                    styles.courseRow,
+                    { backgroundColor: rowFill },
+                    pressed && { opacity: 0.7 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={isSeries ? 'Delete series' : 'Delete event'}>
+                  <SymbolView name="trash" tintColor={colors.urgent} size={16} />
+                  <Text style={[styles.rowText, { color: colors.urgent }]}>
+                    {isSeries ? 'Delete Series' : 'Delete Event'}
                   </Text>
                 </Pressable>
               ) : null}

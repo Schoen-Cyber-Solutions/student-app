@@ -74,6 +74,10 @@ export default function WheelPicker<T>({
         showsVerticalScrollIndicator={false}
         snapToInterval={itemHeight}
         decelerationRate="fast"
+        // Bounded wheel: iOS bounce / Android glow could fling the
+        // selection band into the empty padding rows and settle there.
+        bounces={false}
+        overScrollMode="never"
         nestedScrollEnabled
         onMomentumScrollEnd={(e) => settle(e.nativeEvent.contentOffset.y)}
         onScrollEndDrag={(e) => {

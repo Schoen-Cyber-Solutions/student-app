@@ -110,6 +110,11 @@ export function computeBlockLabels(
   const userAdded = !!(course.isPersonal || course.isCampusEvent);
   const knownCode = course.code && course.code.trim().length >= 2 ? course.code.trim() : '';
   const displayCode = userAdded ? '' : extractRecognizableCode(course.name, knownCode);
+  // Compact variant for narrow Week columns: the full identifier wins, but
+  // "CSIA 301" → "CSIA301" reclaims a whole separator's width before we
+  // give up on the code entirely. Never a partial/truncated code.
+  const compactCode = displayCode.replace(/[\s-]+/g, '');
+  const codeFits = (text: string) => fitsWhole(text, usableWidthPx ?? Number.POSITIVE_INFINITY);
   const shortName = userAdded
     ? course.name.trim()
     : displayCode
@@ -130,6 +135,7 @@ export function computeBlockLabels(
       .filter(Boolean);
     const candidates = [
       displayCode,
+      compactCode,
       titleTokens[0] ?? '',
       compactTimeLabel(course.startTime),
     ];
@@ -177,8 +183,19 @@ export function computeBlockLabels(
   // line can't render (too-short block) the fallback label takes this
   // lower threshold so the block still identifies itself.
   const codeFromFallback = !displayCode && !canShowName && fallbackText.length > 0;
-  const codeText = displayCode || (codeFromFallback ? fallbackText : '');
-  const code = height >= (compact ? 22 : 30) && fitsWhole(codeText, usable)
+  // Prefer the full spaced identifier; fall back to the compact form when
+  // the column can hold it but not the spaced one.
+  const codeText =
+    displayCode && codeFits(displayCode)
+      ? displayCode
+      : displayCode && codeFits(compactCode)
+        ? compactCode
+        : displayCode
+          ? ''
+          : codeFromFallback
+            ? fallbackText
+            : '';
+  const code = height >= (compact ? 22 : 30) && codeFits(codeText)
     ? codeText
     : '';
   const codeIsFallback = codeFromFallback && code.length > 0;

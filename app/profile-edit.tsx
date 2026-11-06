@@ -9,6 +9,13 @@ import { spacing, typography } from '@/constants/Theme';
 import { getMe, updateProfile, UpdateProfileBody, UsernamePolicy } from '@/services/api/me';
 import { toApiError } from '@/services/api/client';
 import { parseBirthday } from '@/utils/birthday';
+import {
+  applyDayInput,
+  applyMonthInput,
+  maxDayForMonth,
+  normalizeDayOnBlur,
+  normalizeMonthOnBlur,
+} from '@/utils/birthdayInput';
 
 const ACADEMIC_YEARS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'Other'];
 
@@ -174,10 +181,11 @@ export default function ProfileEditScreen() {
               ref={monthInputRef}
               value={month}
               onChangeText={(text) => {
-                const digits = text.replace(/\D/g, '');
-                setMonth(digits);
-                if (digits.length === 2) dayInputRef.current?.focus();
+                const next = applyMonthInput(month, text);
+                setMonth(next.value);
+                if (next.advance) dayInputRef.current?.focus();
               }}
+              onBlur={() => setMonth(normalizeMonthOnBlur)}
               placeholder="MM"
               accessibilityLabel="Birthday month"
               keyboardType="number-pad"
@@ -189,7 +197,8 @@ export default function ProfileEditScreen() {
             <TextInput
               ref={dayInputRef}
               value={day}
-              onChangeText={(text) => setDay(text.replace(/\D/g, ''))}
+              onChangeText={(text) => setDay(applyDayInput(day, text, maxDayForMonth(month)).value)}
+              onBlur={() => setDay(normalizeDayOnBlur)}
               onKeyPress={({ nativeEvent }) => {
                 if (nativeEvent.key === 'Backspace' && day === '') {
                   monthInputRef.current?.focus();

@@ -12,6 +12,13 @@ import { getMe, getMyUniversity, setupProfile, UserProfile } from '@/services/ap
 import { clearSessionToken } from '@/services/auth/devSession';
 import { toApiError } from '@/services/api/client';
 import { parseBirthday } from '@/utils/birthday';
+import {
+  applyDayInput,
+  applyMonthInput,
+  maxDayForMonth,
+  normalizeDayOnBlur,
+  normalizeMonthOnBlur,
+} from '@/utils/birthdayInput';
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{3,32}$/;
 
@@ -154,6 +161,9 @@ export default function SetupScreen() {
             ]}
             placeholderTextColor={colors.mutedText}
           />
+          <Text style={[styles.hint, { color: colors.mutedText }]}>
+            Your username doesn't have to be your real name. Choose a nickname, your pet's name, or a favorite character.
+          </Text>
 
           <Text style={[styles.label, { color: colors.secondaryText }]}>First name</Text>
           <TextInput
@@ -174,10 +184,11 @@ export default function SetupScreen() {
               ref={monthInputRef}
               value={month}
               onChangeText={(text) => {
-                const digits = text.replace(/\D/g, '');
-                setMonth(digits);
-                if (digits.length === 2) dayInputRef.current?.focus();
+                const next = applyMonthInput(month, text);
+                setMonth(next.value);
+                if (next.advance) dayInputRef.current?.focus();
               }}
+              onBlur={() => setMonth(normalizeMonthOnBlur)}
               placeholder="MM"
               accessibilityLabel="Birthday month"
               keyboardType="number-pad"
@@ -189,7 +200,8 @@ export default function SetupScreen() {
             <TextInput
               ref={dayInputRef}
               value={day}
-              onChangeText={(text) => setDay(text.replace(/\D/g, ''))}
+              onChangeText={(text) => setDay(applyDayInput(day, text, maxDayForMonth(month)).value)}
+              onBlur={() => setDay(normalizeDayOnBlur)}
               onKeyPress={({ nativeEvent }) => {
                 if (nativeEvent.key === 'Backspace' && day === '') {
                   monthInputRef.current?.focus();
@@ -263,6 +275,12 @@ const styles = StyleSheet.create({
     ...typography.label,
     fontSize: 13,
     marginBottom: spacing.xs,
+  },
+  hint: {
+    ...typography.caption,
+    fontSize: 12,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
   },
   input: {
     height: 48,

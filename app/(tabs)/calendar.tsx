@@ -19,7 +19,7 @@ import { useTabAppearance } from '@/utils/tabAppearanceStore';
 import { glassColors } from '@/constants/Glass';
 import { Course } from '@/types';
 import { useMyCalendar } from '@/hooks/useMyCalendar';
-import { CALENDAR_VIEW_PROVIDERS, MyCalendarEvent, deletePersonalEvent } from '@/services/api/calendar';
+import { CALENDAR_VIEW_PROVIDERS, MyCalendarEvent } from '@/services/api/calendar';
 import { getCalendarStatus, getPreferences } from '@/services/api/me';
 import { useCourseColors } from '@/hooks/useCourseColors';
 import {
@@ -31,7 +31,6 @@ import {
   formatTime12,
 } from '@/utils/time';
 import { eventColor, toTimetableCourse } from '@/utils/timetableCourse';
-import { displayEventTitle } from '@/utils/eventTitle';
 import {
   applyDayChange,
   applyMonthSelect,
@@ -218,122 +217,19 @@ function CalendarScreenContent() {
   // Explicit date tap in Month: Month-internal selection only.
   const selectMonthDate = (date: Date) => setCursors((c) => applyMonthSelect(c, date));
 
+  // Every event tap opens the detail sheet — personal events reach
+  // Edit/Delete/Series actions inside it (the old long-press action
+  // sheet was undiscoverable and is gone).
   const handleSelectEvent = (event: MyCalendarEvent) => {
-    if (event.provider === 'personal') {
-      suppressResetRef.current = true;
-      router.push({
-        pathname: '/calendar-event',
-        params: { id: event.id, date: event.startAt },
-      });
-    } else {
-      setSelectedEventId(event.id);
-    }
+    setSelectedEventId(event.id);
   };
 
-  /** Long-press action menu on a personal event (Week/Day blocks, Month
-   *  agenda). Short taps keep their existing behavior — this only fires on
-   *  an explicit ~850ms hold. Recurring events get scoped delete options;
-   *  edits always apply to the whole series (per-occurrence overrides
-   *  aren't stored — documented limitation). */
-  const handleEventLongPress = (event: MyCalendarEvent) => {
-    // Saved Laker Connect copies are removable (the discovery event is
-    // untouched) but never editable — no personal-event options.
-    if (event.provider === 'laker_connect') {
-      const remove = () =>
-        Alert.alert('Remove from Calendar?', 'The event stays in Laker Connect.', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Remove',
-            style: 'destructive',
-            onPress: () => {
-              deletePersonalEvent(event.id).catch(() => {
-                Alert.alert('Could not remove event', 'Please try again.');
-              });
-            },
-          },
-        ]);
-      if (Platform.OS === 'ios') {
-        ActionSheetIOS.showActionSheetWithOptions(
-          { options: ['Remove from Calendar', 'Cancel'], cancelButtonIndex: 1, destructiveButtonIndex: 0, title: displayEventTitle(event.title) },
-          (index) => { if (index === 0) remove(); },
-        );
-      } else {
-        remove();
-      }
-      return;
-    }
-    if (event.provider !== 'personal') return;
-    const isSeries = !!event.recurrence || !!event.seriesId;
-
-    const openEditor = () => {
-      suppressResetRef.current = true;
-      router.push({
-        pathname: '/calendar-event',
-        params: { id: event.id, date: event.startAt },
-      });
-    };
-
-    const confirmDelete = (scope: 'all' | 'this') => {
-      Alert.alert(
-        isSeries && scope === 'all' ? 'Delete this series?' : 'Delete this event?',
-        isSeries && scope === 'all'
-          ? `"${displayEventTitle(event.title)}" repeats — deleting removes the whole series.`
-          : undefined,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: () => {
-              deletePersonalEvent(event.id, scope).catch(() => {
-                Alert.alert('Delete failed', 'Could not delete the event. Please try again.');
-              });
-            },
-          },
-        ],
-      );
-    };
-
-    // Recurring series: occurrence-scoped delete + whole-series delete.
-    // One-time events get a plain delete — no series options.
-    const options = isSeries
-      ? ['Edit', 'Delete This Event', 'Delete Series', 'Cancel']
-      : ['Edit', 'Delete', 'Cancel'];
-    const cancelIndex = options.length - 1;
-
-    const onPick = (index: number) => {
-      if (index === 0) openEditor();
-      else if (isSeries) {
-        if (index === 1) confirmDelete('this');
-        else if (index === 2) confirmDelete('all');
-      } else if (index === 1) confirmDelete('all');
-    };
-
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          options,
-          cancelButtonIndex: cancelIndex,
-          destructiveButtonIndex: isSeries ? [1, 2] : 1,
-          title: displayEventTitle(event.title),
-        },
-        onPick,
-      );
-    } else {
-      Alert.alert(displayEventTitle(event.title), undefined, [
-        { text: 'Edit', onPress: openEditor },
-        ...(isSeries
-          ? [{ text: 'Delete This Event', style: 'destructive' as const, onPress: () => confirmDelete('this') }]
-          : []),
-        { text: isSeries ? 'Delete Series' : 'Delete', style: 'destructive' as const, onPress: () => confirmDelete('all') },
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
-    }
-  };
-
-  const handleCourseLongPress = (course: Course) => {
-    const event = events.find((e) => e.id === course.id);
-    if (event) handleEventLongPress(event);
+  const handleEditPersonal = (event: MyCalendarEvent) => {
+    suppressResetRef.current = true;
+    router.push({
+      pathname: '/calendar-event',
+      params: { id: event.id, date: event.startAt },
+    });
   };
 
   // Switching views restores each view's own last position — cursors are
@@ -439,7 +335,6 @@ function CalendarScreenContent() {
                   endMin={calendarRange.endMin}
                   onWeekChange={(ws) => setCursors((c) => applyWeekChange(c, ws))}
                   onSelectCourse={(c) => setSelectedEventId(c.id)}
-                  onCourseLongPress={handleCourseLongPress}
                   onSelectDay={openDay}
                   onGoToToday={goToToday}
                 />
@@ -491,7 +386,6 @@ function CalendarScreenContent() {
                   startMin={calendarRange.startMin}
                   endMin={calendarRange.endMin}
                   onSelectCourse={(c) => setSelectedEventId(c.id)}
-                  onCourseLongPress={handleCourseLongPress}
                   onPreviousDay={goToPrevDay}
                   onNextDay={goToNextDay}
                   onGoToToday={goToToday}
@@ -534,7 +428,6 @@ function CalendarScreenContent() {
                 onNextMonth={() => shiftMonth(1)}
                 onGoToToday={goToToday}
                 onSelectEvent={handleSelectEvent}
-                onEventLongPress={handleEventLongPress}
               />
             )}
 
@@ -565,6 +458,7 @@ function CalendarScreenContent() {
         event={selectedEvent}
         onClose={() => setSelectedEventId(null)}
         onEventChanged={refresh}
+        onEditPersonal={handleEditPersonal}
       />
 
       {/* Floating add button — draggable, persists its position. */}
